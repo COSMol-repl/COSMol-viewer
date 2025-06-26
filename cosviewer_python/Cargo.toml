@@ -11,6 +11,9 @@ glam.workspace = true
 egui_extras.workspace = true
 wasm-bindgen = "0.2.100"
 base64 = "0.22.1"
+uuid = { version = "1.17.0", features = [
+    "v4",
+]}
 
 [lib]
 name = "cosviewer"
