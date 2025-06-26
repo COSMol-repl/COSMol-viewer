@@ -1,0 +1,17 @@
+[package]
+name = "cosviewer_python"
+version.workspace = true
+edition = "2024"
+
+[dependencies]
+cosviewer_core.workspace = true
+pyo3 = { version = "0.25.1", features = ["extension-module"] }
+eframe.workspace = true
+glam.workspace = true
+egui_extras.workspace = true
+wasm-bindgen = "0.2.100"
+base64 = "0.22.1"
+
+[lib]
+name = "cosviewer"
+crate-type = ["cdylib"]

@@ -1,0 +1,9 @@
+[package]
+name = "cosviewer_core"
+version.workspace = true
+edition = "2024"
+
+[dependencies]
+eframe.workspace = true
+glam.workspace = true
+egui_extras.workspace = true

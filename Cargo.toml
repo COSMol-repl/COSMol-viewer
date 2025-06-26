@@ -1,0 +1,19 @@
+[workspace.package]
+edition = "2024"
+version = "0.1.0"
+
+[workspace]
+resolver = "2"
+members = [
+    "cosviewer_core", 
+    "cosviewer_python",
+    "cosviewer_wasm",
+    "examples/*",
+    ]
+
+
+[workspace.dependencies]
+cosviewer_core = { path = "cosviewer_core" }
+eframe = { version = "0.31.1"}
+egui_extras = { version = "0.31.1", features = ["svg"] }
+glam = "0.30.3"

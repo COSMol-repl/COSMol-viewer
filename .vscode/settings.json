@@ -1,0 +1,5 @@
+{
+  "rust-analyzer.cargo.extraEnv": {
+    "PYO3_PYTHON": "C:\\Users\\95028\\.conda\\envs\\BIO\\python.exe"
+  }
+}

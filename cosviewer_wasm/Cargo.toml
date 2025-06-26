@@ -1,0 +1,20 @@
+[package]
+name = "cosviewer_wasm"
+version.workspace = true
+edition = "2024"
+
+[dependencies]
+cosviewer_core.workspace = true
+eframe.workspace = true
+glam.workspace = true
+egui_extras.workspace = true
+wasm-bindgen = "0.2.100"
+web-sys = { version = "0.3.77", features = ["HtmlCanvasElement"] }
+log = "0.4.27"
+wasm-bindgen-futures = "0.4.50"
+
+[lib]
+crate-type = ["cdylib"]
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
