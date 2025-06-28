@@ -5,15 +5,15 @@ version = "0.1.0"
 [workspace]
 resolver = "2"
 members = [
-    "cosviewer_core", 
-    "cosviewer_python",
-    "cosviewer_wasm",
-    "examples/*",
+    "cosmol_viewer_core", 
+    "cosmol_viewer_python",
+    "cosmol_viewer_wasm",
+    "examples/rust",
     ]
 
 
 [workspace.dependencies]
-cosviewer_core = { path = "cosviewer_core" }
+cosmol_viewer_core = { path = "cosmol_viewer_core" }
 eframe = { version = "0.31.1"}
 egui_extras = { version = "0.31.1", features = ["svg"] }
 glam = { version = "0.30.3" , features = ["serde"] }

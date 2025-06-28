@@ -1,4 +1,4 @@
-use cosviewer_core::{self, EguiRender, Scene};
+use cosmol_viewer_core::{self, EguiRender, Scene};
 #[cfg(target_arch = "wasm32")]
 use eframe::WebRunner;
 use wasm_bindgen::prelude::*;

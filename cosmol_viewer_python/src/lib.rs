@@ -1,5 +1,5 @@
 use base64::Engine as _;
-use cosviewer_core::{EguiRender, utils::VisualShape};
+use cosmol_viewer_core::{EguiRender, utils::VisualShape};
 use eframe::{
     NativeOptions,
     egui::{Vec2, ViewportBuilder},
@@ -7,14 +7,9 @@ use eframe::{
 use pyo3::{ffi::c_str, prelude::*};
 use uuid::Uuid;
 
-// #[pyclass]
-// struct CosViewer {
-//     inner: CosViewerCore,
-// }
-
 #[pyclass]
 pub struct Scene {
-    inner: cosviewer_core::Scene,
+    inner: cosmol_viewer_core::Scene,
 }
 
 #[pymethods]
@@ -22,7 +17,7 @@ impl Scene {
     #[staticmethod]
     pub fn create_viewer() -> Self {
         Self {
-            inner: cosviewer_core::Scene::create_viewer(),
+            inner: cosmol_viewer_core::Scene::create_viewer(),
         }
     }
 
@@ -34,7 +29,7 @@ impl Scene {
 #[pyclass]
 #[derive(Clone)]
 pub struct Sphere {
-    inner: cosviewer_core::Sphere,
+    inner: cosmol_viewer_core::Sphere,
 }
 
 #[pymethods]
@@ -42,7 +37,7 @@ impl Sphere {
     #[new]
     pub fn new(center: [f32; 3], radius: f32) -> Self {
         Self {
-            inner: cosviewer_core::Sphere::new(center, radius),
+            inner: cosmol_viewer_core::Sphere::new(center, radius),
         }
     }
 
@@ -58,10 +53,10 @@ impl Sphere {
 }
 
 #[pyclass]
-pub struct CosViewer;
+pub struct CosmolViewer;
 
 #[pymethods]
-impl CosViewer {
+impl CosmolViewer {
     #[staticmethod]
     pub fn render(scene: &Scene, py: Python) -> PyResult<()> {
         let is_notebook = match py.eval(c_str!("get_ipython().__class__.__name__"), None, None) {
@@ -72,11 +67,11 @@ impl CosViewer {
             Err(_) => false,
         };
         if is_notebook {
-            let unique_id = format!("cosviewer_{}", Uuid::new_v4());
+            let unique_id = format!("cosmol_viewer_{}", Uuid::new_v4());
 
-            const JS_CODE: &str = include_str!("../../cosviewer_wasm/pkg/cosviewer_wasm.js");
+            const JS_CODE: &str = include_str!("../../cosmol_viewer_wasm/pkg/cosmol_viewer_wasm.js");
             const WASM_BYTES: &[u8] =
-                include_bytes!("../../cosviewer_wasm/pkg/cosviewer_wasm_bg.wasm");
+                include_bytes!("../../cosmol_viewer_wasm/pkg/cosmol_viewer_wasm_bg.wasm");
             let wasm_base64 = base64::engine::general_purpose::STANDARD.encode(WASM_BYTES);
             let js_base64 = base64::engine::general_purpose::STANDARD.encode(JS_CODE);
 
@@ -108,7 +103,7 @@ impl CosViewer {
                     const canvas = document.getElementById('{id}');
                     const app = new mod.WebHandle();
                     const sceneJson = {SCENE_JSON};
-                    console.log("Starting CosViewer with scene:", sceneJson);
+                    console.log("Starting cosmol_viewer with scene:", sceneJson);
                     await app.start_with_scene(canvas, sceneJson);
                 }});
             }})();
@@ -137,7 +132,7 @@ impl CosViewer {
             };
 
             let _ = eframe::run_native(
-                "CosViewer",
+                "cosmol_viewer",
                 native_options,
                 Box::new(|cc| Ok(Box::new(EguiRender::new(cc, &scene.inner)))),
             );
@@ -147,9 +142,9 @@ impl CosViewer {
 }
 
 #[pymodule]
-fn cosviewer(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn cosmol_viewer(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Scene>()?;
     m.add_class::<Sphere>()?;
-    m.add_class::<CosViewer>()?;
+    m.add_class::<CosmolViewer>()?;
     Ok(())
 }

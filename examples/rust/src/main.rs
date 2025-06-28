@@ -1,5 +1,5 @@
-use cosviewer_core::{self, CosViewer, Scene, Sphere};
-use cosviewer_core::utils::VisualShape;
+use cosmol_viewer_core::{self, cosmol_viewer, Scene, Sphere};
+use cosmol_viewer_core::utils::VisualShape;
 
 fn main() {
     let mut scene = Scene::create_viewer();
@@ -14,12 +14,12 @@ fn main() {
         .clickable(true);
     scene.add_spheres(sphere);
 
-    CosViewer::render(&scene);
+    cosmol_viewer::render(&scene);
 
     let sphere = Sphere::new([0.0, 0.0, 0.0], 0.7)
         .with_color([0.0, 0.0, 1.0])
         .clickable(true);
     scene.add_spheres(sphere);
 
-    CosViewer::update(&scene);
+    cosmol_viewer::update(&scene);
 }

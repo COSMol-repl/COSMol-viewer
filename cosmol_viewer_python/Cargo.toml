@@ -1,10 +1,10 @@
 [package]
-name = "cosviewer_python"
+name = "cosmol_viewer_python"
 version.workspace = true
 edition = "2024"
 
 [dependencies]
-cosviewer_core.workspace = true
+cosmol_viewer_core.workspace = true
 serde_json.workspace = true
 pyo3 = { version = "0.25.1", features = ["extension-module"] }
 eframe.workspace = true
@@ -17,5 +17,5 @@ uuid = { version = "1.17.0", features = [
 ]}
 
 [lib]
-name = "cosviewer"
+name = "cosmol_viewer"
 crate-type = ["cdylib"]

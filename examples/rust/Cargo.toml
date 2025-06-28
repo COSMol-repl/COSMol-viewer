@@ -4,7 +4,7 @@ version.workspace = true
 edition = "2024"
 
 [dependencies]
-cosviewer_core.workspace = true
+cosmol_viewer_core.workspace = true
 eframe.workspace = true
 glam.workspace = true
 egui_extras.workspace = true

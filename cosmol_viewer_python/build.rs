@@ -12,7 +12,7 @@ fn main() {
 
     // 在构建过程中调用 wasm-pack
     let status = Command::new("wasm-pack")
-        .args(["build", "../cosviewer_wasm", "--target", "web", "--out-dir", "../cosviewer_wasm/pkg"])
+        .args(["build", "../cosmol_viewer_wasm", "--target", "web", "--out-dir", "../cosmol_viewer_wasm/pkg"])
         .status()
         .expect("failed to run wasm-pack");
 

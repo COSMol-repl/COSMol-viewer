@@ -89,9 +89,9 @@ impl Scene {
     }
 }
 
-pub struct CosViewer;
+pub struct cosmol_viewer;
 
-impl CosViewer {
+impl cosmol_viewer {
     #[cfg(not(target_arch = "wasm32"))]
     pub fn render(scene: &Scene) {
         let native_options = NativeOptions {
@@ -101,13 +101,13 @@ impl CosViewer {
         };
 
         let _ = eframe::run_native(
-            "CosViewer",
+            "cosmol_viewer",
             native_options,
             Box::new(|cc| Ok(Box::new(EguiRender::new(cc, scene)))),
         );
     }
 
     pub fn update(scene: &Scene) {
-        unimplemented!("CosViewer::update is not implemented for this target");
+        unimplemented!("cosmol_viewer::update is not implemented for this target");
     }
 }

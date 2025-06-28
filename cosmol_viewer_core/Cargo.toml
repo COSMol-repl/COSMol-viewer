@@ -1,5 +1,5 @@
 [package]
-name = "cosviewer_core"
+name = "cosmol_viewer_core"
 version.workspace = true
 edition = "2024"
 

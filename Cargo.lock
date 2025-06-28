@@ -689,7 +689,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "cosviewer_core"
+name = "cosmol_viewer_core"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
@@ -700,11 +700,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "cosviewer_python"
+name = "cosmol_viewer_python"
 version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
- "cosviewer_core",
+ "cosmol_viewer_core",
  "eframe",
  "egui_extras",
  "glam",
@@ -715,10 +715,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "cosviewer_wasm"
+name = "cosmol_viewer_wasm"
 version = "0.1.0"
 dependencies = [
- "cosviewer_core",
+ "cosmol_viewer_core",
  "eframe",
  "egui_extras",
  "glam",
@@ -3029,7 +3029,7 @@ dependencies = [
 name = "test"
 version = "0.1.0"
 dependencies = [
- "cosviewer_core",
+ "cosmol_viewer_core",
  "eframe",
  "egui_extras",
  "glam",
