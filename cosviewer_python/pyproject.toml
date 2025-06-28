@@ -3,7 +3,7 @@ requires = ["setuptools>=42", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "cosviewer"
+name = "cosmolviewer"
 version = "0.1.0"
-description = "A short description of your project"
-authors = [{name = "Your Name", email = "you@example.com"}]
+description = "Molecular visualization tools"
+authors = [{name = "95028", email = "wjt@cosmol.org"}]
