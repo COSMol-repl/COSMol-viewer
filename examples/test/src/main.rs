@@ -1,17 +1,25 @@
-use cosviewer_core::{self, MyEguiApp};
-use eframe::egui::{Vec2, ViewportBuilder};
+use cosviewer_core::{self, CosViewer, Scene, Sphere};
+use cosviewer_core::utils::VisualShape;
 
 fn main() {
-    let native_options = eframe::NativeOptions {
-        viewport: ViewportBuilder::default().with_inner_size(Vec2::new(800.0, 600.0)),
-        depth_buffer: 24,
-        ..Default::default()
-    };
-    let _ = eframe::run_native(
-        "My egui App",
-        native_options,
-        Box::new(|cc| Ok(Box::new(MyEguiApp::new(cc)))),
-    );
+    let mut scene = Scene::create_viewer();
+
+    let sphere = Sphere::new([0.0, 0.3, 0.0], 0.6)
+        .with_color([0.0, 1.0, 0.0])
+        .clickable(true);
+    scene.add_spheres(sphere);
+
+    let sphere = Sphere::new([0.0, 0.0, 0.0], 0.7)
+        .with_color([0.0, 0.0, 1.0])
+        .clickable(true);
+    scene.add_spheres(sphere);
+
+    CosViewer::render(&scene);
+
+    let sphere = Sphere::new([0.0, 0.0, 0.0], 0.7)
+        .with_color([0.0, 0.0, 1.0])
+        .clickable(true);
+    scene.add_spheres(sphere);
+
+    CosViewer::update(&scene);
 }
-
-

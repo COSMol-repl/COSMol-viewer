@@ -1,5 +1,4 @@
 use std::process::Command;
-use std::env;
 
 fn main() {
     println!("cargo:warning=Building WASM in build.rs...");

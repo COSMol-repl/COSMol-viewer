@@ -16,4 +16,5 @@ members = [
 cosviewer_core = { path = "cosviewer_core" }
 eframe = { version = "0.31.1"}
 egui_extras = { version = "0.31.1", features = ["svg"] }
-glam = "0.30.3"
+glam = { version = "0.30.3" , features = ["serde"] }
+serde_json = "1.0.140"

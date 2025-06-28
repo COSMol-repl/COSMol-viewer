@@ -1,7 +1,7 @@
-import cosviewer
+from cosviewer import Scene, Sphere, CosViewer
 
-viewer = cosviewer.CosViewer()
-viewer.set_state("Hello, Rust & Python!")
-print(viewer.get_state())  # "Hello, Rust & Python!"
+scene = Scene.create_viewer()
+scene.add_spheres(Sphere([0.0, 0.3, 0.0], 0.6).with_color([0.0, 1.0, 0.0]).clickable(True))
+scene.add_spheres(Sphere([0.0, 0.0, 0.0], 0.7).with_color([0.0, 0.0, 1.0]).clickable(True))
 
-viewer.view()
+CosViewer.render(scene)
