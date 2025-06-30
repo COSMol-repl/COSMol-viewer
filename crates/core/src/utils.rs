@@ -88,6 +88,19 @@ impl Sphere {
         }
     }
 
+    pub fn set_center(&mut self, center: [f32; 3]) {
+        self.center = center;
+    }
+
+    pub fn set_radius(&mut self, radius: f32) {
+        self.radius = radius;
+    }
+
+    pub fn set_color(&mut self, color: [f32; 4]) {
+        self.style.color = Some(color[0..3].try_into().unwrap());
+        self.style.opacity = color[3];
+    }
+
     pub fn clickable(mut self, val: bool) -> Self {
         self.interaction.clickable = val;
         self

@@ -2,6 +2,7 @@
 name = "cosmol_viewer_python"
 version.workspace = true
 edition = "2024"
+publish = false
 
 [dependencies]
 cosmol_viewer_core.workspace = true
@@ -19,3 +20,4 @@ uuid = { version = "1.17.0", features = [
 [lib]
 name = "cosmol_viewer"
 crate-type = ["cdylib"]
+

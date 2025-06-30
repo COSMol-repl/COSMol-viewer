@@ -10,24 +10,22 @@ use eframe::{
 };
 use glam::{Quat, Vec3};
 
-use crate::Scene;
+use crate::SceneData;
+use crate::SharedScene;
 
 pub struct Canvas {
-    /// Behind an `Arc<Mutex<…>>` so we can pass it to [`egui::PaintCallback`] and paint later.
     shader: Arc<Mutex<Shader>>,
     camera_state: CameraState,
 }
 
 impl Canvas {
-    pub fn new<'a>(gl: Arc<eframe::glow::Context>, scene: &Scene) -> Option<Self> {
+    pub fn new<'a>(gl: Arc<eframe::glow::Context>, scene: SharedScene) -> Option<Self> {
         Some(Self {
             shader: Arc::new(Mutex::new(Shader::new(&gl, scene)?)),
             camera_state: CameraState::new(1.0),
         })
     }
-}
 
-impl Canvas {
     pub fn custom_painting(&mut self, ui: &mut egui::Ui) {
         let (rect, response) = ui.allocate_exact_size(
             egui::Vec2 {
@@ -65,6 +63,11 @@ impl Canvas {
         };
         ui.painter().add(callback);
     }
+
+    pub fn update_scene(&mut self, scene: &SceneData) {
+        self.shader.lock().update_scene(scene);
+        println!("Scene updated in Canvas");
+    }
 }
 
 struct Shader {
@@ -74,26 +77,31 @@ struct Shader {
     vertex3d: Vec<Vertex3d>,
     indices: Vec<u32>,
     background_color: [f32; 3],
+    vbo: glow::Buffer,
+    element_array_buffer: glow::Buffer,
+    dirty: bool,
 }
 
 #[expect(unsafe_code)] // we need unsafe code to use glow
 impl Shader {
-    fn new(gl: &glow::Context, scene: &Scene) -> Option<Self> {
+    fn new(gl: &glow::Context, scene: SharedScene) -> Option<Self> {
         use glow::HasContext as _;
 
         let shader_version = egui_glow::ShaderVersion::get(gl);
 
-        let background_color = scene.background_color;
+        let scene_data = scene.lock().unwrap();
+
+        let background_color = scene_data.background_color;
 
         let default_color = [1.0, 1.0, 1.0, 1.0];
 
-        let mut vertices: Vec<Vertex3d> = Vec::new();
+        let mut vertex3d: Vec<Vertex3d> = Vec::new();
         let mut indices: Vec<u32> = Vec::new();
 
         let mut vertex_offset = 0u32;
 
-        for mesh in scene.get_meshes() {
-            vertices.extend(mesh.vertices.iter().enumerate().map(|(i, pos)| {
+        for mesh in scene_data.get_meshes() {
+            vertex3d.extend(mesh.vertices.iter().enumerate().map(|(i, pos)| {
                 Vertex3d {
                     position: *pos,
                     normal: mesh.normals[i],
@@ -180,7 +188,6 @@ impl Shader {
                 gl.delete_shader(shader);
             }
 
-
             let shaders_bg: Vec<_> = shader_bg
                 .iter()
                 .map(|(shader_type, shader_source)| {
@@ -230,17 +237,17 @@ impl Shader {
             gl.bind_buffer(glow::ARRAY_BUFFER, Some(vertex_buffer));
             gl.buffer_data_u8_slice(
                 glow::ARRAY_BUFFER,
-                bytemuck::cast_slice(&vertices),
-                glow::STATIC_DRAW,
+                bytemuck::cast_slice(&vertex3d),
+                glow::DYNAMIC_DRAW,
             );
 
             // EBO
-            let ebo = gl.create_buffer().unwrap();
+            let ebo = gl.create_buffer().expect("Cannot create element buffer");
             gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(ebo));
             gl.buffer_data_u8_slice(
                 glow::ELEMENT_ARRAY_BUFFER,
                 bytemuck::cast_slice(&indices),
-                glow::STATIC_DRAW,
+                glow::DYNAMIC_DRAW,
             );
 
             let stride = std::mem::size_of::<Vertex3d>() as i32;
@@ -264,12 +271,47 @@ impl Shader {
             Some(Self {
                 program,
                 program_bg,
-                vertex3d: vertices,
+                vertex3d,
                 vertex_array,
                 indices,
                 background_color,
+                dirty: false,
+                vbo: vertex_buffer,
+                element_array_buffer: ebo,
             })
         }
+    }
+
+    fn update_scene(&mut self, scene_data: &SceneData) {
+        self.background_color = scene_data.background_color;
+        self.vertex3d.clear();
+        self.indices.clear();
+
+        let mut vertex_offset = 0u32;
+
+        for mesh in scene_data.get_meshes() {
+            self.vertex3d
+                .extend(mesh.vertices.iter().enumerate().map(|(i, pos)| {
+                    let mut j = i;
+                    j = i % 50;
+                    Vertex3d {
+                        position: *pos,
+                        normal: mesh.normals[i],
+                        color: mesh
+                            .colors
+                            .as_ref()
+                            .and_then(|colors| colors.get(j))
+                            .unwrap_or(&[1.0, 1.0, 1.0, 1.0])
+                            .clone(),
+                    }
+                }));
+
+            self.indices
+                .extend(mesh.indices.iter().map(|&i| i + vertex_offset));
+            vertex_offset += mesh.vertices.len() as u32;
+        }
+
+        self.dirty = true;
     }
 
     fn destroy(&self, gl: &glow::Context) {
@@ -280,7 +322,7 @@ impl Shader {
         // }
     }
 
-    fn paint(&self, gl: &glow::Context, aspect_ratio: f32, camera_state: CameraState) {
+    fn paint(&mut self, gl: &glow::Context, aspect_ratio: f32, camera_state: CameraState) {
         use glow::HasContext as _;
 
         let proj = if aspect_ratio > 1.0 {
@@ -403,18 +445,25 @@ impl Shader {
                 1.0,
             );
 
+            if self.dirty {
+                self.dirty = false;
+            }
+
             // 初始化时或每帧渲染前
             gl.bind_vertex_array(Some(self.vertex_array));
+            gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.vbo));
             gl.buffer_data_u8_slice(
                 glow::ARRAY_BUFFER,
                 bytemuck::cast_slice(&self.vertex3d),
-                glow::STATIC_DRAW,
+                glow::DYNAMIC_DRAW,
             );
+
+            gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(self.element_array_buffer));
 
             gl.buffer_data_u8_slice(
                 glow::ELEMENT_ARRAY_BUFFER,
                 bytemuck::cast_slice(&self.indices),
-                glow::STATIC_DRAW,
+                glow::DYNAMIC_DRAW,
             );
 
             gl.draw_elements(

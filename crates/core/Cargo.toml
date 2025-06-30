@@ -1,0 +1,15 @@
+[package]
+name = "cosmol_viewer_core"
+version.workspace = true
+edition = "2024"
+publish = false
+
+[dependencies]
+eframe.workspace = true
+serde_json.workspace = true
+glam.workspace = true
+egui_extras.workspace = true
+serde = { version = "1.0.219" , features = ["derive"] }
+bytemuck = "1.23.1"
+web-sys = "0.3.77"
+wasm-bindgen-futures = "0.4.50"

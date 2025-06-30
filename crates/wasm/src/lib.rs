@@ -1,4 +1,4 @@
-use cosmol_viewer_core::{self, EguiRender, Scene};
+use cosmol_viewer_core::{self, App, Scene};
 #[cfg(target_arch = "wasm32")]
 use eframe::WebRunner;
 use wasm_bindgen::prelude::*;
@@ -34,7 +34,7 @@ impl WebHandle {
             .start(
                 canvas,
                 eframe::WebOptions::default(),
-                Box::new(|cc| Ok(Box::new(EguiRender::new(cc, scene)))),
+                Box::new(|cc| Ok(Box::new(App::new(cc, scene)))),
             )
             .await
     }

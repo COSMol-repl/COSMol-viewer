@@ -1,19 +1,25 @@
 [workspace.package]
 edition = "2024"
 version = "0.1.0"
+authors = ["9028 wjt@cosmol.org"]
+repository = "https://github.com/COSMol-repl/COSMol-viewer"
+homepage = "https://github.com/COSMol-repl/COSMol-viewer"
+keywords = ["molecular", "visualization"]
 
 [workspace]
 resolver = "2"
 members = [
-    "cosmol_viewer_core", 
-    "cosmol_viewer_python",
-    "cosmol_viewer_wasm",
+    "cosmol_viewer", 
+    "crates/core",
+    "crates/python",
+    "crates/wasm",
+    "crates/gui",
     "examples/rust",
     ]
 
-
 [workspace.dependencies]
-cosmol_viewer_core = { path = "cosmol_viewer_core" }
+cosmol_viewer = {path = "cosmol_viewer"}
+cosmol_viewer_core = { path = "crates/core" }
 eframe = { version = "0.31.1"}
 egui_extras = { version = "0.31.1", features = ["svg"] }
 glam = { version = "0.30.3" , features = ["serde"] }
