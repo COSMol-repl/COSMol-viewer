@@ -51,7 +51,9 @@ jobs:
         run: |
           cargo binstall -y wasm-pack
           wasm-pack build ./crates/wasm --target web --out-dir ./pkg
-          cargo build --package cosmol_viewer_gui
+      - name: Build GUI
+        run: |
+          cargo build --package cosmol_viewer_gui --release
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -95,7 +97,9 @@ jobs:
         run: |
           cargo binstall -y wasm-pack
           wasm-pack build ./crates/wasm --target web --out-dir ./pkg
-          cargo build --package cosmol_viewer_gui
+      - name: Build GUI
+        run: |
+          cargo build --package cosmol_viewer_gui --release
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
