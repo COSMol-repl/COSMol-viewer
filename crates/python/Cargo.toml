@@ -1,6 +1,5 @@
 [package]
 name = "cosmol_viewer_python"
-version.workspace = true
 edition = "2024"
 publish = false
 
@@ -16,6 +15,9 @@ base64 = "0.22.1"
 uuid = { version = "1.17.0", features = [
     "v4",
 ]}
+ipc-channel = "0.20.0"
+sha2.workspace = true
+hex.workspace = true
 
 [lib]
 name = "cosmol_viewer"

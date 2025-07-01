@@ -1,6 +1,7 @@
 use std::thread;
 
-use cosmol_viewer::{Scene, Sphere, utils::VisualShape, Viewer};
+use cosmol_viewer::{utils::VisualShape, Viewer};
+use cosmol_viewer_core::{scene::Scene, shapes::sphere::{Sphere, UpdateSphere}};
 // scene.save_as_png("output.png").expect("Failed to save scene as PNG");
 
 // fn main() {
@@ -55,17 +56,17 @@ use cosmol_viewer::{Scene, Sphere, utils::VisualShape, Viewer};
 // }
 
 fn main() {
-    let mut scene = Scene::create_viewer();
+    let mut scene = Scene::new();
 
     let sphere_a = Sphere::new([-1.0, 0.0, 0.0], 0.4)
         .with_color([1.0, 0.0, 0.0]) // 红色
         .clickable(true);
-    scene.add_sphere(sphere_a, Some("red"));
+    scene.add_shape(sphere_a, Some("red"));
 
     let sphere_b = Sphere::new([1.0, 0.0, 0.0], 0.4)
         .with_color([0.0, 0.0, 1.0]) // 蓝色
         .clickable(true);
-    scene.add_sphere(sphere_b, Some("blue"));
+    scene.add_shape(sphere_b, Some("blue"));
 
     let viewer = Viewer::render(&scene);
 

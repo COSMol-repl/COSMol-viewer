@@ -10,8 +10,7 @@ use eframe::{
 };
 use glam::{Quat, Vec3};
 
-use crate::SceneData;
-use crate::SharedScene;
+use crate::Scene;
 
 pub struct Canvas {
     shader: Arc<Mutex<Shader>>,
@@ -19,7 +18,7 @@ pub struct Canvas {
 }
 
 impl Canvas {
-    pub fn new<'a>(gl: Arc<eframe::glow::Context>, scene: SharedScene) -> Option<Self> {
+    pub fn new<'a>(gl: Arc<eframe::glow::Context>, scene: Scene) -> Option<Self> {
         Some(Self {
             shader: Arc::new(Mutex::new(Shader::new(&gl, scene)?)),
             camera_state: CameraState::new(1.0),
@@ -64,7 +63,7 @@ impl Canvas {
         ui.painter().add(callback);
     }
 
-    pub fn update_scene(&mut self, scene: &SceneData) {
+    pub fn update_scene(&mut self, scene: Scene) {
         self.shader.lock().update_scene(scene);
         println!("Scene updated in Canvas");
     }
@@ -84,14 +83,12 @@ struct Shader {
 
 #[expect(unsafe_code)] // we need unsafe code to use glow
 impl Shader {
-    fn new(gl: &glow::Context, scene: SharedScene) -> Option<Self> {
+    fn new(gl: &glow::Context, scene: Scene) -> Option<Self> {
         use glow::HasContext as _;
 
         let shader_version = egui_glow::ShaderVersion::get(gl);
 
-        let scene_data = scene.lock().unwrap();
-
-        let background_color = scene_data.background_color;
+        let background_color = scene.background_color;
 
         let default_color = [1.0, 1.0, 1.0, 1.0];
 
@@ -100,7 +97,7 @@ impl Shader {
 
         let mut vertex_offset = 0u32;
 
-        for mesh in scene_data.get_meshes() {
+        for mesh in scene._get_meshes() {
             vertex3d.extend(mesh.vertices.iter().enumerate().map(|(i, pos)| {
                 Vertex3d {
                     position: *pos,
@@ -282,14 +279,14 @@ impl Shader {
         }
     }
 
-    fn update_scene(&mut self, scene_data: &SceneData) {
+    fn update_scene(&mut self, scene_data: Scene) {
         self.background_color = scene_data.background_color;
         self.vertex3d.clear();
         self.indices.clear();
 
         let mut vertex_offset = 0u32;
 
-        for mesh in scene_data.get_meshes() {
+        for mesh in scene_data._get_meshes() {
             self.vertex3d
                 .extend(mesh.vertices.iter().enumerate().map(|(i, pos)| {
                     let mut j = i;

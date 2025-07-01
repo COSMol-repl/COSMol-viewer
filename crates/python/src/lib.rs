@@ -1,15 +1,26 @@
+use std::{
+    env,
+    fs::File,
+    io::Write,
+    time::{SystemTime, UNIX_EPOCH},
+};
+
 use base64::Engine as _;
-use cosmol_viewer_core::{App, utils::VisualShape};
+use cosmol_viewer_core::{App, shapes::sphere::Sphere as _Sphere, utils::VisualShape};
 use eframe::{
     NativeOptions,
     egui::{Vec2, ViewportBuilder},
 };
+use ipc_channel::ipc::{IpcOneShotServer, IpcSender};
 use pyo3::{ffi::c_str, prelude::*};
+use sha2::{Digest, Sha256};
 use uuid::Uuid;
+
+use cosmol_viewer_core::scene::Scene as _Scene;
 
 #[pyclass]
 pub struct Scene {
-    inner: cosmol_viewer_core::Scene,
+    inner: _Scene,
 }
 
 #[pymethods]
@@ -17,19 +28,52 @@ impl Scene {
     #[staticmethod]
     pub fn create_viewer() -> Self {
         Self {
-            inner: cosmol_viewer_core::Scene::create_viewer(),
+            inner: _Scene::new(),
         }
     }
 
-    pub fn add_spheres(&mut self, sphere: Sphere) {
-        self.inner.add_shapes(sphere.inner.clone());
+    #[pyo3(signature = (shape, id=None))]
+    pub fn add_shape(&mut self, shape: &Bound<'_, PyAny>, id: Option<&str>) {
+        if let Ok(sphere) = shape.extract::<PyRef<Sphere>>() {
+            self.inner.add_shape(sphere.inner.clone(), id);
+        }
+        ()
     }
+
+    pub fn update_shape(&mut self, id: &str, shape: &Bound<'_, PyAny>) {
+        if let Ok(sphere) = shape.extract::<PyRef<Sphere>>() {
+            self.inner.update_shape(sphere.inner.clone(), id);
+        } else {
+            panic!("Shape with ID '{}' not found or is not a Sphere", id);
+        }
+    }
+
+    pub fn delete_shape(&mut self, id: &str) {
+        self.inner.delete_shape(id);
+    }
+
+    // pub fn update_sphere(&mut self, id: &str, f: impl FnOnce(&mut Sphere)) {
+    //     if let Some(Shape::Sphere(sphere)) = self.named_shapes.get_mut(id) {
+    //         f(sphere);
+    //     } else {
+    //         panic!("Sphere with ID '{}' not found or is not a Sphere", id);
+    //     }
+    // }
+
+    // pub fn get_sphere<'py>(&'py mut self, py: Python<'py>, id: &str) -> PyResult<Py<Sphere>> {
+    //     if let Some(Shape::Sphere(s)) = self.inner.named_shapes.get_mut(id) {
+    //         let py_sphere = Py::new(py, Sphere { inner: s.clone() })?;
+    //         Ok(py_sphere)
+    //     } else {
+    //         Err(pyo3::exceptions::PyKeyError::new_err("Not a Sphere"))
+    //     }
+    // }
 }
 
 #[pyclass]
 #[derive(Clone)]
 pub struct Sphere {
-    inner: cosmol_viewer_core::Sphere,
+    inner: _Sphere,
 }
 
 #[pymethods]
@@ -37,7 +81,7 @@ impl Sphere {
     #[new]
     pub fn new(center: [f32; 3], radius: f32) -> Self {
         Self {
-            inner: cosmol_viewer_core::Sphere::new(center, radius),
+            inner: _Sphere::new(center, radius),
         }
     }
 
@@ -77,7 +121,12 @@ impl std::fmt::Display for RuntimeEnv {
 }
 
 #[pyclass]
-pub struct Viewer;
+#[pyo3(crate = "pyo3", unsendable)]
+pub struct Viewer {
+    sender: Option<IpcSender<_Scene>>,
+    environment: RuntimeEnv,
+    canvas_id: Option<String>,
+}
 
 fn detect_runtime_env(py: Python) -> PyResult<RuntimeEnv> {
     let code = c_str!(
@@ -128,14 +177,15 @@ impl Viewer {
     }
 
     #[staticmethod]
-    pub fn render(scene: &Scene, py: Python) -> PyResult<()> {
-        let env_type = detect_runtime_env(py)?;
+    pub fn render(scene: &Scene, py: Python) -> Self {
+        println!("scene {}", serde_json::to_string(&scene.inner).unwrap());
+
+        let env_type = detect_runtime_env(py).unwrap();
         match env_type {
             RuntimeEnv::Colab | RuntimeEnv::Jupyter => {
                 let unique_id = format!("cosmol_viewer_{}", Uuid::new_v4());
 
-                const JS_CODE: &str =
-                    include_str!("../../wasm/pkg/cosmol_viewer_wasm.js");
+                const JS_CODE: &str = include_str!("../../wasm/pkg/cosmol_viewer_wasm.js");
                 const WASM_BYTES: &[u8] =
                     include_bytes!("../../wasm/pkg/cosmol_viewer_wasm_bg.wasm");
                 let wasm_base64 = base64::engine::general_purpose::STANDARD.encode(WASM_BYTES);
@@ -171,6 +221,13 @@ impl Viewer {
                     const sceneJson = {SCENE_JSON};
                     console.log("Starting cosmol_viewer with scene:", sceneJson);
                     await app.start_with_scene(canvas, sceneJson);
+
+                    // ✅ 注册到全局，方便后续更新
+                    window.cosmol_viewer_instances = window.cosmol_viewer_instances || {{}};
+                    window.cosmol_viewer_instances["{id}"] = {{
+                        app: app,
+                        canvas: canvas,
+                    }};
                 }});
             }})();
             "#,
@@ -180,37 +237,99 @@ impl Viewer {
                     SCENE_JSON = escaped
                 );
 
-                let ipython = py.import("IPython.display")?;
-                let display = ipython.getattr("display")?;
+                let ipython = py.import("IPython.display").unwrap();
+                let display = ipython.getattr("display").unwrap();
 
-                let html = ipython.getattr("HTML")?.call1((html_code,))?;
-                display.call1((html,))?;
+                let html = ipython
+                    .getattr("HTML")
+                    .unwrap()
+                    .call1((html_code,))
+                    .unwrap();
+                display.call1((html,)).unwrap();
 
-                let js = ipython.getattr("Javascript")?.call1((combined_js,))?;
-                display.call1((js,))?;
+                let js = ipython
+                    .getattr("Javascript")
+                    .unwrap()
+                    .call1((combined_js,))
+                    .unwrap();
+                display.call1((js,)).unwrap();
 
-                return Ok(());
+                Viewer {
+                    sender: None,
+                    environment: env_type,
+                    canvas_id: Some(unique_id),
+                }
             }
             RuntimeEnv::PlainScript | RuntimeEnv::IPythonTerminal => {
-                let native_options = NativeOptions {
-                    viewport: ViewportBuilder::default().with_inner_size(Vec2::new(400.0, 250.0)),
-                    depth_buffer: 24,
-                    ..Default::default()
-                };
+                let (server, server_name) = IpcOneShotServer::<IpcSender<_Scene>>::new().unwrap();
 
-                let _ = eframe::run_native(
-                    "cosmol_viewer",
-                    native_options,
-                    Box::new(|cc| Ok(Box::new(App::new(cc, &scene.inner)))),
+                extract_and_run_gui(&server_name)
+                    .expect("Failed to extract and run GUI executable");
+
+                let (_, sender) = server.accept().unwrap();
+                sender.send(scene.inner.clone()).unwrap();
+                Viewer {
+                    sender: Some(sender),
+                    environment: env_type,
+                    canvas_id: None,
+                }
+            }
+            _ => Viewer {
+                sender: None,
+                environment: env_type,
+                canvas_id: None,
+            },
+        }
+    }
+
+    pub fn update(&mut self, scene: &Scene, py: Python) -> PyResult<String> {
+        let env_type = self.environment;
+        match env_type {
+            RuntimeEnv::Colab | RuntimeEnv::Jupyter => {
+                let scene_json = serde_json::to_string(&scene.inner).unwrap();
+                let escaped = serde_json::to_string(&scene_json).unwrap();
+                let combined_js = format!(
+                    r#"
+(function() {{
+    const instances = window.cosmol_viewer_instances || {{}};
+    const handle = instances["{id}"];
+    if (handle) {{
+        const sceneJson = {SCENE_JSON};
+        handle.app.update_scene(sceneJson);
+    }} else {{
+        console.error("No app found for ID {id}");
+    }}
+}})();
+"#,
+                    id = self.canvas_id.clone().unwrap(),
+                    SCENE_JSON = escaped
                 );
-                
-                return Ok(());
+
+                let ipython = py.import("IPython.display").unwrap();
+                let display = ipython.getattr("display").unwrap();
+
+                let js = ipython
+                    .getattr("Javascript")
+                    .unwrap()
+                    .call1((combined_js,))
+                    .unwrap();
+                display.call1((js,)).unwrap();
+
+                Ok("Scene updated successfully".to_string())
             }
-            _ => {
-                return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                    "Unsupported runtime environment for CosmolViewer rendering.",
-                ));
+            RuntimeEnv::PlainScript | RuntimeEnv::IPythonTerminal => {
+                if let Some(sender) = &self.sender {
+                    sender.send(scene.inner.clone()).unwrap();
+                    Ok("Scene updated successfully".to_string())
+                } else {
+                    Err(pyo3::exceptions::PyRuntimeError::new_err(
+                        "Viewer is not initialized with a sender",
+                    ))
+                }
             }
+            _ => Err(pyo3::exceptions::PyRuntimeError::new_err(
+                "Viewer is not initialized with a sender",
+            )),
         }
     }
 }
@@ -220,5 +339,41 @@ fn cosmol_viewer(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Scene>()?;
     m.add_class::<Sphere>()?;
     m.add_class::<Viewer>()?;
+    Ok(())
+}
+
+#[cfg(all(debug_assertions, target_os = "windows"))]
+const GUI_EXE_BYTES: &[u8] = include_bytes!("../../../target/debug/cosmol_viewer_gui.exe");
+
+#[cfg(all(debug_assertions, target_os = "linux"))]
+const GUI_EXE_BYTES: &[u8] = include_bytes!("../../../target/debug/cosmol_viewer_gui");
+
+#[cfg(all(not(debug_assertions), target_os = "windows"))]
+const GUI_EXE_BYTES: &[u8] = include_bytes!("../../../target/release/cosmol_viewer_gui.exe");
+
+#[cfg(all(not(debug_assertions), target_os = "linux"))]
+const GUI_EXE_BYTES: &[u8] = include_bytes!("../../../target/release/cosmol_viewer_gui");
+
+fn calculate_gui_hash() -> String {
+    let result = Sha256::digest(GUI_EXE_BYTES);
+    hex::encode(result)
+}
+
+fn extract_and_run_gui(arg: &str) -> std::io::Result<()> {
+    let tmp_dir = env::temp_dir();
+    let exe_path = tmp_dir.join(format!("cosmol_temp_gui_{}.exe", calculate_gui_hash()));
+
+    if !exe_path.exists() {
+        let mut file = File::create(&exe_path)?;
+        file.write_all(GUI_EXE_BYTES)?;
+    }
+
+    println!("Launching GUI from: {}", exe_path.display());
+
+    std::process::Command::new(&exe_path)
+        .arg(arg)
+        .spawn()
+        .expect("Failed to launch GUI process");
+
     Ok(())
 }

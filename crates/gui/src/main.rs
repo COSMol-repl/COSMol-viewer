@@ -1,4 +1,4 @@
-use cosmol_viewer_core::{App, AppWrapper, SceneData};
+use cosmol_viewer_core::{scene::Scene, App, AppWrapper};
 use eframe::{
     NativeOptions,
     egui::{Vec2, ViewportBuilder},
@@ -6,8 +6,7 @@ use eframe::{
 use ipc_channel::ipc::{self, IpcReceiver, IpcSender};
 use serde::{Deserialize, Serialize};
 use std::{
-    sync::{Arc, Mutex},
-    thread,
+    env, fs::File, io::Write, sync::{Arc, Mutex}, thread, time::{SystemTime, UNIX_EPOCH}
 };
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -20,31 +19,33 @@ fn main() {
     let server_name = &args[1];
     let server_name = server_name.clone();
 
-    let scene: Arc<Mutex<SceneData>> = Arc::new(Mutex::new(SceneData::new()));
+    let scene_before_app_created = Arc::new(Mutex::new(Scene::new()));
+    let _scene_before_app_created = Arc::clone(&scene_before_app_created);
+
     let app: Arc<Mutex<Option<App>>> = Arc::new(Mutex::new(None));
 
-    let scene_in_thread = Arc::clone(&scene); // 这里 clone，不 move
     let app_in_thread = Arc::clone(&app);
 
     thread::spawn(move || {
-        let tx: IpcSender<IpcSender<SceneData>> =
+
+        let tx: IpcSender<IpcSender<Scene>> =
             IpcSender::connect(server_name.to_string()).unwrap();
 
-        let (tx1, rx1): (IpcSender<SceneData>, IpcReceiver<SceneData>) = ipc::channel().unwrap();
+        let (tx1, rx1): (IpcSender<Scene>, IpcReceiver<Scene>) = ipc::channel().unwrap();
 
         tx.send(tx1).unwrap();
 
         loop {
             if let Ok(scene_received) = rx1.recv() {
-                let mut scene_guard = scene_in_thread.lock().unwrap();
                 let mut app_guard = app_in_thread.lock().unwrap();
                 if let Some(app) = &mut *app_guard {
                     println!("Received scene update");
-                    app.update_scene(&scene_received);
+                    app.update_scene(scene_received);
                     app.ctx.request_repaint();
                 } else {
                     println!("scene update received but app is not initialized");
-                    *scene_guard = scene_received.clone();
+                    let mut scene_guard = _scene_before_app_created.lock().unwrap();
+                    *scene_guard = scene_received;
                 }
             }
         }
@@ -61,8 +62,10 @@ fn main() {
         native_options,
         Box::new(|cc| {
             let mut guard = app.lock().unwrap();
-            *guard = Some(App::new(cc, scene));
+            *guard = Some(App::new(cc, scene_before_app_created.lock().unwrap().clone()));
             Ok(Box::new(AppWrapper(app.clone())))
         }),
     );
 }
+
+
