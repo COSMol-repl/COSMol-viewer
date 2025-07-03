@@ -1,6 +1,6 @@
 [project]
 name = "cosmol-viewer"
-version = "0.1.1.dev1"
+version = "0.1.1.dev2"
 description = "Molecular visualization tools"
 authors = [{name = "95028", email = "wjt@cosmol.org"}]
 
@@ -10,4 +10,3 @@ build-backend = "maturin"
 
 [tool.maturin]
 name = "cosmol_viewer"
-version = "0.1.1.dev1"

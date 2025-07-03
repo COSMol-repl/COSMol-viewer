@@ -33,17 +33,14 @@ impl Sphere {
         }
     }
 
-    pub fn set_center(&mut self, center: [f32; 3]) {
+    pub fn center(mut self, center: [f32; 3])-> Self {
         self.center = center;
+        self
     }
 
-    pub fn set_radius(&mut self, radius: f32) {
+    pub fn set_radius(mut self, radius: f32)-> Self {
         self.radius = radius;
-    }
-
-    pub fn set_color(&mut self, color: [f32; 4]) {
-        self.style.color = Some(color[0..3].try_into().unwrap());
-        self.style.opacity = color[3];
+        self
     }
 
     pub fn clickable(mut self, val: bool) -> Self {
@@ -51,7 +48,7 @@ impl Sphere {
         self
     }
 
-    pub fn to_mesh(&self) -> MeshData {
+    pub fn to_mesh(&self, scale: f32) -> MeshData {
         let mut vertices = Vec::new();
         let mut normals = Vec::new();
         let mut indices = Vec::new();
@@ -86,8 +83,8 @@ impl Sphere {
                 let y = cy + r * ny;
                 let z = cz + r * nz;
 
-                vertices.push([x, y, z]);
-                normals.push([nx, ny, nz]);
+                vertices.push([x, y, z].map(|x| x * scale));
+                normals.push([nx, ny, nz].map(|x| x * scale));
                 colors.push(color_rgba); // 每个顶点同样颜色
             }
         }

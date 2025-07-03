@@ -322,12 +322,6 @@ impl Shader {
     fn paint(&mut self, gl: &glow::Context, aspect_ratio: f32, camera_state: CameraState) {
         use glow::HasContext as _;
 
-        let proj = if aspect_ratio > 1.0 {
-            Mat4::from_scale([1.0 / aspect_ratio, 1.0, 1.0].into())
-        } else {
-            Mat4::from_scale([1.0, aspect_ratio, 1.0].into())
-        };
-
         let camera_position = -camera_state.direction * camera_state.distance;
         let camera_direction = camera_state.direction;
         let camera_up = camera_state.up;
@@ -346,19 +340,19 @@ impl Shader {
         };
 
         unsafe {
+            // 背面剔除 + 深度测试
             gl.enable(glow::CULL_FACE);
             gl.cull_face(glow::BACK);
-            gl.front_face(glow::CCW); // 如果你的三角形是逆时针定义的
+            gl.front_face(glow::CCW);
 
-            gl.enable(glow::DEPTH_TEST); // 开启深度测试
-            gl.depth_func(glow::LEQUAL); // 设置深度测试规则
+            gl.enable(glow::DEPTH_TEST);
+            gl.depth_func(glow::LEQUAL);
 
-            gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT); // 清除颜色和深度
+            gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
 
-            // 然后绘制背景（禁用深度），再绘制模型
-            gl.disable(glow::DEPTH_TEST);
+            // === 绘制背景 ===
+            gl.disable(glow::DEPTH_TEST); // ✅ 背景不需要深度
             gl.use_program(Some(self.program_bg));
-
             gl.uniform_3_f32_slice(
                 gl.get_uniform_location(self.program_bg, "background_color")
                     .as_ref(),
@@ -366,19 +360,29 @@ impl Shader {
             );
             gl.draw_arrays(glow::TRIANGLES, 0, 6);
 
-            // 再开启深度测试绘制场景
+            // === 绘制场景 ===
             gl.enable(glow::DEPTH_TEST);
+            // gl.depth_mask(false); // ✅ 关键：恢复写入深度缓冲区
+
+            // gl.enable(glow::BLEND);
+            // gl.blend_func_separate(
+            //     glow::ONE,
+            //     glow::ONE, // 颜色：累加所有透明颜色
+            //     glow::ZERO,
+            //     glow::ONE_MINUS_SRC_ALPHA, // alpha：按透明度混合
+            // );
+
             gl.use_program(Some(self.program));
 
             gl.uniform_matrix_4_f32_slice(
                 gl.get_uniform_location(self.program, "u_mvp").as_ref(),
                 false,
-                (proj * camera.view_proj()).as_ref(),
+                (camera.view_proj(aspect_ratio)).as_ref(),
             );
             gl.uniform_matrix_4_f32_slice(
                 gl.get_uniform_location(self.program, "u_model").as_ref(),
                 false,
-                (camera.u_model()).as_ref(),
+                (camera.view_matrix()).as_ref(),
             );
             gl.uniform_matrix_3_f32_slice(
                 gl.get_uniform_location(self.program, "u_normal_matrix")
@@ -396,7 +400,7 @@ impl Shader {
             );
 
             // 应用模型变换
-            let transformed_pos = camera.u_model() * light_pos_homogeneous;
+            let transformed_pos = camera.view_matrix() * light_pos_homogeneous;
 
             // 提取前三个分量 (xyz)
             let transformed_pos_xyz = [transformed_pos.x, transformed_pos.y, transformed_pos.z];
@@ -416,7 +420,7 @@ impl Shader {
             );
 
             // 应用模型变换
-            let transformed_camera_pos = camera.u_model() * camera_pos_homogeneous;
+            let transformed_camera_pos = camera.view_matrix() * camera_pos_homogeneous;
 
             // 提取前三个分量 (xyz)
             let transformed_camera_pos_xyz = [
@@ -446,7 +450,7 @@ impl Shader {
                 self.dirty = false;
             }
 
-            // 初始化时或每帧渲染前
+            // 绑定并上传缓冲
             gl.bind_vertex_array(Some(self.vertex_array));
             gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.vbo));
             gl.buffer_data_u8_slice(
@@ -456,7 +460,6 @@ impl Shader {
             );
 
             gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(self.element_array_buffer));
-
             gl.buffer_data_u8_slice(
                 glow::ELEMENT_ARRAY_BUFFER,
                 bytemuck::cast_slice(&self.indices),
@@ -536,6 +539,7 @@ pub struct Camera {
 }
 
 impl Camera {
+    /// 假定模型空间 == 世界空间
     pub fn new(position: [f32; 3], forward: [f32; 3], up: [f32; 3], fov: f32, scale: f32) -> Self {
         let z = Vec3::from(forward).normalize();
         let up = Vec3::from(up);
@@ -548,44 +552,43 @@ impl Camera {
             x: x.into(),
             y: y.into(),
             fov,
-            scale: scale,
+            scale,
         }
     }
 
-    pub fn u_model(&self) -> Mat4 {
-        let (x, y, z, pos) = (self.x, self.y, self.z, self.position);
+    /// 从世界空间变换到相机空间
+    pub fn view_matrix(&self) -> Mat4 {
+        let pos = Vec3::from(self.position);
+        let center = pos + Vec3::from(self.z);
+        let up = Vec3::from(self.y);
 
-        let shear = Mat4::from_cols_array_2d(&[
-            [x[0], x[1], x[2], 0.0],
-            [y[0], y[1], y[2], 0.0],
-            [z[0], z[1], z[2], 0.0],
-            [0.0, 0.0, 0.0, 1.0],
-        ])
-        .transpose();
-
-        let translate = Mat4::from_translation(-Vec3::from(pos));
-
-        return shear * translate;
+        Mat4::look_at_rh(pos, center, up)
     }
 
-    pub fn view_proj(&self) -> Mat4 {
-        let proj = Mat4::from_cols_array_2d(&[
-            [1.0, 0.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0, 0.0],
-            [0.0, 0.0, 1.0, 0.0],
-            [0.0, 0.0, self.scale, 1.0],
-        ])
-        .transpose();
+    /// 把 3D 场景投影成 2D 的视图
+    pub fn projection_matrix(&self, aspect: f32) -> Mat4 {
+        // 如果用 scale 控制的是放大倍率，可以解释为正交投影的比例因子
+        let s = self.scale;
 
-        return proj * self.u_model();
+        // 你可以换成 perspective_rh(self.fov, aspect, near, far)
+        Mat4::orthographic_rh(
+            -s * aspect, s * aspect, // left, right
+            -s, s,                   // bottom, top
+            -1000.0, 1000.0          // near, far
+        )
     }
 
+    /// 相机变换矩阵 = 投影 × 视图变换
+    pub fn view_proj(&self, aspect: f32) -> Mat4 {
+        self.projection_matrix(aspect) * self.view_matrix()
+    }
+
+    /// 法线矩阵：模型矩阵的 3x3 的逆转置
     pub fn normal_matrix(&self) -> Mat3 {
-        let model = self.u_model(); // Mat4
-        let mat3 = Mat3::from_mat4(model); // Extract the upper-left 3x3 matrix
-        mat3.inverse().transpose()
+        Mat3::from_mat4(self.view_matrix()).inverse().transpose()
     }
 }
+
 
 pub struct Light {
     pub position: [f32; 3],

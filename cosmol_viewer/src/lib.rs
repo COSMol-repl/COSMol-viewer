@@ -1,10 +1,8 @@
 use std::env;
 use std::fs::File;
 use std::io::Write;
-use std::time::{SystemTime, UNIX_EPOCH};
-
 use cosmol_viewer_core::scene::Scene;
-pub use cosmol_viewer_core::{utils};
+pub use cosmol_viewer_core::{utils, scene, parser};
 use ipc_channel::ipc::IpcOneShotServer;
 
 use ipc_channel::ipc::IpcSender;
@@ -32,7 +30,24 @@ fn calculate_gui_hash() -> String {
     hex::encode(result)
 }
 
+fn cleanup_old_temp_gui_files() -> std::io::Result<()> {
+    let tmp_dir = env::temp_dir();
+
+    for entry in std::fs::read_dir(&tmp_dir)? {
+        let path = entry?.path();
+        if let Some(file_name) = path.file_name().and_then(|s| s.to_str()) {
+            if file_name.starts_with("cosmol_temp_gui_") && file_name.ends_with(".exe") {
+                let _ = std::fs::remove_file(&path); // 忽略失败（比如有进程在用）
+            }
+        }
+    }
+
+    Ok(())
+}
+
 fn extract_and_run_gui(arg: &str) -> std::io::Result<()> {
+    cleanup_old_temp_gui_files()?;
+    
     let tmp_dir = env::temp_dir();
     let exe_path = tmp_dir.join(format!("cosmol_temp_gui_{}.exe", calculate_gui_hash()));
 

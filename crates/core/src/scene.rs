@@ -11,6 +11,7 @@ pub struct Scene {
     pub camera_state: CameraState,
     pub named_shapes: HashMap<String, Shape>,
     pub unnamed_shapes: Vec<Shape>,
+    pub scale: f32,
 }
 
 impl Scene {
@@ -18,7 +19,7 @@ impl Scene {
         self.named_shapes
             .values()
             .chain(self.unnamed_shapes.iter())
-            .map(|s| s.to_mesh())
+            .map(|s| s.to_mesh(self.scale))
             .collect()
     }
 
@@ -28,7 +29,12 @@ impl Scene {
             camera_state: CameraState::new(1.0),
             named_shapes: HashMap::new(),
             unnamed_shapes: Vec::new(),
+            scale: 1.0,
         }
+    }
+
+    pub fn scale(&mut self, scale: f32) {
+        self.scale = scale;
     }
 
     pub fn add_shape<S: Into<Shape>>(&mut self, shape: S, id: Option<&str>) {
@@ -46,7 +52,7 @@ impl Scene {
         }
     }
 
-    pub fn update_shape<S: Into<Shape>>(&mut self, shape: S, id: &str) {
+    pub fn update_shape<S: Into<Shape>>(&mut self, id: &str, shape: S) {
         let shape = shape.into();
         if let Some(existing_shape) = self.named_shapes.get_mut(id) {
             *existing_shape = shape;

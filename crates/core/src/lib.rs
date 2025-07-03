@@ -1,20 +1,18 @@
 mod shader;
 use std::{
-    collections::HashMap,
     sync::{Arc, Mutex},
 };
 
 pub mod utils;
+pub mod parser;
 
 use eframe::egui::{self, Color32, Stroke};
 
-
-use serde::{Deserialize, Serialize};
 use shader::Canvas;
 
 pub use crate::utils::{Shape};
 pub mod shapes;
-use crate::{scene::Scene, shader::CameraState, utils::ToMesh};
+use crate::{scene::Scene};
 
 pub mod scene;
 

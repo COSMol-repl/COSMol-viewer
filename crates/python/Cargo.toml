@@ -6,7 +6,7 @@ publish = false
 [dependencies]
 cosmol_viewer_core.workspace = true
 serde_json.workspace = true
-pyo3 = { version = "0.25.1", features = ["extension-module"] }
+pyo3 = { version = "0.25.1", features = ["extension-module", "abi3-py37"] }
 eframe.workspace = true
 glam.workspace = true
 egui_extras.workspace = true
