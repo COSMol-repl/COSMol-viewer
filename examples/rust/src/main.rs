@@ -100,10 +100,10 @@ use cosmol_viewer_core::{
 // }
 
 fn main() {
-    let sdf_string = std::fs::read_to_string("../../example.sdf").unwrap();
+    let sdf_string = std::fs::read_to_string("../../output.sdf").unwrap();
     let opts = ParserOptions {
         keep_h: true,
-        multimodel: true,
+        multimodel: false,
         onemol: false,
     };
     let mol_data  = parse_sdf(&sdf_string, &opts);

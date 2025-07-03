@@ -14,7 +14,7 @@ pub struct Atom {
 }
 
 pub type Molecule = Vec<Atom>;
-pub type MoleculeData  = Vec<Molecule>;
+pub type MoleculeData = Vec<Molecule>;
 
 #[derive(Default)]
 pub struct ParserOptions {
@@ -23,7 +23,7 @@ pub struct ParserOptions {
     pub onemol: bool,
 }
 
-pub fn parse_sdf(sdf: &str, options: &ParserOptions) -> MoleculeData  {
+pub fn parse_sdf(sdf: &str, options: &ParserOptions) -> MoleculeData {
     let lines: Vec<&str> = sdf.lines().collect();
     if lines.len() > 3 && lines[3].len() > 38 {
         let version = lines[3][34..39].trim();
@@ -36,7 +36,22 @@ pub fn parse_sdf(sdf: &str, options: &ParserOptions) -> MoleculeData  {
     }
 }
 
-fn parse_v2000(mut lines: Vec<&str>, options: &ParserOptions) -> MoleculeData  {
+fn parse_v2000(mut lines: Vec<&str>, options: &ParserOptions) -> MoleculeData {
+    let model_count = count_models(&lines);
+    // 多个分子但用户没开启
+    if model_count > 0 && !options.multimodel {
+        panic!(
+            "Found multiple molecules but 'multimodel' is false. Please enable 'multimodel = true' to parse all molecules."
+        );
+    }
+
+    // 用户开启了但其实只有一个
+    if model_count == 0 && options.multimodel {
+        panic!(
+            "Only one molecule found, but 'multimodel = true' was set. Consider setting 'multimodel = false' to avoid confusion."
+        );
+    }
+
     let mut molecules = vec![vec![]];
     let mut current = 0;
 
@@ -80,10 +95,21 @@ fn parse_v2000(mut lines: Vec<&str>, options: &ParserOptions) -> MoleculeData  {
 
         for i in 0..bond_count {
             let line = lines[offset + i];
-            let from = line[0..3].trim().parse::<usize>().unwrap_or(0).saturating_sub(1);
-            let to = line[3..6].trim().parse::<usize>().unwrap_or(0).saturating_sub(1);
+            let from = line[0..3]
+                .trim()
+                .parse::<usize>()
+                .unwrap_or(0)
+                .saturating_sub(1);
+            let to = line[3..6]
+                .trim()
+                .parse::<usize>()
+                .unwrap_or(0)
+                .saturating_sub(1);
             let order = line[6..].trim().parse::<f32>().unwrap_or(1.0);
-            if let (Some(f), Some(t)) = (serial_to_index.get(from).and_then(|x| *x), serial_to_index.get(to).and_then(|x| *x)) {
+            if let (Some(f), Some(t)) = (
+                serial_to_index.get(from).and_then(|x| *x),
+                serial_to_index.get(to).and_then(|x| *x),
+            ) {
                 molecules[current][f].bonds.push(t);
                 molecules[current][f].bond_order.push(order);
                 molecules[current][t].bonds.push(f);
@@ -109,7 +135,23 @@ fn parse_v2000(mut lines: Vec<&str>, options: &ParserOptions) -> MoleculeData  {
     molecules
 }
 
-fn parse_v3000(mut lines: Vec<&str>, options: &ParserOptions) -> MoleculeData  {
+fn parse_v3000(mut lines: Vec<&str>, options: &ParserOptions) -> MoleculeData {
+    let model_count = count_models(&lines);
+
+    // 多个分子但用户没开启
+    if model_count > 0 && !options.multimodel {
+        panic!(
+            "Found multiple molecules but 'multimodel' is false. Please enable 'multimodel = true' to parse all molecules."
+        );
+    }
+
+    // 用户开启了但其实只有一个
+    if model_count == 0 && options.multimodel {
+        panic!(
+            "Only one molecule found, but 'multimodel = true' was set. Consider setting 'multimodel = false' to avoid confusion."
+        );
+    }
+
     let mut molecules = vec![vec![]];
     let mut current = 0;
 
@@ -119,8 +161,14 @@ fn parse_v3000(mut lines: Vec<&str>, options: &ParserOptions) -> MoleculeData  {
         }
 
         let counts: Vec<_> = lines[5][13..].split_whitespace().collect();
-        let atom_count = counts.get(0).and_then(|s| s.parse::<usize>().ok()).unwrap_or(0);
-        let bond_count = counts.get(1).and_then(|s| s.parse::<usize>().ok()).unwrap_or(0);
+        let atom_count = counts
+            .get(0)
+            .and_then(|s| s.parse::<usize>().ok())
+            .unwrap_or(0);
+        let bond_count = counts
+            .get(1)
+            .and_then(|s| s.parse::<usize>().ok())
+            .unwrap_or(0);
         let mut offset = 7;
 
         let mut serial_to_index = vec![None; atom_count];
@@ -161,7 +209,10 @@ fn parse_v3000(mut lines: Vec<&str>, options: &ParserOptions) -> MoleculeData  {
                 let from = parts[2].parse::<usize>().unwrap_or(0).saturating_sub(1);
                 let to = parts[3].parse::<usize>().unwrap_or(0).saturating_sub(1);
                 let order = parts[1].parse::<f32>().unwrap_or(1.0);
-                if let (Some(f), Some(t)) = (serial_to_index.get(from).and_then(|x| *x), serial_to_index.get(to).and_then(|x| *x)) {
+                if let (Some(f), Some(t)) = (
+                    serial_to_index.get(from).and_then(|x| *x),
+                    serial_to_index.get(to).and_then(|x| *x),
+                ) {
                     molecules[current][f].bonds.push(t);
                     molecules[current][f].bond_order.push(order);
                     molecules[current][t].bonds.push(f);
@@ -191,7 +242,13 @@ fn parse_v3000(mut lines: Vec<&str>, options: &ParserOptions) -> MoleculeData  {
 fn capitalize(s: &str) -> String {
     let mut chars = s.chars();
     match chars.next() {
-        Some(first) => first.to_ascii_uppercase().to_string() + &chars.as_str().to_ascii_lowercase(),
+        Some(first) => {
+            first.to_ascii_uppercase().to_string() + &chars.as_str().to_ascii_lowercase()
+        }
         None => String::new(),
     }
+}
+
+fn count_models(lines: &[&str]) -> usize {
+    lines.iter().filter(|line| line.trim() == "$$$$").count()
 }

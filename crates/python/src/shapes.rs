@@ -94,4 +94,9 @@ impl PyMolecules {
             inner: Molecules::new(molecule_data.inner.clone())
         }
     }
+
+    pub fn centered(mut slf: PyRefMut<'_, Self>) -> PyRefMut<'_, Self> {
+        slf.inner = slf.inner.clone().centered();
+        slf
+    }
 }
