@@ -15,7 +15,7 @@ out vec4 v_color;
 void main() {
     vec4 world_pos = u_model * vec4(a_position, 1.0);
     v_frag_pos = world_pos.xyz;
-    v_normal = -normalize(u_normal_matrix * a_normal);
+    v_normal = normalize(u_normal_matrix * a_normal);
     v_color = a_color;
     gl_Position = u_mvp * vec4(a_position, 1.0);
 }

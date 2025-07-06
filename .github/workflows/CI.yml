@@ -50,20 +50,23 @@ jobs:
       - name: Build wasm module
         run: |
           cargo binstall -y wasm-pack
-          wasm-pack build ./cosmol_viewer_wasm --target web --out-dir ./pkg
+          wasm-pack build ./crates/wasm --target web --out-dir ./pkg
+      - name: Build GUI
+        run: |
+          cargo build --package cosmol_viewer_gui --release
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
           args: --release --out dist --find-interpreter
-          working-directory: cosmol_viewer_python
+          working-directory: crates/python
           sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
-          manylinux: auto
+          manylinux: manylinux2014
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
           name: wheels-linux-${{ matrix.platform.target }}
-          path: cosmol_viewer_python/dist
+          path: crates/python/dist
 
   musllinux:
     runs-on: ${{ matrix.platform.runner }}
@@ -93,20 +96,23 @@ jobs:
       - name: Build wasm module
         run: |
           cargo binstall -y wasm-pack
-          wasm-pack build ./cosmol_viewer_wasm --target web --out-dir ./pkg
+          wasm-pack build ./crates/wasm --target web --out-dir ./pkg
+      - name: Build GUI
+        run: |
+          cargo build --package cosmol_viewer_gui --release
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
           args: --release --out dist --find-interpreter
-          working-directory: cosmol_viewer_python
+          working-directory: crates/python
           sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
           manylinux: musllinux_1_2
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
           name: wheels-musllinux-${{ matrix.platform.target }}
-          path: cosmol_viewer_python/dist
+          path: crates/python/dist
 
   # windows:
   #   runs-on: ${{ matrix.platform.runner }}
@@ -133,19 +139,20 @@ jobs:
   #     - name: Build wasm module
   #       run: |
   #         cargo binstall -y wasm-pack
-  #         wasm-pack build ./cosmol_viewer_wasm --target web --out-dir ./pkg
+  #         wasm-pack build ./crates/wasm --target web --out-dir ./pkg
+  #         cargo build --package cosmol_viewer_gui
   #     - name: Build wheels
   #       uses: PyO3/maturin-action@v1
   #       with:
   #         target: ${{ matrix.platform.target }}
   #         args: --release --out dist --find-interpreter
-  #         working-directory: cosmol_viewer_python
+  #         working-directory: crates/python
   #         sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
   #     - name: Upload wheels
   #       uses: actions/upload-artifact@v4
   #       with:
   #         name: wheels-windows-${{ matrix.platform.target }}
-  #         path: cosmol_viewer_python/dist
+  #         path: crates/python/dist
 
   # macos:
   #   runs-on: ${{ matrix.platform.runner }}
@@ -171,19 +178,19 @@ jobs:
   #     - name: Build wasm module
   #       run: |
   #         cargo binstall -y wasm-pack
-  #         wasm-pack build ./cosmol_viewer_wasm --target web --out-dir ./pkg
+  #         wasm-pack build ./crates/wasm --target web --out-dir ./pkg
   #     - name: Build wheels
   #       uses: PyO3/maturin-action@v1
   #       with:
   #         target: ${{ matrix.platform.target }}
   #         args: --release --out dist --find-interpreter
-  #         working-directory: cosmol_viewer_python
+  #         working-directory: crates/python
   #         sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
   #     - name: Upload wheels
   #       uses: actions/upload-artifact@v4
   #       with:
   #         name: wheels-macos-${{ matrix.platform.target }}
-  #         path: cosmol_viewer_python/dist
+  #         path: crates/python/dist
 
   sdist:
     runs-on: ubuntu-latest
@@ -193,13 +200,13 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           command: sdist
-          working-directory: cosmol_viewer_python
+          working-directory: crates/python
           args: --out dist
       - name: Upload sdist
         uses: actions/upload-artifact@v4
         with:
           name: wheels-sdist
-          path: cosmol_viewer_python/dist
+          path: crates/python/dist
 
   release:
     name: Release

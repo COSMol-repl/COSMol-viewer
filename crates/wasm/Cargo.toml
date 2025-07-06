@@ -2,6 +2,7 @@
 name = "cosmol_viewer_wasm"
 version.workspace = true
 edition = "2024"
+publish = false
 
 [dependencies]
 cosmol_viewer_core.workspace = true
@@ -18,4 +19,7 @@ wasm-bindgen-futures = "0.4.50"
 crate-type = ["cdylib"]
 
 [package.metadata.wasm-pack.profile.release]
-wasm-opt = false
+# wasm-opt = false
+
+[build]
+target = "wasm32-unknown-unknown"

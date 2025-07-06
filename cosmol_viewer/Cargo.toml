@@ -1,0 +1,25 @@
+[package]
+name = "cosmol_viewer"
+version.workspace = true
+edition = "2024"
+authors = ["9028 <wjt@cosmol.org>"]
+description = "COSMol: Core molecular visualization library"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/COSMol-repl/COSMol-viewer"
+homepage = "https://github.com/COSMol-repl/COSMol-viewer"
+keywords = ["molecular", "visualization"]
+readme = "../README.md"
+
+[dependencies]
+cosmol_viewer_core = { path = "../crates/core" }
+eframe.workspace = true
+glam.workspace = true
+serde_json.workspace = true
+egui_extras.workspace = true
+sha2.workspace = true
+hex.workspace = true
+serde = { version = "1.0.219" , features = ["derive"] }
+bytemuck = "1.23.1"
+web-sys = "0.3.77"
+wasm-bindgen-futures = "0.4.50"
+ipc-channel.workspace = true

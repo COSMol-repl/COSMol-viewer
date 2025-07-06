@@ -1,12 +1,12 @@
 [package]
 name = "cosmol_viewer_python"
-version.workspace = true
 edition = "2024"
+publish = false
 
 [dependencies]
 cosmol_viewer_core.workspace = true
 serde_json.workspace = true
-pyo3 = { version = "0.25.1", features = ["extension-module"] }
+pyo3 = { version = "0.25.1", features = ["extension-module", "abi3-py37"] }
 eframe.workspace = true
 glam.workspace = true
 egui_extras.workspace = true
@@ -15,7 +15,11 @@ base64 = "0.22.1"
 uuid = { version = "1.17.0", features = [
     "v4",
 ]}
+ipc-channel = "0.20.0"
+sha2.workspace = true
+hex.workspace = true
 
 [lib]
 name = "cosmol_viewer"
 crate-type = ["cdylib"]
+

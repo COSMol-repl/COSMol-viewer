@@ -1,55 +1,6 @@
-use glam::Mat4;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default, Copy)]
-pub struct VisualStyle {
-    pub color: Option<[f32; 3]>,
-    pub opacity: f32, // 强制 0~1，默认为 1.0
-    pub wireframe: bool,
-    pub visible: bool,
-    pub line_width: Option<f32>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, Default, Copy)]
-pub struct Interaction {
-    pub clickable: bool,
-    pub hoverable: bool,
-    pub context_menu_enabled: bool,
-    // 可扩展为事件 enum，如 Click(EventCallback)
-}
-
-// -------------------- 图元结构体 --------------------------
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum Shape {
-    Sphere(Sphere),
-    // Cube(Cube),
-    // Custom(CustomShape),
-    // ...
-}
-
-pub trait ToMesh {
-    fn to_mesh(&self) -> MeshData;
-}
-
-impl ToMesh for Shape {
-    fn to_mesh(&self) -> MeshData {
-        match self {
-            Shape::Sphere(s) => s.to_mesh(),
-            // Shape::Cube(c) => c.to_mesh(),
-            // ...
-        }
-    }
-}
-
-pub struct MeshData {
-    pub vertices: Vec<[f32; 3]>,
-    pub normals: Vec<[f32; 3]>,
-    pub indices: Vec<u32>,
-    pub colors: Option<Vec<[f32; 4]>>,
-    pub transform: Option<Mat4>, // 可选位移旋转缩放
-    pub is_wireframe: bool,
-}
+use crate::{scene::Scene, utils::{Interaction, MeshData, VisualShape, VisualStyle}, Shape};
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct Sphere {
@@ -61,15 +12,9 @@ pub struct Sphere {
     pub interaction: Interaction,
 }
 
-pub trait VisualShape {
-    fn style_mut(&mut self) -> &mut VisualStyle;
-
-    fn with_color(mut self, color: [f32; 3]) -> Self
-    where
-        Self: Sized,
-    {
-        self.style_mut().color = Some(color);
-        self
+impl Into<Shape> for Sphere {
+    fn into(self) -> Shape {
+        Shape::Sphere(self)
     }
 }
 
@@ -88,12 +33,22 @@ impl Sphere {
         }
     }
 
+    pub fn center(mut self, center: [f32; 3])-> Self {
+        self.center = center;
+        self
+    }
+
+    pub fn set_radius(mut self, radius: f32)-> Self {
+        self.radius = radius;
+        self
+    }
+
     pub fn clickable(mut self, val: bool) -> Self {
         self.interaction.clickable = val;
         self
     }
 
-    pub fn to_mesh(&self) -> MeshData {
+    pub fn to_mesh(&self, scale: f32) -> MeshData {
         let mut vertices = Vec::new();
         let mut normals = Vec::new();
         let mut indices = Vec::new();
@@ -128,8 +83,8 @@ impl Sphere {
                 let y = cy + r * ny;
                 let z = cz + r * nz;
 
-                vertices.push([x, y, z]);
-                normals.push([nx, ny, nz]);
+                vertices.push([x, y, z].map(|x| x * scale));
+                normals.push([nx, ny, nz].map(|x| x * scale));
                 colors.push(color_rgba); // 每个顶点同样颜色
             }
         }
@@ -163,5 +118,19 @@ impl Sphere {
 impl VisualShape for Sphere {
     fn style_mut(&mut self) -> &mut VisualStyle {
         &mut self.style
+    }
+}
+
+pub trait UpdateSphere {
+    fn update_sphere(&mut self, id: &str, f: impl FnOnce(&mut Sphere));
+}
+
+impl UpdateSphere for Scene {
+    fn update_sphere(&mut self, id: &str, f: impl FnOnce(&mut Sphere)) {
+        if let Some(Shape::Sphere(sphere)) = self.named_shapes.get_mut(id) {
+            f(sphere);
+        } else {
+            panic!("Sphere with ID '{}' not found or is not a Sphere", id);
+        }
     }
 }
