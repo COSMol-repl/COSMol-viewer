@@ -210,10 +210,7 @@ impl Molecules {
             let radius = self.atom_types.get(i).unwrap_or(&AtomType::Unknown).radius() * 0.2;
             let color = self.atom_types.get(i).unwrap_or(&AtomType::Unknown).color();
 
-            println!("atom: {}, color: {:?}, radius: {}", i, color, radius);
-
             let mut sphere = Sphere::new(*pos, radius);
-            sphere.style = self.style; // 继承样式
             sphere.interaction = self.interaction;
             sphere = sphere.color(color);
 
@@ -226,7 +223,7 @@ impl Molecules {
             for n in mesh.normals {
                 normals.push(n.map(|x| x * scale));
             }
-            for c in mesh.colors.unwrap_or_default() {
+            for c in mesh.colors.unwrap() {
                 colors.push(c);
             }
             for idx in mesh.indices {
@@ -243,8 +240,8 @@ impl Molecules {
             let pos_b = self.atoms[b as usize];
 
             let mut stick = Stick::new(pos_a, pos_b, 0.1); // or radius by bond type
-            stick.style = self.style;
             stick.interaction = self.interaction;
+            stick = stick.color([0.5, 0.5, 0.5]);
 
             let mesh = stick.to_mesh(1.0);
 
@@ -254,7 +251,7 @@ impl Molecules {
             for n in mesh.normals {
                 normals.push(n.map(|x| x * scale));
             }
-            for c in mesh.colors.unwrap_or_default() {
+            for c in mesh.colors.unwrap() {
                 colors.push(c);
             }
             for idx in mesh.indices {

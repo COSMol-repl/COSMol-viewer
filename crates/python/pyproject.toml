@@ -1,8 +1,9 @@
 [project]
 name = "cosmol-viewer"
-version = "0.1.1.dev3"
+version = "0.1.1.dev4"
 description = "Molecular visualization tools"
 authors = [{name = "95028", email = "wjt@cosmol.org"}]
+repository = "https://github.com/COSMol-repl/COSMol-viewer"
 
 [build-system]
 requires = ["maturin>=1.0,<2.0"]

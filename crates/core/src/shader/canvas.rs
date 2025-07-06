@@ -39,7 +39,6 @@ impl Canvas {
         // 正值表示向上滚动，通常是“缩小”，负值是放大
         if scroll_delta != 0.0 {
             self.camera_state.scale *= (1.0 + scroll_delta * 0.001).clamp(0.1, 10.0);
-            println!("scale {:?}", self.camera_state.scale);
         }
 
         self.camera_state = rotate_camera(self.camera_state, response.drag_motion());
@@ -289,15 +288,13 @@ impl Shader {
         for mesh in scene_data._get_meshes() {
             self.vertex3d
                 .extend(mesh.vertices.iter().enumerate().map(|(i, pos)| {
-                    let mut j = i;
-                    j = i % 50;
                     Vertex3d {
                         position: *pos,
                         normal: mesh.normals[i],
                         color: mesh
                             .colors
                             .as_ref()
-                            .and_then(|colors| colors.get(j))
+                            .and_then(|colors| colors.get(i))
                             .unwrap_or(&[1.0, 1.0, 1.0, 1.0])
                             .clone(),
                     }
@@ -524,7 +521,7 @@ pub fn rotate_camera(mut camera_state: CameraState, drag_motion: Vec2) -> Camera
 pub struct Vertex3d {
     pub position: [f32; 3],
     pub normal: [f32; 3],
-    pub color: [f32; 4], // 可选颜色属性
+    pub color: [f32; 4],
 }
 
 #[repr(C)]

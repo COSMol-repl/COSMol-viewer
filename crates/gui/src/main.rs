@@ -43,7 +43,7 @@ fn main() {
                     app.update_scene(scene_received);
                     app.ctx.request_repaint();
                 } else {
-                    println!("scene update received but app is not initialized");
+                    println!("Scene update received but app is not initialized");
                     let mut scene_guard = _scene_before_app_created.lock().unwrap();
                     *scene_guard = scene_received;
                 }

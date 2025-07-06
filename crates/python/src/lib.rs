@@ -138,8 +138,6 @@ impl Viewer {
 
     #[staticmethod]
     pub fn render(scene: &Scene, py: Python) -> Self {
-        println!("scene {}", serde_json::to_string(&scene.inner).unwrap());
-
         let env_type = detect_runtime_env(py).unwrap();
         match env_type {
             RuntimeEnv::Colab | RuntimeEnv::Jupyter => {
