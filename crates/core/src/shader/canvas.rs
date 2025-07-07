@@ -308,14 +308,6 @@ impl Shader {
         self.dirty = true;
     }
 
-    fn destroy(&self, gl: &glow::Context) {
-        // use glow::HasContext as _;
-        // unsafe {
-        //     gl.delete_program(self.program);
-        //     gl.delete_vertex_array(self.vertex_array);
-        // }
-    }
-
     fn paint(&mut self, gl: &glow::Context, aspect_ratio: f32, camera_state: CameraState) {
         use glow::HasContext as _;
 
@@ -333,7 +325,7 @@ impl Shader {
         let light = Light {
             position: [2.0, -3.0, 2.0],
             color: [1.0, 0.9, 0.9],
-            intensity: 0.7,
+            intensity: 1.0,
         };
 
         unsafe {
@@ -359,7 +351,7 @@ impl Shader {
 
             // === 绘制场景 ===
             gl.enable(glow::DEPTH_TEST);
-            // gl.depth_mask(false); // ✅ 关键：恢复写入深度缓冲区
+            gl.depth_mask(true); // ✅ 关键：恢复写入深度缓冲区
 
             // gl.enable(glow::BLEND);
             // gl.blend_func_separate(
@@ -434,7 +426,7 @@ impl Shader {
             gl.uniform_3_f32_slice(
                 gl.get_uniform_location(self.program, "u_light_color")
                     .as_ref(),
-                (light.color).as_ref(),
+                (light.color.map(|x| x * light.intensity)).as_ref(),
             );
 
             gl.uniform_1_f32(
@@ -494,27 +486,30 @@ impl CameraState {
 
 pub fn rotate_camera(mut camera_state: CameraState, drag_motion: Vec2) -> CameraState {
     let sensitivity = 0.005;
-    let yaw = drag_motion.x * sensitivity;
-    let pitch = drag_motion.y * sensitivity;
+    let yaw = -drag_motion.x * sensitivity;    // 水平拖动 → 绕 up 旋转
+    let pitch = -drag_motion.y * sensitivity;  // 垂直拖动 → 绕 right 旋转
 
-    // 计算右向量
-    let right = camera_state.direction.cross(camera_state.up).normalize();
+    // 当前方向
+    let dir = camera_state.direction;
 
-    // 计算绕 Y 的旋转（水平拖动）
-    let yaw_quat = Quat::from_axis_angle(Vec3::Y, yaw);
+    // right = 当前方向 × 当前 up
+    let right = dir.cross(camera_state.up).normalize();
 
-    // 计算绕右轴的旋转（垂直拖动）
-    let pitch_quat = Quat::from_axis_angle(right, -pitch);
+    // 1. pitch：绕当前 right 轴旋转（垂直）
+    let pitch_quat = Quat::from_axis_angle(right, pitch);
+    let rotated_dir = pitch_quat * dir;
+    let rotated_up = pitch_quat * camera_state.up;
 
-    // 最终方向 = 原方向应用 pitch，然后再应用 yaw
-    let new_direction = yaw_quat * pitch_quat * camera_state.direction;
-    camera_state.direction = new_direction.normalize();
+    // 2. yaw：绕当前“视角 up”旋转（水平）
+    let yaw_quat = Quat::from_axis_angle(rotated_up, yaw);
+    let final_dir = yaw_quat * rotated_dir;
 
-    // 更新 up 向量（可选，视需求而定）
-    camera_state.up = yaw_quat * pitch_quat * camera_state.up;
+    camera_state.direction = final_dir.normalize();
+    camera_state.up = (yaw_quat * rotated_up).normalize();
 
-    return camera_state;
+    camera_state
 }
+
 
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable, Debug, Serialize, Deserialize)]

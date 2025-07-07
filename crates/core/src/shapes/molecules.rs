@@ -1,10 +1,9 @@
-use glam::Mat3;
 use serde::{Deserialize, Serialize};
+use serde_repr::{Deserialize_repr, Serialize_repr};
 
 use crate::{
     Shape,
     parser::sdf::MoleculeData,
-    scene::Scene,
     shapes::{sphere::Sphere, stick::Stick},
     utils::{Interaction, MeshData, VisualShape, VisualStyle},
 };
@@ -50,7 +49,7 @@ impl AtomType {
     pub fn color(&self) -> [f32; 3] {
         match self {
             AtomType::H => [1.0, 1.0, 1.0],       // 白色
-            AtomType::C => [0.2, 0.2, 0.2],       // 深灰
+            AtomType::C => [0.3, 0.3, 0.3],       // 深灰
             AtomType::N => [0.0, 0.0, 1.0],       // 蓝色
             AtomType::O => [1.0, 0.0, 0.0],       // 红色
             AtomType::F => [0.0, 0.8, 0.0],       // 绿
@@ -80,12 +79,13 @@ impl AtomType {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize_repr, Deserialize_repr)]
+#[repr(u8)]
 pub enum BondType {
-    SINGLE,
-    DOUBLE,
-    TRIPLE,
-    AROMATIC,
+    SINGLE = 1,
+    DOUBLE = 2,
+    TRIPLE = 3,
+    AROMATIC = 0,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -241,7 +241,7 @@ impl Molecules {
 
             let mut stick = Stick::new(pos_a, pos_b, 0.1); // or radius by bond type
             stick.interaction = self.interaction;
-            stick = stick.color([0.5, 0.5, 0.5]);
+            stick = stick.color([0.7, 0.7, 0.7]);
 
             let mesh = stick.to_mesh(1.0);
 

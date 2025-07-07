@@ -1,4 +1,4 @@
-use cosmol_viewer_core::{scene::Scene, App, AppWrapper};
+use cosmol_viewer_core::{App, AppWrapper, scene::Scene};
 use eframe::{
     NativeOptions,
     egui::{Vec2, ViewportBuilder},
@@ -6,7 +6,8 @@ use eframe::{
 use ipc_channel::ipc::{self, IpcReceiver, IpcSender};
 use serde::{Deserialize, Serialize};
 use std::{
-    env, fs::File, io::Write, sync::{Arc, Mutex}, thread, time::{SystemTime, UNIX_EPOCH}
+    sync::{Arc, Mutex},
+    thread,
 };
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -27,9 +28,7 @@ fn main() {
     let app_in_thread = Arc::clone(&app);
 
     thread::spawn(move || {
-
-        let tx: IpcSender<IpcSender<Scene>> =
-            IpcSender::connect(server_name.to_string()).unwrap();
+        let tx: IpcSender<IpcSender<Scene>> = IpcSender::connect(server_name.to_string()).unwrap();
 
         let (tx1, rx1): (IpcSender<Scene>, IpcReceiver<Scene>) = ipc::channel().unwrap();
 
@@ -52,7 +51,7 @@ fn main() {
     });
 
     let native_options = NativeOptions {
-        viewport: ViewportBuilder::default().with_inner_size(Vec2::new(400.0, 250.0)),
+        viewport: ViewportBuilder::default().with_inner_size(Vec2::new(800.0, 500.0)),
         depth_buffer: 24,
         ..Default::default()
     };
@@ -62,10 +61,11 @@ fn main() {
         native_options,
         Box::new(|cc| {
             let mut guard = app.lock().unwrap();
-            *guard = Some(App::new(cc, scene_before_app_created.lock().unwrap().clone()));
+            *guard = Some(App::new(
+                cc,
+                scene_before_app_created.lock().unwrap().clone(),
+            ));
             Ok(Box::new(AppWrapper(app.clone())))
         }),
     );
 }
-
-

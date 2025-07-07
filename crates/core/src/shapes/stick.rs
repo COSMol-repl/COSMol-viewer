@@ -1,4 +1,3 @@
-use glam::Mat3;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -40,17 +39,17 @@ impl Stick {
         }
     }
 
-    pub fn radius(mut self, radius: f32) -> Self{
+    pub fn radius(mut self, radius: f32) -> Self {
         self.radius = radius;
         self
     }
 
-    pub fn start(mut self, start: [f32; 3]) -> Self{
+    pub fn start(mut self, start: [f32; 3]) -> Self {
         self.start = start;
         self
     }
 
-    pub fn end(mut self, end: [f32; 3]) -> Self{
+    pub fn end(mut self, end: [f32; 3]) -> Self {
         self.end = end;
         self
     }
@@ -96,13 +95,13 @@ impl Stick {
 
         for i in 0..segments {
             let idx = i * 2;
+            indices.push(idx + 2);
+            indices.push(idx + 1);
             indices.push(idx);
-            indices.push(idx + 1);
-            indices.push(idx + 2);
 
-            indices.push(idx + 1);
-            indices.push(idx + 3);
             indices.push(idx + 2);
+            indices.push(idx + 3);
+            indices.push(idx + 1);
         }
 
         // 对齐旋转：Z -> axis

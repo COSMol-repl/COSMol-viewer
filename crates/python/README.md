@@ -14,14 +14,12 @@ A high-performance molecular visualization library built with Rust and WebGPU, d
 
 # Installation
 
-install with
 ```sh
-pip install cosmol-viewer==0.1.1.dev4
+pip install cosmol-viewer==0.1.1.dev5
 ```
 
 # Usage
 
-python:
 ```python
 from cosmol_viewer import Scene, Viewer, parse_sdf, Molecules
 
@@ -30,7 +28,7 @@ with open("molecule.sdf", "r") as f:
     sdf = f.read()
     mol = Molecules(parse_sdf(sdf)).centered()
 
-scene = Scene.create_viewer()
+scene = Scene()
 scene.scale(0.1)
 scene.add_shape(mol, "mol")
 

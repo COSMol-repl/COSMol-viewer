@@ -16,13 +16,13 @@ pub struct Viewer {
 #[cfg(all(debug_assertions, target_os = "windows"))]
 const GUI_EXE_BYTES: &[u8] = include_bytes!("../../target/debug/cosmol_viewer_gui.exe");
 
-#[cfg(all(debug_assertions, target_os = "linux"))]
+#[cfg(all(debug_assertions, any(target_os = "linux", target_os = "macos")))]
 const GUI_EXE_BYTES: &[u8] = include_bytes!("../../target/debug/cosmol_viewer_gui");
 
 #[cfg(all(not(debug_assertions), target_os = "windows"))]
 const GUI_EXE_BYTES: &[u8] = include_bytes!("../../target/release/cosmol_viewer_gui.exe");
 
-#[cfg(all(not(debug_assertions), target_os = "linux"))]
+#[cfg(all(not(debug_assertions), any(target_os = "linux", target_os = "macos")))]
 const GUI_EXE_BYTES: &[u8] = include_bytes!("../../target/release/cosmol_viewer_gui");
 
 fn calculate_gui_hash() -> String {
@@ -75,6 +75,8 @@ impl Viewer {
 
         let (_, sender) = server.accept().unwrap(); 
         sender.send(scene.clone()).unwrap();
+
+        // panic!("scene: {}", serde_json::to_string(&scene).unwrap());
 
         Viewer { sender: sender }
     }

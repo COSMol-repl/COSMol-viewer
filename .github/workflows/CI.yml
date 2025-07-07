@@ -114,83 +114,88 @@ jobs:
           name: wheels-musllinux-${{ matrix.platform.target }}
           path: crates/python/dist
 
-  # windows:
-  #   runs-on: ${{ matrix.platform.runner }}
-  #   strategy:
-  #     matrix:
-  #       platform:
-  #         - runner: windows-latest
-  #           target: x64
-  #         - runner: windows-latest
-  #           target: x86
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: actions/setup-python@v5
-  #       with:
-  #         python-version: 3.x
-  #         architecture: ${{ matrix.platform.target }}
-  #     - uses: actions-rs/toolchain@v1.0.6
-  #       with:
-  #         profile: minimal
-  #         toolchain: stable
-  #         override: true
-  #         target: wasm32-unknown-unknown
-  #     - uses: cargo-bins/cargo-binstall@main
-  #     - name: Build wasm module
-  #       run: |
-  #         cargo binstall -y wasm-pack
-  #         wasm-pack build ./crates/wasm --target web --out-dir ./pkg
-  #         cargo build --package cosmol_viewer_gui
-  #     - name: Build wheels
-  #       uses: PyO3/maturin-action@v1
-  #       with:
-  #         target: ${{ matrix.platform.target }}
-  #         args: --release --out dist --find-interpreter
-  #         working-directory: crates/python
-  #         sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
-  #     - name: Upload wheels
-  #       uses: actions/upload-artifact@v4
-  #       with:
-  #         name: wheels-windows-${{ matrix.platform.target }}
-  #         path: crates/python/dist
+  windows:
+    runs-on: ${{ matrix.platform.runner }}
+    strategy:
+      matrix:
+        platform:
+          - runner: windows-latest
+            target: x64
+          - runner: windows-latest
+            target: x86
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: 3.x
+          architecture: ${{ matrix.platform.target }}
+      - uses: actions-rs/toolchain@v1.0.6
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+          target: wasm32-unknown-unknown
+      - uses: cargo-bins/cargo-binstall@main
+      - name: Build wasm module
+        run: |
+          cargo binstall -y wasm-pack
+          wasm-pack build ./crates/wasm --target web --out-dir ./pkg
+      - name: Build GUI
+        run: |
+          cargo build --package cosmol_viewer_gui --release
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.platform.target }}
+          args: --release --out dist --find-interpreter
+          working-directory: crates/python
+          sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-windows-${{ matrix.platform.target }}
+          path: crates/python/dist
 
-  # macos:
-  #   runs-on: ${{ matrix.platform.runner }}
-  #   strategy:
-  #     matrix:
-  #       platform:
-  #         - runner: macos-13
-  #           target: x86_64
-  #         - runner: macos-14
-  #           target: aarch64
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: actions/setup-python@v5
-  #       with:
-  #         python-version: 3.x
-  #     - uses: actions-rs/toolchain@v1.0.6
-  #       with:
-  #         profile: minimal
-  #         toolchain: stable
-  #         override: true
-  #         target: wasm32-unknown-unknown
-  #     - uses: cargo-bins/cargo-binstall@main
-  #     - name: Build wasm module
-  #       run: |
-  #         cargo binstall -y wasm-pack
-  #         wasm-pack build ./crates/wasm --target web --out-dir ./pkg
-  #     - name: Build wheels
-  #       uses: PyO3/maturin-action@v1
-  #       with:
-  #         target: ${{ matrix.platform.target }}
-  #         args: --release --out dist --find-interpreter
-  #         working-directory: crates/python
-  #         sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
-  #     - name: Upload wheels
-  #       uses: actions/upload-artifact@v4
-  #       with:
-  #         name: wheels-macos-${{ matrix.platform.target }}
-  #         path: crates/python/dist
+  macos:
+    runs-on: ${{ matrix.platform.runner }}
+    strategy:
+      matrix:
+        platform:
+          - runner: macos-13
+            target: x86_64
+          - runner: macos-14
+            target: aarch64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: 3.x
+      - uses: actions-rs/toolchain@v1.0.6
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+          target: wasm32-unknown-unknown
+      - uses: cargo-bins/cargo-binstall@main
+      - name: Build wasm module
+        run: |
+          cargo binstall -y wasm-pack
+          wasm-pack build ./crates/wasm --target web --out-dir ./pkg
+      - name: Build GUI
+        run: |
+          cargo build --package cosmol_viewer_gui --release
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.platform.target }}
+          args: --release --out dist --find-interpreter
+          working-directory: crates/python
+          sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-macos-${{ matrix.platform.target }}
+          path: crates/python/dist
 
   sdist:
     runs-on: ubuntu-latest
@@ -212,7 +217,7 @@ jobs:
     name: Release
     runs-on: ubuntu-latest
     if: ${{ startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' }}
-    needs: [linux, musllinux, sdist]
+    needs: [linux, musllinux, windows, sdist]
     # needs: [linux, musllinux, windows, macos, sdist]
     permissions:
       # Use to sign the release artifacts

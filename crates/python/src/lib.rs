@@ -18,8 +18,8 @@ pub struct Scene {
 
 #[pymethods]
 impl Scene {
-    #[staticmethod]
-    pub fn create_viewer() -> Self {
+    #[new]
+    pub fn new() -> Self {
         Self {
             inner: _Scene::new(),
         }

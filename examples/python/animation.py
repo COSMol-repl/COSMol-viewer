@@ -3,12 +3,14 @@ import time
 import math
 
 # 初始化
-scene = Scene.create_viewer()
-green_sphere = Sphere([0.0, 0.3, 0.0], 0.6).with_color([0.0, 1.0, 0.0])
+scene = Scene()
+green_sphere = Sphere([0.0, 0.3, 0.0], 0.6).color([0.0, 1.0, 0.0])
 scene.add_shape(green_sphere, "green")
 
-blue_sphere = Sphere([0.0, 0.0, 0.9], 0.6).with_color([0.0, 0.0, 1.0])
+blue_sphere = Sphere([0.0, 0.0, 0.9], 0.6).color([0.0, 0.0, 1.0])
 scene.add_shape(blue_sphere, "blue")
+
+scene.scale(0.5)
 
 viewer = Viewer.render(scene)
 
@@ -20,7 +22,7 @@ while True:
     g = abs(math.cos(t))
     b = 1.0 - r
 
-    updated = Sphere([0.0, 0.0, z], 0.6).with_color([r, g, b])
+    updated = Sphere([0.0, 0.0, z], 0.6).color([r, g, b])
     scene.update_shape("blue", updated)
     viewer.update(scene)
 

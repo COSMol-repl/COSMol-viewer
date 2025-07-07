@@ -1,6 +1,6 @@
 use cosmol_viewer_core::{
     shapes::{molecules::Molecules, sphere::Sphere, stick::Stick},
-    utils::{VisualShape, VisualStyle},
+    utils::VisualShape,
 };
 use pyo3::{PyRefMut, pyclass, pymethods};
 
