@@ -76,6 +76,8 @@ impl Viewer {
         let (_, sender) = server.accept().unwrap(); 
         sender.send(scene.clone()).unwrap();
 
+        // panic!("scene: {}", serde_json::to_string(&scene).unwrap());
+
         Viewer { sender: sender }
     }
 

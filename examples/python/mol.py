@@ -7,7 +7,7 @@ with open("example.sdf", "r", encoding="utf-8") as f:
 
     mol = Molecules(mol_data)
 
-    scene = Scene.create_viewer()
+    scene = Scene()
     
     scene.scale(0.1)
     
