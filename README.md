@@ -6,7 +6,7 @@ Molecular visualization tools by rust
 
 python:
 ```python
-! pip install cosmol-viewer====0.1.1.dev5
+! pip install cosmol-viewer==0.1.1.dev5
 
 from cosmol_viewer import Scene, Viewer, parse_sdf, Molecules
 

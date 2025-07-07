@@ -51,7 +51,7 @@ fn main() {
     });
 
     let native_options = NativeOptions {
-        viewport: ViewportBuilder::default().with_inner_size(Vec2::new(400.0, 250.0)),
+        viewport: ViewportBuilder::default().with_inner_size(Vec2::new(800.0, 500.0)),
         depth_buffer: 24,
         ..Default::default()
     };
