@@ -705,7 +705,6 @@ dependencies = [
  "cosmol_viewer_core",
  "eframe",
  "egui_extras",
- "glam",
  "hex",
  "ipc-channel",
  "serde",
@@ -739,7 +738,6 @@ dependencies = [
  "cosmol_viewer_core",
  "eframe",
  "egui_extras",
- "glam",
  "ipc-channel",
  "serde",
  "serde_json",
@@ -755,7 +753,6 @@ dependencies = [
  "cosmol_viewer_core",
  "eframe",
  "egui_extras",
- "glam",
  "hex",
  "ipc-channel",
  "pyo3",
@@ -772,7 +769,6 @@ dependencies = [
  "cosmol_viewer_core",
  "eframe",
  "egui_extras",
- "glam",
  "log",
  "serde_json",
  "wasm-bindgen",
@@ -3168,7 +3164,6 @@ dependencies = [
  "cosmol_viewer_core",
  "eframe",
  "egui_extras",
- "glam",
 ]
 
 [[package]]

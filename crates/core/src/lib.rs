@@ -5,8 +5,9 @@ use std::{
 
 pub mod utils;
 pub mod parser;
+pub use eframe::egui;
 
-use eframe::egui::{self, Color32, Stroke};
+use eframe::egui::{Color32, Stroke};
 
 use shader::Canvas;
 
@@ -33,7 +34,6 @@ pub struct App {
 }
 
 impl App {
-    // #[cfg(not(target_arch = "wasm32"))]
     pub fn new(cc: &eframe::CreationContext<'_>, scene: Scene) -> Self {
         let gl = cc.gl.clone();
         let canvas = Canvas::new(gl.as_ref().unwrap().clone(), scene).unwrap();

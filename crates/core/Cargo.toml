@@ -7,9 +7,9 @@ publish = false
 [dependencies]
 eframe.workspace = true
 serde_json.workspace = true
-glam.workspace = true
+glam = { version = "0.30.3" , features = ["serde"] }
 egui_extras.workspace = true
-serde = { version = "1.0.219" , features = ["derive"] }
+serde.workspace = true
 bytemuck = "1.23.1"
 web-sys = "0.3.77"
 serde_repr = "0.1"

@@ -151,8 +151,8 @@ impl Viewer {
 
                 let html_code = format!(
                     r#"
-            <canvas id="{id}" width="600" height="400" style="width:600px; height:400px;"></canvas>
-            "#,
+<canvas id="{id}" width="600" height="600" style="width:600px; height:600px;"></canvas>
+                    "#,
                     id = unique_id
                 );
 
@@ -161,34 +161,30 @@ impl Viewer {
 
                 let combined_js = format!(
                     r#"
-            (function() {{
-                const wasmBase64 = "{wasm_base64}";
-                const jsBase64 = "{js_base64}";
+(function() {{
+    
+    if (!window.cosmol_viewer_blob_url) {{
+        const jsCode = atob("{js_base64}");
+        const blob = new Blob([jsCode], {{ type: 'application/javascript' }});
+        window.cosmol_viewer_blob_url = URL.createObjectURL(blob);
+    }}
+    
+    const wasmBase64 = "{wasm_base64}";
+    import(window.cosmol_viewer_blob_url).then(async (mod) => {{
+        const wasmBytes = Uint8Array.from(atob(wasmBase64), c => c.charCodeAt(0));
+        await mod.default(wasmBytes);
 
-                // 创建 Blob 链接
-                const jsCode = atob(jsBase64);
-                const blob = new Blob([jsCode], {{ type: 'application/javascript' }});
-                const blobUrl = URL.createObjectURL(blob);
+        const canvas = document.getElementById('{id}');
+        const app = new mod.WebHandle();
+        const sceneJson = {SCENE_JSON};
+        console.log("Starting cosmol_viewer with scene:", sceneJson);
+        await app.start_with_scene(canvas, sceneJson);
 
-                import(blobUrl).then(async (mod) => {{
-                    const wasmBytes = Uint8Array.from(atob(wasmBase64), c => c.charCodeAt(0));
-                    await mod.default(wasmBytes);
-
-                    const canvas = document.getElementById('{id}');
-                    const app = new mod.WebHandle();
-                    const sceneJson = {SCENE_JSON};
-                    console.log("Starting cosmol_viewer with scene:", sceneJson);
-                    await app.start_with_scene(canvas, sceneJson);
-
-                    // ✅ 注册到全局，方便后续更新
-                    window.cosmol_viewer_instances = window.cosmol_viewer_instances || {{}};
-                    window.cosmol_viewer_instances["{id}"] = {{
-                        app: app,
-                        canvas: canvas,
-                    }};
-                }});
-            }})();
-            "#,
+        window.cosmol_viewer_instances = window.cosmol_viewer_instances || {{}};
+        window.cosmol_viewer_instances["{id}"] = app;
+    }});
+}})();
+                "#,
                     wasm_base64 = wasm_base64,
                     js_base64 = js_base64,
                     id = unique_id,
@@ -250,10 +246,10 @@ impl Viewer {
                     r#"
 (function() {{
     const instances = window.cosmol_viewer_instances || {{}};
-    const handle = instances["{id}"];
-    if (handle) {{
+    const app = instances["{id}"];
+    if (app) {{
         const sceneJson = {SCENE_JSON};
-        handle.app.update_scene(sceneJson);
+        app.update_scene(sceneJson);
     }} else {{
         console.error("No app found for ID {id}");
     }}

@@ -7,7 +7,6 @@ publish = false
 [dependencies]
 cosmol_viewer_core = { path = "../core" }
 eframe.workspace = true
-glam.workspace = true
 serde_json.workspace = true
 egui_extras.workspace = true
 serde = { version = "1.0.219" , features = ["derive"] }

@@ -15,7 +15,7 @@ A high-performance molecular visualization library built with Rust and WebGPU, d
 # Installation
 
 ```sh
-pip install cosmol-viewer==0.1.1.dev5
+pip install cosmol-viewer==0.1.1
 ```
 
 # Usage
