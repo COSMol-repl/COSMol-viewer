@@ -208,13 +208,13 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           command: sdist
-          working-directory: ./
+          working-directory: crates/python
           args: --out dist
       - name: Upload sdist
         uses: actions/upload-artifact@v4
         with:
           name: wheels-sdist
-          path: ./dist
+          path: crates/python/dist
 
   release:
     name: Release
