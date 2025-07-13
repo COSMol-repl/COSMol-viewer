@@ -7,6 +7,5 @@ edition = "2024"
 cosmol_viewer_core.workspace = true
 cosmol_viewer.workspace = true
 eframe.workspace = true
-glam.workspace = true
 egui_extras.workspace = true
 

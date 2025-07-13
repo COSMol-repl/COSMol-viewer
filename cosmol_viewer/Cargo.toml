@@ -13,7 +13,6 @@ readme = "../README.md"
 [dependencies]
 cosmol_viewer_core = { path = "../crates/core" }
 eframe.workspace = true
-glam.workspace = true
 serde_json.workspace = true
 egui_extras.workspace = true
 sha2.workspace = true

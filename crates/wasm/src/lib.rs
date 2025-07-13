@@ -1,11 +1,11 @@
-use cosmol_viewer_core::App;
-use cosmol_viewer_core::AppWrapper;
 use cosmol_viewer_core::scene::Scene;
+use cosmol_viewer_core::{App, egui};
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::Mutex;
 use wasm_bindgen::JsValue;
 use wasm_bindgen::prelude::wasm_bindgen;
-use wasm_bindgen_futures::spawn_local;
+
 use web_sys::HtmlCanvasElement;
 
 #[cfg(target_arch = "wasm32")]
@@ -15,7 +15,6 @@ use eframe::WebRunner;
 #[wasm_bindgen]
 pub struct WebHandle {
     runner: WebRunner,
-    scene: Arc<Mutex<Scene>>,
     app: Arc<Mutex<Option<App>>>,
 }
 
@@ -27,7 +26,6 @@ impl WebHandle {
         eframe::WebLogger::init(log::LevelFilter::Debug).ok();
         Self {
             runner: WebRunner::new(),
-            scene: Arc::new(Mutex::new(Scene::new())),
             app: Arc::new(Mutex::new(None)),
         }
     }
@@ -41,7 +39,6 @@ impl WebHandle {
         let scene: Scene = serde_json::from_str(&scene_json)
             .map_err(|e| JsValue::from_str(&format!("Scene parse error: {}", e)))?;
 
-        // let scene = Arc::clone(&self.scene);
         let app = Arc::clone(&self.app);
 
         let _ = self
@@ -50,18 +47,17 @@ impl WebHandle {
                 canvas,
                 eframe::WebOptions::default(),
                 Box::new(move |cc| {
+                    use cosmol_viewer_core::AppWrapper;
+
                     let mut guard = app.lock().unwrap();
                     *guard = Some(App::new(
                         cc,
-                        // Scene::new(),
                         scene,
                     ));
                     Ok(Box::new(AppWrapper(app.clone())))
                 }),
             )
             .await;
-        // });
-
         Ok(())
     }
 
