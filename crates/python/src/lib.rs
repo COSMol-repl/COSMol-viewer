@@ -300,16 +300,34 @@ fn cosmol_viewer(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
 }
 
 #[cfg(all(debug_assertions, target_os = "windows"))]
-const GUI_EXE_BYTES: &[u8] = include_bytes!("../../../target/debug/cosmol_viewer_gui.exe");
+macro_rules! embed_gui_exe {
+    () => {
+        include_bytes!("../../../target/debug/cosmol_viewer_gui.exe")
+    };
+}
 
-#[cfg(all(debug_assertions, target_os = "linux"))]
-const GUI_EXE_BYTES: &[u8] = include_bytes!("../../../target/debug/cosmol_viewer_gui");
+#[cfg(all(debug_assertions, not(target_os = "windows")))]
+macro_rules! embed_gui_exe {
+    () => {
+        include_bytes!("../../../target/debug/cosmol_viewer_gui")
+    };
+}
 
 #[cfg(all(not(debug_assertions), target_os = "windows"))]
-const GUI_EXE_BYTES: &[u8] = include_bytes!("../../../target/release/cosmol_viewer_gui.exe");
+macro_rules! embed_gui_exe {
+    () => {
+        include_bytes!("../../../target/release/cosmol_viewer_gui.exe")
+    };
+}
 
-#[cfg(all(not(debug_assertions), target_os = "linux"))]
-const GUI_EXE_BYTES: &[u8] = include_bytes!("../../../target/release/cosmol_viewer_gui");
+#[cfg(all(not(debug_assertions), not(target_os = "windows")))]
+macro_rules! embed_gui_exe {
+    () => {
+        include_bytes!("../../../target/release/cosmol_viewer_gui")
+    };
+}
+
+const GUI_EXE_BYTES: &[u8] = embed_gui_exe!();
 
 fn calculate_gui_hash() -> String {
     let result = Sha256::digest(GUI_EXE_BYTES);
