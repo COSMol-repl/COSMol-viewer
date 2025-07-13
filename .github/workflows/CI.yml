@@ -50,7 +50,7 @@ jobs:
       - uses: cargo-bins/cargo-binstall@main
       - name: Build wasm module
         run: |
-          cargo binstall -y wasm-pack
+          cargo binstall -y wasm-pack --force
           wasm-pack build ./crates/wasm --target web --out-dir ./pkg
       - name: Build GUI
         run: |
@@ -140,7 +140,7 @@ jobs:
       - uses: cargo-bins/cargo-binstall@main
       - name: Build wasm module
         run: |
-          cargo binstall -y wasm-pack
+          cargo binstall -y wasm-pack --force
           wasm-pack build ./crates/wasm --target web --out-dir ./pkg
       - name: Build GUI
         run: |
@@ -182,7 +182,7 @@ jobs:
       - uses: cargo-bins/cargo-binstall@main
       - name: Build wasm module
         run: |
-          cargo binstall -y wasm-pack
+          cargo binstall -y wasm-pack --force
           wasm-pack build ./crates/wasm --target web --out-dir ./pkg
       - name: Build GUI
         run: |
