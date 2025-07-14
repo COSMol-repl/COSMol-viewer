@@ -4,10 +4,11 @@ Molecular visualization tools by rust
 
 # Usage
 
-python:
-```python
-! pip install cosmol-viewer==0.1.1
+## python
 
+Install with `pip install cosmol-viewer`
+
+```python
 from cosmol_viewer import Scene, Viewer, parse_sdf, Molecules
 
 # === Step 1: Load and render a molecule ===
@@ -35,7 +36,10 @@ for i in range(1, 10):  # Simulate multiple frames
     time.sleep(0.033)  # ~30 FPS
 ```
 
-rust:
+## Rust
+
+Install with `cargo add cosmol_viewer`
+
 ```rust
 use cosmol_viewer::{Scene, Viewer, Molecules, parse_sdf, ParserOptions};
 
@@ -66,5 +70,4 @@ fn main() {
         std::thread::sleep(std::time::Duration::from_millis(33)); // ~30 FPS
     }
 }
-
 ```

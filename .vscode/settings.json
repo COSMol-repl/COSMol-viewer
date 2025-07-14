@@ -3,5 +3,5 @@
     "PYO3_PYTHON": "C:\\Users\\95028\\.conda\\envs\\BIO\\python.exe",
     "PYO3_CROSS_PYTHON_VERSION": "3.13",
   },
-  "rust-analyzer.cargo.target": "wasm32-unknown-unknown"
+  // "rust-analyzer.cargo.target": "wasm32-unknown-unknown"
 }

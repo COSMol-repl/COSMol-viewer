@@ -1,18 +1,18 @@
 [package]
 name = "cosmol_viewer"
 version.workspace = true
-edition = "2024"
+edition.workspace = true
 authors = ["9028 <wjt@cosmol.org>"]
-description = "COSMol: Core molecular visualization library"
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/COSMol-repl/COSMol-viewer"
 homepage = "https://github.com/COSMol-repl/COSMol-viewer"
 keywords = ["molecular", "visualization"]
 readme = "../README.md"
+description.workspace = true
+repository.workspace = true
+license.workspace = true
 
 [dependencies]
-cosmol_viewer_core = { path = "../crates/core" }
 eframe.workspace = true
+cosmol_viewer_core.workspace = true
 serde_json.workspace = true
 egui_extras.workspace = true
 sha2.workspace = true
@@ -21,4 +21,3 @@ serde = { version = "1.0.219" , features = ["derive"] }
 bytemuck = "1.23.1"
 web-sys = "0.3.77"
 wasm-bindgen-futures = "0.4.50"
-ipc-channel.workspace = true

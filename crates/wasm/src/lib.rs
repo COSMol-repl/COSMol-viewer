@@ -1,6 +1,5 @@
 use cosmol_viewer_core::scene::Scene;
-use cosmol_viewer_core::{App, egui};
-use std::collections::HashMap;
+use cosmol_viewer_core::{App};
 use std::sync::Arc;
 use std::sync::Mutex;
 use wasm_bindgen::JsValue;
@@ -74,7 +73,6 @@ impl WebHandle {
         } else {
             println!("scene update received but app is not initialized");
         }
-
         Ok(())
     }
 }
