@@ -10,3 +10,5 @@ cosmol_viewer.workspace = true
 eframe.workspace = true
 egui_extras.workspace = true
 
+[package.metadata.release]
+release = false
