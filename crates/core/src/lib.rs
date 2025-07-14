@@ -1,17 +1,9 @@
 mod shader;
-#[cfg(not(target_arch = "wasm32"))]
-use egui_winit::winit::{self, event_loop::EventLoop};
 use std::sync::{Arc, Mutex};
-
-#[cfg(not(target_arch = "wasm32"))]
-use eframe::native::winit_integration::WinitApp;
 
 pub mod parser;
 pub mod utils;
 pub use eframe::egui;
-
-#[cfg(not(target_arch = "wasm32"))]
-use eframe::{AppCreator, Error, NativeOptions, Renderer, UserEvent, native::run::WinitAppWrapper};
 
 use eframe::egui::{Color32, Stroke};
 
@@ -99,9 +91,33 @@ impl NativeGuiViewer {
         let scene = Arc::new(Mutex::new(scene.clone()));
 
         thread::spawn(move || {
+            use eframe::{EventLoopBuilderHook, run_native};
+            let event_loop_builder: Option<EventLoopBuilderHook> =
+                Some(Box::new(|event_loop_builder| {
+                    #[cfg(target_family = "windows")]
+                    {
+                        use egui_winit::winit::platform::windows::EventLoopBuilderExtWindows;
+                        event_loop_builder.with_any_thread(true);
+                        println!("Running on windows")
+                    }
+                    #[cfg(feature = "wayland")]
+                    {
+                        use winit::platform::wayland::EventLoopBuilderExtWayland;
+                        event_loop_builder.with_any_thread(true);
+                        println!("Running on wayland")
+                    }
+                    #[cfg(feature = "x11")]
+                    {
+                        use winit::platform::x11::EventLoopBuilderExtX11;
+                        event_loop_builder.with_any_thread(true);
+                        println!("Running on X11")
+                    }
+                }));
+
             let native_options = NativeOptions {
                 viewport: ViewportBuilder::default().with_inner_size(Vec2::new(800.0, 500.0)),
                 depth_buffer: 24,
+                event_loop_builder,
                 ..Default::default()
             };
 
@@ -127,82 +143,4 @@ impl NativeGuiViewer {
             app.ctx.request_repaint();
         }
     }
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-pub fn run_native(
-    app_name: &str,
-    mut native_options: NativeOptions,
-    app_creator: AppCreator<'_>,
-) -> Result {
-    if native_options.viewport.title.is_none() {
-        native_options.viewport.title = Some(app_name.to_owned());
-    }
-
-    let renderer = native_options.renderer;
-
-    {
-        match renderer {
-            Renderer::Glow => "glow",
-        };
-    }
-
-    match renderer {
-        Renderer::Glow => run_glow(app_name, native_options, app_creator),
-    }
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-pub type Result<T = (), E = Error> = std::result::Result<T, E>;
-
-#[cfg(not(target_arch = "wasm32"))]
-pub fn run_glow(
-    app_name: &str,
-    mut native_options: NativeOptions,
-    app_creator: AppCreator<'_>,
-) -> Result {
-    #![allow(clippy::needless_return_with_question_mark)] // False positive
-
-    use eframe::native::glow_integration::GlowWinitApp;
-
-    let event_loop = create_event_loop(&mut native_options)?;
-    let glow_eframe = GlowWinitApp::new(&event_loop, app_name, native_options, app_creator);
-    run_and_exit(event_loop, glow_eframe)
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn create_event_loop(native_options: &mut NativeOptions) -> Result<EventLoop<UserEvent>> {
-    let mut builder = winit::event_loop::EventLoop::with_user_event();
-    #[cfg(all(unix, not(target_vendor = "apple")))]
-    {
-        #[cfg(feature = "wayland")]
-        {
-            use winit::platform::wayland::EventLoopBuilderExtWayland;
-            builder.with_any_thread(true);
-        }
-        #[cfg(feature = "x11")]
-        {
-            use winit::platform::x11::EventLoopBuilderExtX11;
-            builder.with_any_thread(true);
-        }
-    }
-    #[cfg(target_family = "windows")]
-    {
-        use winit::platform::windows::EventLoopBuilderExtWindows;
-        builder.with_any_thread(true);
-    }
-
-    if let Some(hook) = std::mem::take(&mut native_options.event_loop_builder) {
-        hook(&mut builder);
-    }
-
-    Ok(builder.build()?)
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn run_and_exit(event_loop: EventLoop<UserEvent>, winit_app: impl WinitApp) -> Result {
-    let mut app = WinitAppWrapper::new(winit_app, false);
-    event_loop.run_app(&mut app)?;
-
-    Ok(())
 }

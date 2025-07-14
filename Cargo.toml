@@ -21,12 +21,9 @@ members = [
 cosmol_viewer = { version = "0.1.2-nightly.1", path = "cosmol_viewer"}
 cosmol_viewer_core = { version = "0.1.2-nightly.1", path = "crates/core" }
 
-eframe = { git = "https://github.com/950288/egui", branch = "main" }
-egui-winit = { git = "https://github.com/950288/egui", branch = "main" }
-egui_extras = { git = "https://github.com/950288/egui", branch = "main" }
-# eframe = { path = "D://Github//egui//crates//eframe"}
-# egui-winit = { path = "D://Github//egui//crates//egui-winit"}
-# egui_extras = { path = "D://Github//egui//crates//egui_extras"}
+eframe = { version = "0.32.0", features = ["wayland","x11"] }
+egui-winit = { version = "0.32.0", features = ["wayland","x11"] }
+egui_extras = { version = "0.32.0" }
 serde = { version = "1.0.219" , features = ["derive"] }
 serde_json = "1.0.140"
 sha2 = "0.10.9"

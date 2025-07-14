@@ -20,3 +20,8 @@ once_cell = "1.21.3"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 egui-winit.workspace = true
+
+[features]
+default = []
+wayland = []
+x11 = []

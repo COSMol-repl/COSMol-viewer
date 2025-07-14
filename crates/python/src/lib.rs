@@ -1,8 +1,5 @@
 use base64::Engine as _;
-use ipc_channel::ipc::{IpcOneShotServer, IpcSender};
 use pyo3::{ffi::c_str, prelude::*};
-use sha2::{Digest, Sha256};
-use std::{env, fs::File, io::Write};
 use uuid::Uuid;
 
 use crate::{
