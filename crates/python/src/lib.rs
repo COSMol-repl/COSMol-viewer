@@ -155,7 +155,7 @@ impl Viewer {
 
                 let html_code = format!(
                     r#"
-<canvas id="{id}" width="600" height="600" style="width:600px; height:600px;"></canvas>
+<canvas id="{id}" width="600" height="400" style="width:600px; height:400px;"></canvas>
                     "#,
                     id = unique_id
                 );
