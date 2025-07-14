@@ -5,6 +5,8 @@ authors = ["9028 wjt@cosmol.org"]
 repository = "https://github.com/COSMol-repl/COSMol-viewer"
 homepage = "https://github.com/COSMol-repl/COSMol-viewer"
 keywords = ["molecular", "visualization"]
+license = "MIT OR Apache-2.0"
+description = "Molecular visualization tools by rust"
 
 [workspace]
 resolver = "2"
@@ -18,8 +20,9 @@ members = [
     ]
 
 [workspace.dependencies]
-cosmol_viewer = {path = "cosmol_viewer"}
-cosmol_viewer_core = { path = "crates/core" }
+cosmol_viewer = { version = "*", path = "cosmol_viewer"}
+cosmol_viewer_core = { version = "*", path = "crates/core" }
+
 eframe = { version = "0.31.1"}
 egui_extras = { version = "0.31.1", features = ["svg"] }
 serde = { version = "1.0.219" , features = ["derive"] }

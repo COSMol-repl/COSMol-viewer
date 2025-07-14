@@ -1,8 +1,10 @@
 [package]
 name = "cosmol_viewer_core"
 version.workspace = true
-edition = "2024"
-publish = false
+edition.workspace = true
+description.workspace = true
+repository.workspace = true
+license.workspace = true
 
 [dependencies]
 eframe.workspace = true

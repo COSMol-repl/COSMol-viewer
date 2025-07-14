@@ -1,11 +1,11 @@
 [package]
 name = "cosmol_viewer_gui"
 version.workspace = true
-edition = "2024"
+edition.workspace = true
 publish = false
 
 [dependencies]
-cosmol_viewer_core = { path = "../core" }
+cosmol_viewer_core.workspace = true
 eframe.workspace = true
 serde_json.workspace = true
 egui_extras.workspace = true
