@@ -64,7 +64,7 @@ impl Canvas {
 
     pub fn update_scene(&mut self, scene: Scene) {
         self.shader.lock().update_scene(scene);
-        println!("Scene updated in Canvas");
+        // println!("Scene updated in Canvas");
     }
 }
 

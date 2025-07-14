@@ -1,12 +1,15 @@
-use std::{env, fs::File, io::Write};
 use base64::Engine as _;
 use ipc_channel::ipc::{IpcOneShotServer, IpcSender};
 use pyo3::{ffi::c_str, prelude::*};
 use sha2::{Digest, Sha256};
+use std::{env, fs::File, io::Write};
 use uuid::Uuid;
 
-use cosmol_viewer_core::{scene::Scene as _Scene};
-use crate::{parser::parse_sdf, shapes::{PyMolecules, PySphere, PyStick}};
+use crate::{
+    parser::parse_sdf,
+    shapes::{PyMolecules, PySphere, PyStick},
+};
+use cosmol_viewer_core::{NativeGuiViewer, scene::Scene as _Scene};
 
 mod parser;
 mod shapes;
@@ -83,9 +86,10 @@ impl std::fmt::Display for RuntimeEnv {
 #[pyclass]
 #[pyo3(crate = "pyo3", unsendable)]
 pub struct Viewer {
-    sender: Option<IpcSender<_Scene>>,
+    // sender: Option<IpcSender<_Scene>>,
     environment: RuntimeEnv,
     canvas_id: Option<String>,
+    native_gui_viewer: Option<NativeGuiViewer>,
 }
 
 fn detect_runtime_env(py: Python) -> PyResult<RuntimeEnv> {
@@ -208,30 +212,23 @@ impl Viewer {
                     .unwrap();
                 display.call1((js,)).unwrap();
 
+                let _ = py.run(c_str!("print(\"⚠️ Note: When running in Jupyter or Colab, animation updates may be limited by the notebook's output capacity, which can cause incomplete or delayed rendering.\""), None, None);
+
                 Viewer {
-                    sender: None,
                     environment: env_type,
                     canvas_id: Some(unique_id),
+                    native_gui_viewer: None,
                 }
             }
-            RuntimeEnv::PlainScript | RuntimeEnv::IPythonTerminal => {
-                let (server, server_name) = IpcOneShotServer::<IpcSender<_Scene>>::new().unwrap();
-
-                extract_and_run_gui(&server_name)
-                    .expect("Failed to extract and run GUI executable");
-
-                let (_, sender) = server.accept().unwrap();
-                sender.send(scene.inner.clone()).unwrap();
-                Viewer {
-                    sender: Some(sender),
-                    environment: env_type,
-                    canvas_id: None,
-                }
-            }
-            _ => Viewer {
-                sender: None,
+            RuntimeEnv::PlainScript | RuntimeEnv::IPythonTerminal => Viewer {
                 environment: env_type,
                 canvas_id: None,
+                native_gui_viewer: Some(NativeGuiViewer::render(&scene.inner)),
+            },
+            _ => Viewer {
+                environment: env_type,
+                canvas_id: None,
+                native_gui_viewer: None,
             },
         }
     }
@@ -272,12 +269,12 @@ impl Viewer {
                 Ok("Scene updated successfully".to_string())
             }
             RuntimeEnv::PlainScript | RuntimeEnv::IPythonTerminal => {
-                if let Some(sender) = &self.sender {
-                    sender.send(scene.inner.clone()).unwrap();
+                if let Some(native_gui_viewer) = &self.native_gui_viewer {
+                    native_gui_viewer.update(&scene.inner);
                     Ok("Scene updated successfully".to_string())
                 } else {
                     Err(pyo3::exceptions::PyRuntimeError::new_err(
-                        "Viewer is not initialized with a sender",
+                        "Viewer is not initialized",
                     ))
                 }
             }
@@ -296,59 +293,5 @@ fn cosmol_viewer(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyMolecules>()?;
     m.add_class::<Viewer>()?;
     m.add_function(wrap_pyfunction!(parse_sdf, m)?)?;
-    Ok(())
-}
-
-#[cfg(all(debug_assertions, target_os = "windows"))]
-macro_rules! embed_gui_exe {
-    () => {
-        include_bytes!("../../../target/debug/cosmol_viewer_gui.exe")
-    };
-}
-
-#[cfg(all(debug_assertions, not(target_os = "windows")))]
-macro_rules! embed_gui_exe {
-    () => {
-        include_bytes!("../../../target/debug/cosmol_viewer_gui")
-    };
-}
-
-#[cfg(all(not(debug_assertions), target_os = "windows"))]
-macro_rules! embed_gui_exe {
-    () => {
-        include_bytes!("../../../target/release/cosmol_viewer_gui.exe")
-    };
-}
-
-#[cfg(all(not(debug_assertions), not(target_os = "windows")))]
-macro_rules! embed_gui_exe {
-    () => {
-        include_bytes!("../../../target/release/cosmol_viewer_gui")
-    };
-}
-
-const GUI_EXE_BYTES: &[u8] = embed_gui_exe!();
-
-fn calculate_gui_hash() -> String {
-    let result = Sha256::digest(GUI_EXE_BYTES);
-    hex::encode(result)
-}
-
-fn extract_and_run_gui(arg: &str) -> std::io::Result<()> {
-    let tmp_dir = env::temp_dir();
-    let exe_path = tmp_dir.join(format!("cosmol_temp_gui_{}.exe", calculate_gui_hash()));
-
-    if !exe_path.exists() {
-        let mut file = File::create(&exe_path)?;
-        file.write_all(GUI_EXE_BYTES)?;
-    }
-
-    println!("Launching GUI from: {}", exe_path.display());
-
-    std::process::Command::new(&exe_path)
-        .arg(arg)
-        .spawn()
-        .expect("Failed to launch GUI process");
-
     Ok(())
 }
