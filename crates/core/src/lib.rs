@@ -102,13 +102,13 @@ impl NativeGuiViewer {
                     }
                     #[cfg(feature = "wayland")]
                     {
-                        use winit::platform::wayland::EventLoopBuilderExtWayland;
+                        use egui_winit::winit::platform::wayland::EventLoopBuilderExtWayland;
                         event_loop_builder.with_any_thread(true);
                         println!("Running on wayland")
                     }
                     #[cfg(feature = "x11")]
                     {
-                        use winit::platform::x11::EventLoopBuilderExtX11;
+                        use egui_winit::winit::platform::x11::EventLoopBuilderExtX11;
                         event_loop_builder.with_any_thread(true);
                         println!("Running on X11")
                     }
