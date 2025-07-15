@@ -91,6 +91,8 @@ impl NativeGuiViewer {
         let scene = Arc::new(Mutex::new(scene.clone()));
 
         thread::spawn(move || {
+            use std::process;
+
             use eframe::{EventLoopBuilderHook, run_native};
             let event_loop_builder: Option<EventLoopBuilderHook> =
                 Some(Box::new(|event_loop_builder| {
@@ -130,6 +132,7 @@ impl NativeGuiViewer {
                     Ok(Box::new(AppWrapper(app.clone())))
                 }),
             );
+            process::exit(0);
         });
 
         Self { app: app_clone }

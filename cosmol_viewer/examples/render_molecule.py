@@ -1,6 +1,6 @@
 from cosmol_viewer import Scene, Viewer, parse_sdf, Molecules
 
-with open("example.sdf", "r", encoding="utf-8") as f:
+with open("./examples/example.sdf", "r", encoding="utf-8") as f:
     sdf_string = f.read()
 
     mol_data  = parse_sdf(sdf_string)
