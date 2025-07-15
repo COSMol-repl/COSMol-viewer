@@ -64,16 +64,16 @@ impl AtomType {
 
     pub fn radius(&self) -> f32 {
         match self {
-            AtomType::H  => 1.20,
-            AtomType::C  => 1.70,
-            AtomType::N  => 1.55,
-            AtomType::O  => 1.52,
-            AtomType::F  => 1.47,
-            AtomType::P  => 1.80,
-            AtomType::S  => 1.80,
+            AtomType::H => 1.20,
+            AtomType::C => 1.70,
+            AtomType::N => 1.55,
+            AtomType::O => 1.52,
+            AtomType::F => 1.47,
+            AtomType::P => 1.80,
+            AtomType::S => 1.80,
             AtomType::Cl => 1.75,
             AtomType::Br => 1.85,
-            AtomType::I  => 1.98,
+            AtomType::I => 1.98,
             AtomType::Unknown => 1.5,
         }
     }
@@ -163,11 +163,8 @@ impl Molecules {
         }
     }
 
-    pub fn clickable(mut self, val: bool) -> Self {
-        self.interaction.clickable = val;
-        self
-    }
-
+    /// Centers the molecule by translating all atoms so that the geometric center
+    /// is at the origin (0.0, 0.0, 0.0).
     pub fn centered(mut self) -> Self {
         if self.atoms.is_empty() {
             return self;
@@ -207,7 +204,12 @@ impl Molecules {
 
         // 1. 原子 -> Sphere
         for (i, pos) in self.atoms.iter().enumerate() {
-            let radius = self.atom_types.get(i).unwrap_or(&AtomType::Unknown).radius() * 0.2;
+            let radius = self
+                .atom_types
+                .get(i)
+                .unwrap_or(&AtomType::Unknown)
+                .radius()
+                * 0.2;
             let color = self.atom_types.get(i).unwrap_or(&AtomType::Unknown).color();
 
             let mut sphere = Sphere::new(*pos, radius);

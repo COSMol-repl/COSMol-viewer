@@ -60,4 +60,8 @@ impl Scene {
             panic!("Shape with ID '{}' not found", id);
         }
     }
+
+    pub fn set_background_color(&mut self, background_color: [f32; 3])  {
+        self.background_color = background_color;
+    }
 }

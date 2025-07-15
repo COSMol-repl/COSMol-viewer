@@ -1,0 +1,56 @@
+name: py-docs
+
+on:
+  push:
+    tags:
+      - '*'
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  # Build the documentation and upload the static HTML files as an artifact.
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.x
+      - name: Install dependencies
+        run: |
+          pip install maturin pdoc
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions-rs/toolchain@v1.0.6
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+          target: wasm32-unknown-unknown
+      - uses: cargo-bins/cargo-binstall@main
+      - name: Build wasm module
+        run: |
+          cargo binstall -y wasm-pack --force
+          wasm-pack build ./crates/wasm --target web --out-dir ./pkg
+      - name: Build wheels
+        run: maturin develop
+        working-directory: crates/python
+      - name: Build documentation
+        run: |
+          pdoc -o docs/ cosmol_viewer
+      - uses: actions/upload-pages-artifact@v1
+        with:
+          path: docs/
+      
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

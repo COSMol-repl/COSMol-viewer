@@ -94,8 +94,7 @@ fn main() {
 }
 ```
 
-more examples can be found in the [examples](https://github.com/ChenYilong/cosmol-viewer/tree/master/examples) folder like this:
-
+more examples can be found in the [examples](https://github.com/COSMol-repl/COSMol-viewer/tree/main/cosmol_viewer/examples) folder:
 ```bash
 cd cosmol_viewer
 cargo run --example animation
