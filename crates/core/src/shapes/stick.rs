@@ -39,25 +39,25 @@ impl Stick {
         }
     }
 
-    pub fn radius(mut self, radius: f32) -> Self {
+    pub fn set_radius(mut self, radius: f32) -> Self {
         self.radius = radius;
         self
     }
 
-    pub fn start(mut self, start: [f32; 3]) -> Self {
+    pub fn set_start(mut self, start: [f32; 3]) -> Self {
         self.start = start;
         self
     }
 
-    pub fn end(mut self, end: [f32; 3]) -> Self {
+    pub fn set_end(mut self, end: [f32; 3]) -> Self {
         self.end = end;
         self
     }
 
-    pub fn clickable(mut self, val: bool) -> Self {
-        self.interaction.clickable = val;
-        self
-    }
+    // fn clickable(mut self, val: bool) -> Self {
+    //     self.interaction.clickable = val;
+    //     self
+    // }
 
     pub fn to_mesh(&self, scale: f32) -> MeshData {
         let mut vertices = Vec::new();

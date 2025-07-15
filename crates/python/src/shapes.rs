@@ -1,9 +1,9 @@
+use crate::parser::PyMoleculeData;
 use cosmol_viewer_core::{
     shapes::{Molecules, Sphere, Stick},
     utils::VisualShape,
 };
 use pyo3::{PyRefMut, pyclass, pymethods};
-use crate::parser::PyMoleculeData;
 
 #[pyclass(name = "Sphere")]
 #[derive(Clone)]
@@ -20,8 +20,8 @@ impl PySphere {
         }
     }
 
-    pub fn clickable(mut slf: PyRefMut<'_, Self>, val: bool) -> PyRefMut<'_, Self> {
-        slf.inner = slf.inner.clickable(val);
+    pub fn set_radius(mut slf: PyRefMut<'_, Self>, radius: f32) -> PyRefMut<'_, Self> {
+        slf.inner = slf.inner.set_radius(radius);
         slf
     }
 
@@ -41,7 +41,6 @@ impl PySphere {
     }
 }
 
-
 #[pyclass(name = "Stick")]
 #[derive(Clone)]
 pub struct PyStick {
@@ -53,17 +52,27 @@ impl PyStick {
     #[new]
     pub fn new(start: [f32; 3], end: [f32; 3], radius: f32) -> Self {
         Self {
-            inner: Stick::new(start, end, radius)
+            inner: Stick::new(start, end, radius),
         }
-    }
-
-    pub fn clickable(mut slf: PyRefMut<'_, Self>, val: bool) -> PyRefMut<'_, Self> {
-        slf.inner = slf.inner.clickable(val);
-        slf
     }
 
     pub fn color(mut slf: PyRefMut<'_, Self>, color: [f32; 3]) -> PyRefMut<'_, Self> {
         slf.inner = slf.inner.color(color);
+        slf
+    }
+
+    pub fn set_radius(mut slf: PyRefMut<'_, Self>, radius: f32) -> PyRefMut<'_, Self> {
+        slf.inner = slf.inner.set_radius(radius);
+        slf
+    }
+
+    pub fn set_start(mut slf: PyRefMut<'_, Self>, start: [f32; 3]) -> PyRefMut<'_, Self> {
+        slf.inner = slf.inner.set_start(start);
+        slf
+    }
+
+    pub fn set_end(mut slf: PyRefMut<'_, Self>, end: [f32; 3]) -> PyRefMut<'_, Self> {
+        slf.inner = slf.inner.set_end(end);
         slf
     }
 
@@ -89,7 +98,7 @@ impl PyMolecules {
     #[new]
     pub fn new(molecule_data: &PyMoleculeData) -> Self {
         Self {
-            inner: Molecules::new(molecule_data.inner.clone())
+            inner: Molecules::new(molecule_data.inner.clone()),
         }
     }
 

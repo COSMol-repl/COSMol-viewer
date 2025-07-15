@@ -25,6 +25,13 @@ impl Scene {
         }
     }
 
+    /// Add a shape to the scene.
+    ///
+    /// # Arguments
+    ///
+    /// * `shape` - The shape to add.
+    /// * `id` - The ID of the shape(optional).
+    ///
     #[pyo3(signature = (shape, id=None))]
     pub fn add_shape(&mut self, shape: &Bound<'_, PyAny>, id: Option<&str>) {
         if let Ok(sphere) = shape.extract::<PyRef<PySphere>>() {
@@ -37,6 +44,15 @@ impl Scene {
         ()
     }
 
+    /// Update a shape in the scene.
+    ///
+    /// The shape must already exist in the scene.
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - The ID of the shape to update.
+    /// * `shape` - The new shape to use.
+    ///
     pub fn update_shape(&mut self, id: &str, shape: &Bound<'_, PyAny>) {
         if let Ok(sphere) = shape.extract::<PyRef<PySphere>>() {
             self.inner.update_shape(id, sphere.inner.clone());
@@ -47,12 +63,25 @@ impl Scene {
         }
     }
 
+    /// Delete a shape from the scene.
+    ///
+    /// The shape must already exist in the scene.
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - The ID of the shape to delete.
+    ///
     pub fn delete_shape(&mut self, id: &str) {
         self.inner.delete_shape(id);
     }
 
+    /// Set the scale of the scene.
     pub fn scale(&mut self, scale: f32) {
         self.inner.scale(scale);
+    }
+
+    pub fn set_background_color(&mut self, background_color: [f32; 3]) {
+        self.inner.set_background_color(background_color);
     }
 }
 

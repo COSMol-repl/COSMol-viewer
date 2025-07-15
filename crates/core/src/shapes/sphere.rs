@@ -1,6 +1,10 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{scene::Scene, utils::{Interaction, MeshData, VisualShape, VisualStyle}, Shape};
+use crate::{
+    Shape,
+    scene::Scene,
+    utils::{Interaction, MeshData, VisualShape, VisualStyle},
+};
 
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
@@ -13,9 +17,8 @@ struct SphereTemplate {
     indices: Vec<u32>,
 }
 
-static SPHERE_TEMPLATE_CACHE: Lazy<Mutex<HashMap<u32, SphereTemplate>>> = Lazy::new(|| {
-    Mutex::new(HashMap::new())
-});
+static SPHERE_TEMPLATE_CACHE: Lazy<Mutex<HashMap<u32, SphereTemplate>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
 
 fn get_or_generate_template(quality: u32) -> SphereTemplate {
     let mut cache = SPHERE_TEMPLATE_CACHE.lock().unwrap();
@@ -76,7 +79,6 @@ fn get_or_generate_template(quality: u32) -> SphereTemplate {
     template
 }
 
-
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct Sphere {
     pub center: [f32; 3],
@@ -108,101 +110,41 @@ impl Sphere {
         }
     }
 
-    pub fn center(mut self, center: [f32; 3])-> Self {
+    pub fn set_center(mut self, center: [f32; 3]) -> Self {
         self.center = center;
         self
     }
 
-    pub fn set_radius(mut self, radius: f32)-> Self {
+    pub fn set_radius(mut self, radius: f32) -> Self {
         self.radius = radius;
         self
     }
 
-    pub fn clickable(mut self, val: bool) -> Self {
-        self.interaction.clickable = val;
-        self
-    }
-
-    // pub fn to_mesh(&self, scale: f32) -> MeshData {
-    //     let mut vertices = Vec::new();
-    //     let mut normals = Vec::new();
-    //     let mut indices = Vec::new();
-    //     let mut colors = Vec::new();
-
-    //     let lat_segments = 10 * self.quality;
-    //     let lon_segments = 20 * self.quality;
-
-    //     let r = self.radius;
-    //     let [cx, cy, cz] = self.center;
-
-    //     // 基础颜色（带透明度）
-    //     let base_color = self.style.color.unwrap_or([1.0, 1.0, 1.0]);
-    //     let alpha = self.style.opacity.clamp(0.0, 1.0);
-    //     let color_rgba = [base_color[0], base_color[1], base_color[2], alpha];
-
-    //     for i in 0..=lat_segments {
-    //         let theta = std::f32::consts::PI * (i as f32) / (lat_segments as f32);
-    //         let sin_theta = theta.sin();
-    //         let cos_theta = theta.cos();
-
-    //         for j in 0..=lon_segments {
-    //             let phi = 2.0 * std::f32::consts::PI * (j as f32) / (lon_segments as f32);
-    //             let sin_phi = phi.sin();
-    //             let cos_phi = phi.cos();
-
-    //             let nx = sin_theta * cos_phi;
-    //             let ny = cos_theta;
-    //             let nz = sin_theta * sin_phi;
-
-    //             let x = cx + r * nx;
-    //             let y = cy + r * ny;
-    //             let z = cz + r * nz;
-
-    //             vertices.push([x, y, z].map(|x| x * scale));
-    //             normals.push([nx, ny, nz].map(|x| x * scale));
-    //             colors.push(color_rgba); // 每个顶点同样颜色
-    //         }
-    //     }
-
-    //     for i in 0..lat_segments {
-    //         for j in 0..lon_segments {
-    //             let first = i * (lon_segments + 1) + j;
-    //             let second = first + lon_segments + 1;
-
-    //             indices.push(first);
-    //             indices.push(first + 1);
-    //             indices.push(second);
-
-    //             indices.push(second);
-    //             indices.push(first + 1);
-    //             indices.push(second + 1);
-    //         }
-    //     }
-
-    //     MeshData {
-    //         vertices,
-    //         normals,
-    //         indices,
-    //         colors: Some(colors),
-    //         transform: None,
-    //         is_wireframe: self.style.wireframe,
-    //     }
+    // pub fn clickable(mut self, val: bool) -> Self {
+    //     self.interaction.clickable = val;
+    //     self
     // }
-        pub fn to_mesh(&self, scale: f32) -> MeshData {
+
+    pub fn to_mesh(&self, scale: f32) -> MeshData {
         let template = get_or_generate_template(self.quality);
 
         let [cx, cy, cz] = self.center;
         let r = self.radius;
 
-        let transformed_vertices: Vec<[f32; 3]> = template.vertices.iter()
-            .map(|v| [
-                (v[0] * r + cx) * scale,
-                (v[1] * r + cy) * scale,
-                (v[2] * r + cz) * scale,
-            ])
+        let transformed_vertices: Vec<[f32; 3]> = template
+            .vertices
+            .iter()
+            .map(|v| {
+                [
+                    (v[0] * r + cx) * scale,
+                    (v[1] * r + cy) * scale,
+                    (v[2] * r + cz) * scale,
+                ]
+            })
             .collect();
 
-        let transformed_normals: Vec<[f32; 3]> = template.normals
+        let transformed_normals: Vec<[f32; 3]> = template
+            .normals
             .iter()
             .map(|n| n.map(|x| x * scale)) // 你可以不乘 scale，如果只用于方向
             .collect();
@@ -221,7 +163,6 @@ impl Sphere {
             transform: None,
             is_wireframe: self.style.wireframe,
         }
-
     }
 }
 
