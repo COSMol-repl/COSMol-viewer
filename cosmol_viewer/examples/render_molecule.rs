@@ -1,9 +1,5 @@
-use cosmol_viewer::{
-    parser::sdf::{parse_sdf, ParserOptions},
-    scene::Scene,
-    Viewer,
-};
-use cosmol_viewer_core::shapes::molecules::Molecules;
+use cosmol_viewer::{Scene, Viewer, shapes::Molecules};
+use cosmol_viewer::parser::sdf::{ParserOptions, parse_sdf};
 
 fn main() {
     let sdf_string = std::fs::read_to_string("./examples/example.sdf").unwrap();

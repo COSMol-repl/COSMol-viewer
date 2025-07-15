@@ -1,6 +1,6 @@
+use cosmol_viewer::shapes::Sphere;
 use cosmol_viewer::utils::VisualShape;
-use cosmol_viewer::{Viewer, scene::Scene};
-use cosmol_viewer_core::shapes::sphere::Sphere;
+use cosmol_viewer::{Viewer, Scene};
 use std::{f32::consts::PI, thread, time::Duration};
 
 fn main() {

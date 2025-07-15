@@ -1,11 +1,9 @@
 use cosmol_viewer_core::{
-    shapes::{molecules::Molecules, sphere::Sphere, stick::Stick},
+    shapes::{Molecules, Sphere, Stick},
     utils::VisualShape,
 };
 use pyo3::{PyRefMut, pyclass, pymethods};
-
 use crate::parser::PyMoleculeData;
-// use cosmol_viewer_core::shapes::stick::Stick;
 
 #[pyclass(name = "Sphere")]
 #[derive(Clone)]

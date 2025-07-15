@@ -1,7 +1,7 @@
 use glam::Mat4;
 use serde::{Deserialize, Serialize};
 
-use crate::shapes::{molecules::Molecules, sphere::Sphere, stick::Stick};
+use crate::shapes::{Molecules, Sphere, Stick};
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default, Copy)]
 pub struct VisualStyle {

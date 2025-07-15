@@ -91,6 +91,8 @@ impl NativeGuiViewer {
         let scene = Arc::new(Mutex::new(scene.clone()));
 
         thread::spawn(move || {
+            use std::process;
+
             use eframe::{EventLoopBuilderHook, run_native};
             let event_loop_builder: Option<EventLoopBuilderHook> =
                 Some(Box::new(|event_loop_builder| {
@@ -102,13 +104,13 @@ impl NativeGuiViewer {
                     }
                     #[cfg(feature = "wayland")]
                     {
-                        use winit::platform::wayland::EventLoopBuilderExtWayland;
+                        use egui_winit::winit::platform::wayland::EventLoopBuilderExtWayland;
                         event_loop_builder.with_any_thread(true);
                         println!("Running on wayland")
                     }
                     #[cfg(feature = "x11")]
                     {
-                        use winit::platform::x11::EventLoopBuilderExtX11;
+                        use egui_winit::winit::platform::x11::EventLoopBuilderExtX11;
                         event_loop_builder.with_any_thread(true);
                         println!("Running on X11")
                     }
@@ -130,6 +132,7 @@ impl NativeGuiViewer {
                     Ok(Box::new(AppWrapper(app.clone())))
                 }),
             );
+            process::exit(0);
         });
 
         Self { app: app_clone }

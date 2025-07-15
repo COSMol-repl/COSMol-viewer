@@ -57,7 +57,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
-          args: --release --out dist --features "x11 wayland" --find-interpreter 
+          args: --release --out dist --find-interpreter --features x11,wayland 
           working-directory: crates/python
           sccache: true
           manylinux: manylinux2014
