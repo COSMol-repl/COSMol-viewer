@@ -1,6 +1,6 @@
 [workspace.package]
 edition = "2024"
-version = "0.1.2-nightly.1"
+version = "0.1.2-nightly.2"
 authors = ["9028 wjt@cosmol.org"]
 repository = "https://github.com/COSMol-repl/COSMol-viewer"
 homepage = "https://github.com/COSMol-repl/COSMol-viewer"
@@ -18,8 +18,8 @@ members = [
     ]
 
 [workspace.dependencies]
-cosmol_viewer = { version = "0.1.2-nightly.1", path = "cosmol_viewer"}
-cosmol_viewer_core = { version = "0.1.2-nightly.1", path = "crates/core" }
+cosmol_viewer = { version = "0.1.2-nightly.2", path = "cosmol_viewer"}
+cosmol_viewer_core = { version = "0.1.2-nightly.2", path = "crates/core" }
 
 eframe = { version = "0.32.0", features = ["wayland","x11"] }
 egui-winit = { version = "0.32.0", features = ["wayland","x11"] }
