@@ -1,8 +1,5 @@
 use base64::Engine as _;
-use ipc_channel::ipc::{IpcOneShotServer, IpcSender};
 use pyo3::{ffi::c_str, prelude::*};
-use sha2::{Digest, Sha256};
-use std::{env, fs::File, io::Write};
 use uuid::Uuid;
 
 use crate::{
@@ -155,7 +152,7 @@ impl Viewer {
 
                 let html_code = format!(
                     r#"
-<canvas id="{id}" width="600" height="600" style="width:600px; height:600px;"></canvas>
+<canvas id="{id}" width="600" height="400" style="width:600px; height:400px;"></canvas>
                     "#,
                     id = unique_id
                 );

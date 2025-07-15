@@ -14,11 +14,12 @@ base64 = "0.22.1"
 uuid = { version = "1.17.0", features = [
     "v4",
 ]}
-ipc-channel = "0.20.0"
-sha2.workspace = true
-hex.workspace = true
 
 [lib]
 name = "cosmol_viewer"
 crate-type = ["cdylib"]
 
+[features]
+default = []
+wayland = ["cosmol_viewer_core/wayland"]
+x11 = ["cosmol_viewer_core/x11"]
