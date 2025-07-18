@@ -5,15 +5,12 @@ publish = false
 
 [dependencies]
 cosmol_viewer_core.workspace = true
+cosmol_viewer_wasm = { path = "../wasm", default-features = false, features = ["js_bridge"] }
 serde_json.workspace = true
-pyo3 = { version = "0.25.1", features = ["extension-module", "abi3-py37"] }
 eframe.workspace = true
 egui_extras.workspace = true
-wasm-bindgen = "0.2.100"
+pyo3.workspace = true
 base64 = "0.22.1"
-uuid = { version = "1.17.0", features = [
-    "v4",
-]}
 
 [lib]
 name = "cosmol_viewer"

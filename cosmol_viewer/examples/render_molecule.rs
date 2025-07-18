@@ -1,3 +1,4 @@
+use cosmol_viewer::utils::VisualShape;
 use cosmol_viewer::{Scene, Viewer, shapes::Molecules};
 use cosmol_viewer::parser::sdf::{ParserOptions, parse_sdf};
 

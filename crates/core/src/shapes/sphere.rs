@@ -11,16 +11,16 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 #[derive(Clone)]
-struct SphereTemplate {
+struct SphereMeshTemplate {
     vertices: Vec<[f32; 3]>,
     normals: Vec<[f32; 3]>,
     indices: Vec<u32>,
 }
 
-static SPHERE_TEMPLATE_CACHE: Lazy<Mutex<HashMap<u32, SphereTemplate>>> =
+static SPHERE_TEMPLATE_CACHE: Lazy<Mutex<HashMap<u32, SphereMeshTemplate>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
 
-fn get_or_generate_template(quality: u32) -> SphereTemplate {
+fn get_or_generate_sphere_mesh_template(quality: u32) -> SphereMeshTemplate {
     let mut cache = SPHERE_TEMPLATE_CACHE.lock().unwrap();
 
     if let Some(template) = cache.get(&quality) {
@@ -68,7 +68,7 @@ fn get_or_generate_template(quality: u32) -> SphereTemplate {
         }
     }
 
-    let template = SphereTemplate {
+    let template = SphereMeshTemplate {
         vertices,
         normals,
         indices,
@@ -126,7 +126,7 @@ impl Sphere {
     // }
 
     pub fn to_mesh(&self, scale: f32) -> MeshData {
-        let template = get_or_generate_template(self.quality);
+        let template = get_or_generate_sphere_mesh_template(self.quality);
 
         let [cx, cy, cz] = self.center;
         let r = self.radius;
@@ -169,19 +169,5 @@ impl Sphere {
 impl VisualShape for Sphere {
     fn style_mut(&mut self) -> &mut VisualStyle {
         &mut self.style
-    }
-}
-
-pub trait UpdateSphere {
-    fn update_sphere(&mut self, id: &str, f: impl FnOnce(&mut Sphere));
-}
-
-impl UpdateSphere for Scene {
-    fn update_sphere(&mut self, id: &str, f: impl FnOnce(&mut Sphere)) {
-        if let Some(Shape::Sphere(sphere)) = self.named_shapes.get_mut(id) {
-            f(sphere);
-        } else {
-            panic!("Sphere with ID '{}' not found or is not a Sphere", id);
-        }
     }
 }

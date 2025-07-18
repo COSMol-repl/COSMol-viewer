@@ -210,7 +210,7 @@ impl Molecules {
                 .unwrap_or(&AtomType::Unknown)
                 .radius()
                 * 0.2;
-            let color = self.atom_types.get(i).unwrap_or(&AtomType::Unknown).color();
+            let color = self.style.color.unwrap_or(self.atom_types.get(i).unwrap_or(&AtomType::Unknown).color());
 
             let mut sphere = Sphere::new(*pos, radius);
             sphere.interaction = self.interaction;
@@ -236,14 +236,14 @@ impl Molecules {
         }
 
         // 2. 键 -> Stick
-        for (i, bond) in self.bonds.iter().enumerate() {
+        for (_i, bond) in self.bonds.iter().enumerate() {
             let [a, b] = *bond;
             let pos_a = self.atoms[a as usize];
             let pos_b = self.atoms[b as usize];
 
-            let mut stick = Stick::new(pos_a, pos_b, 0.1); // or radius by bond type
-            stick.interaction = self.interaction;
-            stick = stick.color([0.7, 0.7, 0.7]);
+            let mut stick = Stick::new(pos_a, pos_b, 0.1);
+            // stick.interaction = self.interaction;
+            stick = stick.color(self.style.color.unwrap_or([0.7, 0.7, 0.7]));
 
             let mesh = stick.to_mesh(1.0);
 
@@ -271,5 +271,11 @@ impl Molecules {
             transform: None,
             is_wireframe: self.style.wireframe,
         }
+    }
+}
+
+impl VisualShape for Molecules {
+    fn style_mut(&mut self) -> &mut VisualStyle {
+        &mut self.style
     }
 }

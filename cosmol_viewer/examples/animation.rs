@@ -16,6 +16,8 @@ fn main() {
 
     scene.scale(0.2);
 
+    scene.set_viewport(800, 500);
+
     let viewer = Viewer::render(&scene);
 
     // 动画主循环

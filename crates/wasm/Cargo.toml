@@ -6,15 +6,37 @@ publish = false
 
 [dependencies]
 cosmol_viewer_core.workspace = true
-eframe.workspace = true
 serde_json.workspace = true
-wasm-bindgen = "0.2.100"
-web-sys = { version = "0.3.77", features = ["HtmlCanvasElement"] }
+serde.workspace = true
 log = "0.4.27"
-wasm-bindgen-futures = "0.4.50"
+
+uuid = { version = "1.17.0", features = ["v4"], optional = true }
+eframe = { workspace = true, optional = true }
+wasm-bindgen-futures = { version = "0.4.50", optional = true }
+web-sys = { version = "0.3.77", features = ["HtmlCanvasElement"], optional = true }
+wasm-bindgen = { version = "0.2.100", optional = true }
+
+pyo3 = { workspace = true, optional = true }
+base64 = { version = "0.22.1", optional = true }
+
+[features]
+default = ["wasm"]
+
+wasm = [
+    "eframe",
+    "wasm-bindgen-futures",
+    "web-sys",
+    "wasm-bindgen"
+]
+
+js_bridge = [
+    "pyo3",
+    "base64",
+    "uuid"
+]
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["rlib", "cdylib"]
 
 [package.metadata.wasm-pack.profile.release]
 # wasm-opt = false

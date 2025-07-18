@@ -25,7 +25,7 @@ jobs:
       - name: Install python dependencies
         run: |
           uv venv .venv
-          uv pip install maturin pdoc
+          uv pip install maturin pdoc cosmol-viewer
           echo "$GITHUB_WORKSPACE/.venv/bin" >> $GITHUB_PATH
 
       - uses: Swatinem/rust-cache@v2
@@ -44,7 +44,7 @@ jobs:
       - name: Build Python module (develop)
         working-directory: crates/python
         run: |
-          maturin develop
+          maturin develop --uv
       - name: Build documentation
         run: |
           pdoc -o docs/ cosmol_viewer

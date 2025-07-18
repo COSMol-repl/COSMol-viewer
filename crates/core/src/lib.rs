@@ -67,12 +67,10 @@ impl eframe::App for App {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 pub struct NativeGuiViewer {
     pub app: Arc<Mutex<Option<App>>>,
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 impl NativeGuiViewer {
     pub fn render(scene: &Scene) -> Self {
         use std::{
@@ -80,16 +78,19 @@ impl NativeGuiViewer {
             thread,
         };
 
+        #[cfg(not(target_arch = "wasm32"))]
         use eframe::{
             NativeOptions,
             egui::{Vec2, ViewportBuilder},
         };
 
+        let viewport_size = scene.viewport.unwrap_or([800, 500]);
+
         let app: Arc<Mutex<Option<App>>> = Arc::new(Mutex::new(None));
         let app_clone = Arc::clone(&app);
 
         let scene = Arc::new(Mutex::new(scene.clone()));
-
+        #[cfg(not(target_arch = "wasm32"))]
         thread::spawn(move || {
             use std::process;
 
@@ -100,24 +101,21 @@ impl NativeGuiViewer {
                     {
                         use egui_winit::winit::platform::windows::EventLoopBuilderExtWindows;
                         event_loop_builder.with_any_thread(true);
-                        println!("Running on windows")
                     }
                     #[cfg(feature = "wayland")]
                     {
                         use egui_winit::winit::platform::wayland::EventLoopBuilderExtWayland;
                         event_loop_builder.with_any_thread(true);
-                        println!("Running on wayland")
                     }
                     #[cfg(feature = "x11")]
                     {
                         use egui_winit::winit::platform::x11::EventLoopBuilderExtX11;
                         event_loop_builder.with_any_thread(true);
-                        println!("Running on X11")
                     }
                 }));
 
             let native_options = NativeOptions {
-                viewport: ViewportBuilder::default().with_inner_size(Vec2::new(800.0, 500.0)),
+                viewport: ViewportBuilder::default().with_inner_size(Vec2::new(viewport_size [0] as f32, viewport_size[1] as f32)),
                 depth_buffer: 24,
                 event_loop_builder,
                 ..Default::default()
