@@ -1,6 +1,6 @@
 [workspace.package]
 edition = "2024"
-version = "0.1.2-nightly.4"
+version = "0.1.2-nightly.5"
 authors = ["9028 wjt@cosmol.org"]
 repository = "https://github.com/COSMol-repl/COSMol-viewer"
 homepage = "https://github.com/COSMol-repl/COSMol-viewer"
@@ -18,8 +18,8 @@ members = [
     ]
 
 [workspace.dependencies]
-cosmol_viewer = { version = "0.1.2-nightly.4", path = "cosmol_viewer"}
-cosmol_viewer_core = { version = "0.1.2-nightly.4", path = "crates/core" }
+cosmol_viewer = { version = "0.1.2-nightly.5", path = "cosmol_viewer"}
+cosmol_viewer_core = { version = "0.1.2-nightly.5", path = "crates/core" }
 
 eframe = { version = "0.32.0", features = ["wayland","x11"] }
 pyo3 = { version = "0.25.1", features = ["extension-module", "abi3-py37"] }
@@ -27,5 +27,3 @@ egui-winit = { version = "0.32.0", features = ["wayland","x11"] }
 egui_extras = { version = "0.32.0" }
 serde = { version = "1.0.219" , features = ["derive"] }
 serde_json = "1.0.140"
-sha2 = "0.10.9"
-hex = "0.4.3"

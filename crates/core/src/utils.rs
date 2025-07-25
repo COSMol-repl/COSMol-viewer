@@ -27,7 +27,7 @@ pub enum Shape {
     Sphere(Sphere),
     Stick(Stick),
     Molecules(Molecules),
-    // Custom(CustomShape),
+    Qudrate    // Custom(CustomShape),
     // ...
 }
 
@@ -41,6 +41,7 @@ impl ToMesh for Shape {
             Shape::Sphere(s) => s.to_mesh(scale),
             Shape::Stick(s) => s.to_mesh(scale),
             Shape::Molecules(s) => s.to_mesh(scale),
+            Shape::Qudrate => todo!()
         }
     }
 }

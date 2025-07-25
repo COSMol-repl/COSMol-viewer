@@ -12,6 +12,7 @@
 # Usage
 
 ## python
+See examples in [Google Colab](https://colab.research.google.com/drive/1Sw72QWjQh_sbbY43jGyBOfF1AQCycmIx?usp=sharing).
 
 Install with `pip install cosmol-viewer`
 

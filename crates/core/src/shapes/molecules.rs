@@ -50,7 +50,7 @@ impl AtomType {
         match self {
             AtomType::H => [1.0, 1.0, 1.0],       // 白色
             AtomType::C => [0.3, 0.3, 0.3],       // 深灰
-            AtomType::N => [0.0, 0.0, 1.0],       // 蓝色
+            AtomType::N => [0.2, 0.4, 1.0],       // 蓝色
             AtomType::O => [1.0, 0.0, 0.0],       // 红色
             AtomType::F => [0.0, 0.8, 0.0],       // 绿
             AtomType::P => [1.0, 0.5, 0.0],       // 橙
@@ -210,11 +210,14 @@ impl Molecules {
                 .unwrap_or(&AtomType::Unknown)
                 .radius()
                 * 0.2;
-            let color = self.style.color.unwrap_or(self.atom_types.get(i).unwrap_or(&AtomType::Unknown).color());
+            let color = self
+                .style
+                .color
+                .unwrap_or(self.atom_types.get(i).unwrap_or(&AtomType::Unknown).color());
 
             let mut sphere = Sphere::new(*pos, radius);
             sphere.interaction = self.interaction;
-            sphere = sphere.color(color);
+            sphere = sphere.color(color).opacity(self.style.opacity);;
 
             let mesh = sphere.to_mesh(1.0);
 
@@ -237,30 +240,71 @@ impl Molecules {
 
         // 2. 键 -> Stick
         for (_i, bond) in self.bonds.iter().enumerate() {
-            let [a, b] = *bond;
-            let pos_a = self.atoms[a as usize];
-            let pos_b = self.atoms[b as usize];
+            for (_i, bond) in self.bonds.iter().enumerate() {
+                let [a, b] = *bond;
+                let pos_a = self.atoms[a as usize];
+                let pos_b = self.atoms[b as usize];
 
-            let mut stick = Stick::new(pos_a, pos_b, 0.1);
-            // stick.interaction = self.interaction;
-            stick = stick.color(self.style.color.unwrap_or([0.7, 0.7, 0.7]));
+                // 获取原子颜色
+                let color_a = match self
+                    .atom_types
+                    .get(a as usize)
+                    .unwrap_or(&AtomType::Unknown)
+                {
+                    AtomType::C => [0.75, 0.75, 0.75],
+                    other => other.color(),
+                };
 
-            let mesh = stick.to_mesh(1.0);
+                let color_b = match self
+                    .atom_types
+                    .get(b as usize)
+                    .unwrap_or(&AtomType::Unknown)
+                {
+                    AtomType::C => [0.75, 0.75, 0.75],
+                    other => other.color(),
+                };
 
-            for v in mesh.vertices {
-                vertices.push(v.map(|x| x * scale));
-            }
-            for n in mesh.normals {
-                normals.push(n.map(|x| x * scale));
-            }
-            for c in mesh.colors.unwrap() {
-                colors.push(c);
-            }
-            for idx in mesh.indices {
-                indices.push(idx + index_offset as u32);
-            }
+                // 计算中点
+                let mid = [
+                    0.5 * (pos_a[0] + pos_b[0]),
+                    0.5 * (pos_a[1] + pos_b[1]),
+                    0.5 * (pos_a[2] + pos_b[2]),
+                ];
 
-            index_offset = vertices.len() as u32;
+                // bond 一：A -> 中点，颜色 A
+                let stick_a = Stick::new(pos_a, mid, 0.15).color(color_a).opacity(self.style.opacity);
+                let mesh_a = stick_a.to_mesh(1.0);
+                for v in mesh_a.vertices {
+                    vertices.push(v.map(|x| x * scale));
+                }
+                for n in mesh_a.normals {
+                    normals.push(n.map(|x| x * scale));
+                }
+                for c in mesh_a.colors.unwrap() {
+                    colors.push(c);
+                }
+                for idx in mesh_a.indices {
+                    indices.push(idx + index_offset as u32);
+                }
+                index_offset = vertices.len() as u32;
+
+                // bond 二：B -> 中点，颜色 B
+                let stick_b = Stick::new(pos_b, mid, 0.15).color(color_b).opacity(self.style.opacity);;
+                let mesh_b = stick_b.to_mesh(1.0);
+                for v in mesh_b.vertices {
+                    vertices.push(v.map(|x| x * scale));
+                }
+                for n in mesh_b.normals {
+                    normals.push(n.map(|x| x * scale));
+                }
+                for c in mesh_b.colors.unwrap() {
+                    colors.push(c);
+                }
+                for idx in mesh_b.indices {
+                    indices.push(idx + index_offset as u32);
+                }
+                index_offset = vertices.len() as u32;
+            }
         }
 
         MeshData {

@@ -1,5 +1,6 @@
 use cosmol_viewer_core::App;
 use cosmol_viewer_core::scene::Scene;
+#[cfg(feature = "js_bridge")]
 use serde::Serialize;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -125,12 +126,16 @@ impl WasmViewer {
         let escaped = serde_json::to_string(&input_json).unwrap();
         let combined_js = format!(
             r#"
-(function() {{
+(async function() {{
     console.log(window.cosmol_viewer_instances)
     const instances = window.cosmol_viewer_instances || {{}};
     const app = instances["{id}"];
     if (app) {{
-        app.{name}({escaped});
+        const result = await app.{name}({escaped});
+        console.log("Result:", result);
+        console.log("Result:", app);
+        window.cosmol_viewer_result.set("cosmol_result", result);
+        console.log("Result:", app);
     }} else {{
         console.error("No app found for ID {id}");
     }}
@@ -147,11 +152,15 @@ impl WasmViewer {
             .unwrap()
             .call1((combined_js,))
             .unwrap();
-        display.call1((js,)).unwrap();
+        let _ = display.call1((js,));
     }
 
     pub fn update(&self, py: Python, scene: &Scene) {
-        self.call(py, "update", scene);
+        self.call(py, "update_scene", scene);
+    }
+
+    pub fn take_screenshot(&self, py: Python) {
+        self.call(py, "take_screenshot", None::<u8>)
     }
 }
 
@@ -174,8 +183,6 @@ impl WebRunner {
         Self
     }
 }
-
-
 
 #[cfg(feature = "wasm")]
 #[wasm_bindgen]
@@ -228,7 +235,7 @@ impl WebHandle {
     }
 
     #[wasm_bindgen]
-    pub async fn update(&mut self, scene_json: String) -> Result<(), JsValue> {
+    pub async fn update_scene(&mut self, scene_json: String) -> Result<(), JsValue> {
         let scene: Scene = serde_json::from_str(&scene_json)
             .map_err(|e| JsValue::from_str(&format!("Scene parse error: {}", e)))?;
 
@@ -241,5 +248,10 @@ impl WebHandle {
             println!("scene update received but app is not initialized");
         }
         Ok(())
+    }
+
+    #[wasm_bindgen]
+    pub async fn take_screenshot(&self) -> Option<String> {
+        Some("javavavavavavav".to_string())
     }
 }

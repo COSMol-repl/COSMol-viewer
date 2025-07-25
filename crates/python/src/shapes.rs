@@ -90,14 +90,14 @@ impl PySphere {
 }
 
 #[pyclass(name = "Stick")]
-/// Stick(start: [f32; 3], end: [f32; 3], radius: f32)
+/// Stick(start: [f32; 3], end: [f32; 3], thickness: f32)
 ///
 /// A cylindrical stick (or capsule) connecting two points in 3D space.
 ///
 /// # Arguments
 /// * `start` - The starting point of the stick.
 /// * `end` - The ending point of the stick.
-/// * `radius` - The radius (thickness) of the stick.
+/// * `thickness` - The thickness (radius) of the stick.
 ///
 /// # Examples
 /// ```python
@@ -118,9 +118,9 @@ pub struct PyStick {
 #[pymethods]
 impl PyStick {
     #[new]
-    pub fn new(start: [f32; 3], end: [f32; 3], radius: f32) -> Self {
+    pub fn new(start: [f32; 3], end: [f32; 3], thickness: f32) -> Self {
         Self {
-            inner: Stick::new(start, end, radius),
+            inner: Stick::new(start, end, thickness),
         }
     }
 
@@ -144,7 +144,7 @@ impl PyStick {
     /// Set the thickness of the stick.
     ///
     /// # Arguments
-    /// * `thickness` - The radius (thickness) of the stick.
+    /// * `thickness` - The thickness (radius) of the stick.
     ///
     /// # Returns
     /// `Stick`: The updated stick object.

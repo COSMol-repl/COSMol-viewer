@@ -77,7 +77,6 @@ struct Shader {
     background_color: [f32; 3],
     vbo: glow::Buffer,
     element_array_buffer: glow::Buffer,
-    dirty: bool,
 }
 
 #[expect(unsafe_code)] // we need unsafe code to use glow
@@ -271,7 +270,6 @@ impl Shader {
                 vertex_array,
                 indices,
                 background_color,
-                dirty: false,
                 vbo: vertex_buffer,
                 element_array_buffer: ebo,
             })
@@ -304,8 +302,6 @@ impl Shader {
                 .extend(mesh.indices.iter().map(|&i| i + vertex_offset));
             vertex_offset += mesh.vertices.len() as u32;
         }
-
-        self.dirty = true;
     }
 
     fn paint(&mut self, gl: &glow::Context, aspect_ratio: f32, camera_state: CameraState) {
@@ -323,7 +319,7 @@ impl Shader {
         );
 
         let light = Light {
-            position: [2.0, -3.0, 2.0],
+            direction: [1.0, -1.0, -2.0],
             color: [1.0, 0.9, 0.9],
             intensity: 1.0,
         };
@@ -382,25 +378,26 @@ impl Shader {
 
             // 将光源位置转换为齐次坐标 (x,y,z,1.0)
             let light_pos_homogeneous = Vec4::new(
-                light.position[0],
-                light.position[1],
-                light.position[2],
+                -light.direction[0],
+                -light.direction[1],
+                -light.direction[2],
                 1.0, // 关键：第4个分量为1.0表示点
             );
 
             // 应用模型变换
-            let transformed_pos = camera.view_matrix() * light_pos_homogeneous;
+            let transformed_light_pos = light_pos_homogeneous;
+            // let transformed_light_pos = camera.view_matrix() * light_pos_homogeneous;
 
             // 提取前三个分量 (xyz)
-            let transformed_pos_xyz = [transformed_pos.x, transformed_pos.y, transformed_pos.z];
+            let transformed_light_pos_xyz = [transformed_light_pos.x, transformed_light_pos.y, transformed_light_pos.z];
 
             gl.uniform_3_f32_slice(
                 gl.get_uniform_location(self.program, "u_light_pos")
                     .as_ref(),
-                (transformed_pos_xyz).as_ref(),
+                (transformed_light_pos_xyz).as_ref(),
             );
 
-            // 将光源位置转换为齐次坐标 (x,y,z,1.0)
+            // 将摄像机位置转换为齐次坐标 (x,y,z,1.0)
             let camera_pos_homogeneous = Vec4::new(
                 camera.position[0],
                 camera.position[1],
@@ -434,10 +431,6 @@ impl Shader {
                     .as_ref(),
                 1.0,
             );
-
-            if self.dirty {
-                self.dirty = false;
-            }
 
             // 绑定并上传缓冲
             gl.bind_vertex_array(Some(self.vertex_array));
@@ -583,7 +576,7 @@ impl Camera {
 
 
 pub struct Light {
-    pub position: [f32; 3],
+    pub direction: [f32; 3],
     pub color: [f32; 3],
     pub intensity: f32,
 }

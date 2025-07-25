@@ -1,5 +1,14 @@
 # COSMol-viewer
 
+<div align="center">
+  <a href="https://crates.io/crates/cosmol_viewer">
+    <img src="https://img.shields.io/crates/v/cosmol_viewer.svg" alt="crates.io Latest Release"/>
+  </a>
+  <a href="https://pypi.org/project/cosmol_viewer/">
+    <img src="https://img.shields.io/pypi/v/cosmol_viewer.svg" alt="PyPi Latest Release"/>
+  </a>
+</div>
+
 A high-performance molecular visualization library built with Rust and WebGPU, designed for seamless integration into Python workflows.
 
 - ⚡ Fast: Native-speed rendering powered by Rust and GPU acceleration
@@ -17,6 +26,10 @@ A high-performance molecular visualization library built with Rust and WebGPU, d
 ```sh
 pip install cosmol-viewer
 ```
+
+# Examples
+
+See examples in [Google Colab](https://colab.research.google.com/drive/1Sw72QWjQh_sbbY43jGyBOfF1AQCycmIx?usp=sharing).
 
 # Usage
 

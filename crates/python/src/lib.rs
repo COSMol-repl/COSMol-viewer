@@ -1,12 +1,14 @@
+use std::ffi::CStr;
+
 use base64::Engine as _;
-use pyo3::{ffi::c_str, prelude::*};
+use pyo3::{exceptions::PyTypeError, ffi::c_str, prelude::*};
 
 use crate::{
     parser::parse_sdf,
     shapes::{PyMolecules, PySphere, PyStick},
 };
 use cosmol_viewer_core::{NativeGuiViewer, scene::Scene as _Scene};
-use cosmol_viewer_wasm::{setup_wasm_if_needed, WasmViewer};
+use cosmol_viewer_wasm::{WasmViewer, setup_wasm_if_needed};
 
 mod parser;
 mod shapes;
@@ -18,9 +20,9 @@ mod shapes;
 /// as well as modifying scene-level properties like scale and background color.
 ///
 /// Supported shape types:
-/// - `PySphere`
-/// - `PyStick`
-/// - `PyMolecules`
+/// - `Sphere`
+/// - `Stick`
+/// - `Molecules`
 ///
 /// Shapes can be optionally identified with a string `id`, which allows updates and deletion.
 pub struct Scene {
@@ -245,10 +247,10 @@ impl Viewer {
     ///     str: One of "Jupyter", "Colab", "PlainScript", or "IPythonTerminal".
     ///
     /// Examples:
-    ///     ```python
-    ///     env = Viewer.get_environment()
-    ///     print(env)  # e.g., "Jupyter"
-    ///     ```
+    /// ```python
+    /// env = Viewer.get_environment()
+    /// print(env)  # e.g., "Jupyter"
+    /// ```
     #[staticmethod]
     pub fn get_environment(py: Python) -> PyResult<String> {
         let env = detect_runtime_env(py)?;
@@ -268,24 +270,27 @@ impl Viewer {
     ///     Viewer: The created viewer instance.
     ///
     /// Examples:
-    ///     ```python
-    ///     from cosmol cosmol_viewer Viewer, Scene, Sphere
+    /// ```python
+    /// from cosmol cosmol_viewer Viewer, Scene, Sphere
     ///
-    ///     scene = Scene()
-    ///     scene.add_shape(Sphere(center=[0.0, 0.0, 0.0], radius=1.0))
+    /// scene = Scene()
+    /// scene.add_shape(Sphere(center=[0.0, 0.0, 0.0], radius=1.0))
     ///
-    ///     viewer = Viewer.render(scene)
-    ///     ```
+    /// viewer = Viewer.render(scene)
+    /// ```
     pub fn render(scene: &Scene, py: Python) -> Self {
         let env_type = detect_runtime_env(py).unwrap();
         match env_type {
             RuntimeEnv::Colab | RuntimeEnv::Jupyter => {
-                
-
+                print_to_notebook(
+                    c_str!(
+                        r#"from IPython.display import display, HTML
+display(HTML("<div style='color:red;font-weight:bold;'>⚠️ Note: When running in Jupyter or Colab, animation updates may be limited by the notebook's output capacity, which can cause incomplete or delayed rendering.</div>"))"#
+                    ),
+                    py,
+                );
                 setup_wasm_if_needed(py);
                 let wasm_viewer = WasmViewer::initate_viewer(py, &scene.inner);
-
-                let _ = py.run(c_str!("print(\"⚠️ Note: When running in Jupyter or Colab, animation updates may be limited by the notebook's output capacity, which can cause incomplete or delayed rendering.\""), None, None);
 
                 Viewer {
                     environment: env_type,
@@ -314,39 +319,69 @@ impl Viewer {
     /// Args:
     ///     scene (Scene): The updated scene to apply.
     ///
-    /// Returns:
-    ///     str: Status message indicating success.
-    ///
-    /// Raises:
-    ///     RuntimeError: If the viewer is not properly initialized.
-    ///
     /// Examples:
-    ///     ```python
-    ///     scene.add_shape(Sphere(center=[1.0, 1.0, 1.0], radius=0.5))
-    ///     viewer.update(scene)
-    ///     ```
-    pub fn update(&mut self, scene: &Scene, py: Python) -> PyResult<String> {
+    /// ```python
+    /// scene.add_shape(Sphere(center=[1.0, 1.0, 1.0], radius=0.5))
+    /// viewer.update(scene)
+    /// ```
+    pub fn update(&mut self, scene: &Scene, py: Python) {
         let env_type = self.environment;
         match env_type {
             RuntimeEnv::Colab | RuntimeEnv::Jupyter => {
-                
-                self.wasm_viewer.as_ref().unwrap().update(py, &scene.inner);
-
-                Ok("Scene updated successfully".to_string())
+                if let Some(ref wasm_viewer) = self.wasm_viewer {
+                    wasm_viewer.update(py, &scene.inner);
+                } else {
+                    panic!("Viewer is not initialized properly")
+                }
             }
             RuntimeEnv::PlainScript | RuntimeEnv::IPythonTerminal => {
-                if let Some(native_gui_viewer) = &self.native_gui_viewer {
+                if let Some(ref mut native_gui_viewer) = self.native_gui_viewer {
                     native_gui_viewer.update(&scene.inner);
-                    Ok("Scene updated successfully".to_string())
                 } else {
-                    Err(pyo3::exceptions::PyRuntimeError::new_err(
-                        "Viewer is not initialized",
-                    ))
+                    panic!("Viewer is not initialized properly")
                 }
             }
             _ => unreachable!(),
         }
     }
+
+    /// Save the current image to a file.
+    ///
+    /// Args:
+    ///     path (str): The path to save the image to.
+    ///
+    /// Examples:
+    /// ```python
+    /// viewer = Viewer.render(scene)
+    /// viewer.save_image("image.png")
+    /// ```
+    pub fn save_image(&self, path: &str, py: Python) {
+        let env_type = self.environment;
+        match env_type {
+            RuntimeEnv::Colab | RuntimeEnv::Jupyter => {
+                // let image = self.wasm_viewer.as_ref().unwrap().take_screenshot(py);
+                print_to_notebook(
+                    c_str!(
+                        r#"<div style='color:red;font-weight:bold;'>⚠️ Image saving in Jupyter/Colab is not yet fully supported. This feature is still under development.</div>"))"#
+                    ),
+                    py,
+                );
+                panic!("Error saving image. Saving images from Jupyter/Colab is not yet supported. This feature is still under development.")
+            }
+            RuntimeEnv::PlainScript | RuntimeEnv::IPythonTerminal => {
+                let native_gui_viewer = &self.native_gui_viewer.as_ref().unwrap();
+                let img = native_gui_viewer.take_screenshot();
+                if let Err(e) = img.save(path) {
+                    panic!("{}", format!("Error saving image: {}", e))
+                }
+            }
+            _ => unreachable!(),
+        }
+    }
+}
+
+fn print_to_notebook(msg: &CStr, py: Python) {
+    let _ = py.run(msg, None, None);
 }
 
 #[pymodule]
