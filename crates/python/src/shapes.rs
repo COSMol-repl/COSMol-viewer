@@ -101,7 +101,7 @@ impl PySphere {
 ///
 /// # Examples
 /// ```python
-/// from cosmol import Scene, Stick, Viewer
+/// from cosmol_viewer import Scene, Stick, Viewer
 ///
 /// stick = Stick([0.0, 0.0, 0.0], [1.0, 1.0, 1.0], 0.05)
 /// stick = stick.color([0.5, 0.8, 1.0]).opacity(0.7)
@@ -132,7 +132,7 @@ impl PyStick {
     /// # Returns
     /// `Stick`: The updated stick object.
     ///
-    /// # Example
+    /// # Examples
     /// ```python
     /// stick.color([1.0, 0.0, 0.0])
     /// ```

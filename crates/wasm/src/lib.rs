@@ -132,10 +132,7 @@ impl WasmViewer {
     const app = instances["{id}"];
     if (app) {{
         const result = await app.{name}({escaped});
-        console.log("Result:", result);
-        console.log("Result:", app);
-        window.cosmol_viewer_result.set("cosmol_result", result);
-        console.log("Result:", app);
+        // window.cosmol_viewer_result.set("cosmol_result", result);
     }} else {{
         console.error("No app found for ID {id}");
     }}

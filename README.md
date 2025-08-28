@@ -7,6 +7,9 @@
   <a href="https://pypi.org/project/cosmol_viewer/">
     <img src="https://img.shields.io/pypi/v/cosmol_viewer.svg" alt="PyPi Latest Release"/>
   </a>
+  <a href="https://cosmol-repl.github.io/COSMol-viewer">
+    <img src="https://img.shields.io/badge/docs-latest-blue.svg" alt="Documentation Status"/>
+  </a>
 </div>
 
 # Usage

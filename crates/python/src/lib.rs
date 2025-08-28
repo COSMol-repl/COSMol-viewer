@@ -186,9 +186,9 @@ impl std::fmt::Display for RuntimeEnv {
 ///
 /// Use `Viewer.render(scene)` to create and display a viewer instance.
 ///
-/// Examples:
+/// # Examples:
 /// ```python
-/// from cosmol import Viewer, Scene, Sphere
+/// from cosmol_viewer import Viewer, Scene, Sphere
 /// scene = Scene()
 /// scene.add_shape(Sphere(...))
 /// viewer = Viewer.render(scene)
@@ -271,7 +271,7 @@ impl Viewer {
     ///
     /// Examples:
     /// ```python
-    /// from cosmol cosmol_viewer Viewer, Scene, Sphere
+    /// from cosmol_viewer import Viewer, Scene, Sphere
     ///
     /// scene = Scene()
     /// scene.add_shape(Sphere(center=[0.0, 0.0, 0.0], radius=1.0))
