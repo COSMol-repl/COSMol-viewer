@@ -40,7 +40,3 @@ while True:
     viewer.update(scene)
     time.sleep(0.01)
     t += 0.02
-
-    # 平滑限制精度溢出
-    if t > 1000.0:
-        t -= 1000.0

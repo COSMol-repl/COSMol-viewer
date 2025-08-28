@@ -2,8 +2,11 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{shader::CameraState, utils::{self, ToMesh}, Shape};
-
+use crate::{
+    Shape,
+    shader::CameraState,
+    utils::{self, ToMesh},
+};
 
 #[derive(Deserialize, Serialize, Clone)]
 pub struct Scene {
@@ -12,6 +15,7 @@ pub struct Scene {
     pub named_shapes: HashMap<String, Shape>,
     pub unnamed_shapes: Vec<Shape>,
     pub scale: f32,
+    pub viewport: Option<[usize; 2]>,
 }
 
 impl Scene {
@@ -30,6 +34,7 @@ impl Scene {
             named_shapes: HashMap::new(),
             unnamed_shapes: Vec::new(),
             scale: 1.0,
+            viewport: None,
         }
     }
 
@@ -46,12 +51,6 @@ impl Scene {
         }
     }
 
-    pub fn delete_shape(&mut self, id: &str) {
-        if self.named_shapes.remove(id).is_none() {
-            panic!("Sphere with ID '{}' not found", id);
-        }
-    }
-
     pub fn update_shape<S: Into<Shape>>(&mut self, id: &str, shape: S) {
         let shape = shape.into();
         if let Some(existing_shape) = self.named_shapes.get_mut(id) {
@@ -61,7 +60,17 @@ impl Scene {
         }
     }
 
-    pub fn set_background_color(&mut self, background_color: [f32; 3])  {
+    pub fn delete_shape(&mut self, id: &str) {
+        if self.named_shapes.remove(id).is_none() {
+            panic!("Sphere with ID '{}' not found", id);
+        }
+    }
+
+    pub fn set_viewport(&mut self, width: usize, height: usize) {
+        self.viewport = Some([width, height]);
+    }
+
+    pub fn set_background_color(&mut self, background_color: [f32; 3]) {
         self.background_color = background_color;
     }
 }

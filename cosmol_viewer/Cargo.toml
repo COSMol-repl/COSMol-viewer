@@ -15,11 +15,8 @@ eframe.workspace = true
 cosmol_viewer_core.workspace = true
 serde_json.workspace = true
 egui_extras.workspace = true
-sha2.workspace = true
-hex.workspace = true
 serde = { version = "1.0.219" , features = ["derive"] }
 bytemuck = "1.23.1"
-web-sys = "0.3.77"
 wasm-bindgen-futures = "0.4.50"
 
 [features]

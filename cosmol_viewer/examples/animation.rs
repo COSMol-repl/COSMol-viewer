@@ -16,6 +16,8 @@ fn main() {
 
     scene.scale(0.2);
 
+    scene.set_viewport(800, 500);
+
     let viewer = Viewer::render(&scene);
 
     // 动画主循环
@@ -44,13 +46,12 @@ fn main() {
 
         viewer.update(&scene);
 
-        thread::sleep(Duration::from_millis(10));
+        thread::sleep(Duration::from_millis(20));
 
         t += 0.02;
 
-        // 👇 替代硬重置，用平滑限制精度
         if t > 1000.0 {
-            t -= 1000.0; // 让 t 永远不爆炸，但不会频繁重置周期
+            t -= 1000.0;
         }
     }
 }

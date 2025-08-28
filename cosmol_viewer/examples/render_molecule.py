@@ -13,7 +13,11 @@ scene.scale(0.1)
 
 scene.add_shape(mol, "molecule")
 
+scene.set_viewport(width=600, height=400)
+
 viewer = Viewer.render(scene)
 
-print("Press Enter to exit...", end='', flush=True)
+viewer.save_image("screenshot.png")
+
+print("Press Any Key to exit...", end='', flush=True)
 _ = input()

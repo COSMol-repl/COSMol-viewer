@@ -13,10 +13,10 @@ glam = { version = "0.30.3" , features = ["serde"] }
 egui_extras.workspace = true
 serde.workspace = true
 bytemuck = "1.23.1"
-web-sys = "0.3.77"
 serde_repr = "0.1"
 wasm-bindgen-futures = "0.4.50"
 once_cell = "1.21.3"
+image = "0.25"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 egui-winit.workspace = true

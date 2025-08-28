@@ -10,11 +10,11 @@ use crate::{
 pub struct Stick {
     pub start: [f32; 3],
     pub end: [f32; 3],
-    pub radius: f32,
+    pub thickness_radius: f32,
     pub quality: u32,
 
     pub style: VisualStyle,
-    pub interaction: Interaction,
+    interaction: Interaction,
 }
 
 impl Into<Shape> for Stick {
@@ -28,7 +28,7 @@ impl Stick {
         Self {
             start,
             end,
-            radius,
+            thickness_radius: radius,
             quality: 6,
             style: VisualStyle {
                 opacity: 1.0,
@@ -39,8 +39,8 @@ impl Stick {
         }
     }
 
-    pub fn set_radius(mut self, radius: f32) -> Self {
-        self.radius = radius;
+    pub fn set_thickness(mut self, thickness: f32) -> Self {
+        self.thickness_radius = thickness;
         self
     }
 
@@ -66,7 +66,7 @@ impl Stick {
         let mut colors = Vec::new();
 
         let segments = 20 * self.quality;
-        let r = self.radius;
+        let r = self.thickness_radius;
 
         let start = glam::Vec3::from_array(self.start);
         let end = glam::Vec3::from_array(self.end);
