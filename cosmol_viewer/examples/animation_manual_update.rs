@@ -1,26 +1,26 @@
 use cosmol_viewer::shapes::Sphere;
 use cosmol_viewer::utils::VisualShape;
 use cosmol_viewer::{Viewer, Scene};
-use std::f32::consts::PI;
+use std::{f32::consts::PI, thread, time::Duration};
 
 fn main() {
-    // 球体 ID
+    // 初始化场景
+    let mut scene = Scene::new();
+
+    // 添加多个球体（6个）
     let ids = ["a", "b", "c", "d", "e", "f"];
+    for id in ids.iter() {
+        let sphere = Sphere::new([0.0, 0.0, 0.0], 0.4).color([1.0, 1.0, 1.0]);
+        scene.add_shape(sphere, Some(id));
+    }
 
-    // 动画参数
-    let interval: f32 = 0.02; // 每帧间隔 (秒)
-    let duration: f32 = 10.0; // 总时长 (秒)
-    let num_frames = (duration / interval) as usize;
+    scene.scale(0.2);
 
-    // 存储所有帧
-    let mut frames: Vec<Scene> = Vec::with_capacity(num_frames);
+    let viewer = Viewer::render(&scene, 800.0, 500.0);
 
-    for frame_idx in 0..num_frames {
-        let t = frame_idx as f32 * interval;
-
-        let mut scene = Scene::new();
-        scene.scale(0.2);
-
+    // 动画主循环
+    let mut t: f32 = 0.0;
+    loop {
         for (i, id) in ids.iter().enumerate() {
             let phase = i as f32 * PI / 3.0;
             let theta = t + phase;
@@ -39,12 +39,17 @@ fn main() {
             let b = 1.0 - r;
 
             let sphere = Sphere::new([x, y, z], radius).color([r, g, b]);
-            scene.add_shape(sphere, Some(id));
+            scene.update_shape(id, sphere);
         }
 
-        frames.push(scene);
-    }
+        viewer.update(&scene);
 
-    // 一次性提交所有帧，由 Viewer 控制播放
-    Viewer::play(frames, interval, -1, 800.0, 500.0);
+        thread::sleep(Duration::from_millis(20));
+
+        t += 0.02;
+
+        if t > 1000.0 {
+            t -= 1000.0;
+        }
+    }
 }

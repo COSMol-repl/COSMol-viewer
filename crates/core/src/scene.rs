@@ -66,9 +66,9 @@ impl Scene {
         }
     }
 
-    pub fn set_viewport(&mut self, width: usize, height: usize) {
-        self.viewport = Some([width, height]);
-    }
+    // pub fn set_viewport(&mut self, width: usize, height: usize) {
+    //     self.viewport = Some([width, height]);
+    // }
 
     pub fn set_background_color(&mut self, background_color: [f32; 3]) {
         self.background_color = background_color;

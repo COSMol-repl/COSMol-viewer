@@ -103,3 +103,6 @@ more examples can be found in the [examples](https://github.com/COSMol-repl/COSM
 cd cosmol_viewer
 cargo run --example animation
 ```
+
+# Develop
+

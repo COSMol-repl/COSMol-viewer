@@ -5,13 +5,15 @@ use serde::Serialize;
 use std::sync::Arc;
 use std::sync::Mutex;
 
+const VERSION: &str = env!("CARGO_PKG_VERSION"); // crate 当前版本号
+
 #[cfg(feature = "wasm")]
 use web_sys::HtmlCanvasElement;
 
 #[cfg(feature = "wasm")]
-use wasm_bindgen::prelude::wasm_bindgen;
-#[cfg(feature = "wasm")]
 use wasm_bindgen::JsValue;
+#[cfg(feature = "wasm")]
+use wasm_bindgen::prelude::wasm_bindgen;
 
 #[cfg(feature = "js_bridge")]
 use pyo3::Python;
@@ -21,19 +23,35 @@ pub fn setup_wasm_if_needed(py: Python) {
     use pyo3::types::PyAnyMethods;
 
     const JS_CODE: &str = include_str!("../../wasm/pkg/cosmol_viewer_wasm.js");
+    const WASM_BYTES: &[u8] = include_bytes!("../../wasm/pkg/cosmol_viewer_wasm_bg.wasm");
 
     let js_base64 = base64::engine::general_purpose::STANDARD.encode(JS_CODE);
+    let wasm_base64 = base64::engine::general_purpose::STANDARD.encode(WASM_BYTES);
 
     let combined_js = format!(
         r#"
 (function() {{
-    if (!window.cosmol_viewer_blob_url) {{
+    const version = "{VERSION}";
+    const ns = "cosmol_viewer_" + version;
+
+    if (!window[ns + "_ready"]) {{
+        // 1. setup JS module
         const jsCode = atob("{js_base64}");
-        const blob = new Blob([jsCode], {{ type: 'application/javascript' }});
-        window.cosmol_viewer_blob_url = URL.createObjectURL(blob);
+        const jsBlob = new Blob([jsCode], {{ type: 'application/javascript' }});
+        window[ns + "_blob_url"] = URL.createObjectURL(jsBlob);
+
+        // 2. preload WASM
+        const wasmBytes = Uint8Array.from(atob("{wasm_base64}"), c => c.charCodeAt(0));
+        window[ns + "_wasm_bytes"] = wasmBytes;
+
+        window[ns + "_ready"] = true;
+        console.log("Cosmol viewer setup done, version:", version);
     }}
 }})();
-    "#
+        "#,
+        VERSION = VERSION,
+        js_base64 = js_base64,
+        wasm_base64 = wasm_base64
     );
 
     let ipython = py.import("IPython.display").unwrap();
@@ -53,24 +71,19 @@ pub struct WasmViewer {
 }
 #[cfg(feature = "js_bridge")]
 impl WasmViewer {
-    pub fn initate_viewer(py: Python, scene: &Scene) -> Self {
-        use base64::Engine;
+    pub fn initate_viewer(py: Python, scene: &Scene, width: f32, height: f32) -> Self {
         use pyo3::types::PyAnyMethods;
         use uuid::Uuid;
 
         let unique_id = format!("cosmol_viewer_{}", Uuid::new_v4());
-        const WASM_BYTES: &[u8] = include_bytes!("../../wasm/pkg/cosmol_viewer_wasm_bg.wasm");
-        let wasm_base64 = base64::engine::general_purpose::STANDARD.encode(WASM_BYTES);
-
-        let viewport_size = scene.viewport.unwrap_or([800, 500]);
 
         let html_code = format!(
             r#"
 <canvas id="{id}" width="{width}" height="{height}" style="width:{width}px; height:{height}px;"></canvas>
             "#,
             id = unique_id,
-            width = viewport_size[0],
-            height = viewport_size[1]
+            width = width,
+            height = height
         );
 
         let scene_json = serde_json::to_string(scene).unwrap();
@@ -79,25 +92,100 @@ impl WasmViewer {
         let combined_js = format!(
             r#"
 (function() {{
-    const wasmBase64 = "{wasm_base64}";
-    import(window.cosmol_viewer_blob_url).then(async (mod) => {{
-        const wasmBytes = Uint8Array.from(atob(wasmBase64), c => c.charCodeAt(0));
-        await mod.default(wasmBytes);
+    const version = "{VERSION}";
+    const ns = "cosmol_viewer_" + version;
+
+    import(window[ns + "_blob_url"]).then(async (mod) => {{
+        await mod.default(window[ns + "_wasm_bytes"]);
 
         const canvas = document.getElementById('{id}');
         const app = new mod.WebHandle();
         const sceneJson = {SCENE_JSON};
-        console.log("Starting cosmol_viewer with scene:", sceneJson);
         await app.start_with_scene(canvas, sceneJson);
 
-        window.cosmol_viewer_instances = window.cosmol_viewer_instances || {{}};
-        window.cosmol_viewer_instances["{id}"] = app;
+        window[ns + "_instances"] = window[ns + "_instances"] || {{}};
+        window[ns + "_instances"]["{id}"] = app;
+        console.log("Cosmol viewer instance {id} (v{VERSION}) started");
     }});
 }})();
-            "#,
-            wasm_base64 = wasm_base64,
+    "#,
+            VERSION = VERSION,
             id = unique_id,
             SCENE_JSON = escaped
+        );
+        let ipython = py.import("IPython.display").unwrap();
+        let display = ipython.getattr("display").unwrap();
+
+        let html = ipython
+            .getattr("HTML")
+            .unwrap()
+            .call1((html_code,))
+            .unwrap();
+        display.call1((html,)).unwrap();
+
+        let js = ipython
+            .getattr("Javascript")
+            .unwrap()
+            .call1((combined_js,))
+            .unwrap();
+        display.call1((js,)).unwrap();
+
+        Self { id: unique_id }
+    }
+
+    pub fn initate_viewer_and_play(
+        py: Python,
+        frames: Vec<Scene>,
+        interval: u64,
+        loops: i64,
+        width: f32,
+        height: f32,
+    ) -> Self {
+        use pyo3::types::PyAnyMethods;
+        use uuid::Uuid;
+
+        let unique_id = format!("cosmol_viewer_{}", Uuid::new_v4());
+
+        let html_code = format!(
+            r#"
+<canvas id="{id}" width="{width}" height="{height}" style="width:{width}px; height:{height}px;"></canvas>
+            "#,
+            id = unique_id,
+            width = width,
+            height = height
+        );
+
+        let frames_json = serde_json::to_string(&Frames {
+            frames,
+            interval,
+            loops,
+        })
+        .unwrap();
+        let escaped = serde_json::to_string(&frames_json).unwrap();
+
+        let combined_js = format!(
+            r#"
+(function() {{
+    const version = "{VERSION}";
+    const ns = "cosmol_viewer_" + version;
+
+    import(window[ns + "_blob_url"]).then(async (mod) => {{
+        await mod.default(window[ns + "_wasm_bytes"]);
+
+        const canvas = document.getElementById('{id}');
+        const app = new mod.WebHandle();
+        const framesJson = {FRAMES_JSON};
+        await app.initate_viewer_and_play(canvas, framesJson);
+
+        window[ns + "_instances"] = window[ns + "_instances"] || {{}};
+        window[ns + "_instances"]["{id}"] = app;
+        console.log("Cosmol viewer instance {id} (v{VERSION}) started");
+    }});
+}})();
+    "#,
+            VERSION = VERSION,
+            id = unique_id,
+            FRAMES_JSON = escaped
         );
         let ipython = py.import("IPython.display").unwrap();
         let display = ipython.getattr("display").unwrap();
@@ -127,18 +215,25 @@ impl WasmViewer {
         let combined_js = format!(
             r#"
 (async function() {{
-    console.log(window.cosmol_viewer_instances)
-    const instances = window.cosmol_viewer_instances || {{}};
+    const ns = "cosmol_viewer_" + "{VERSION}";
+    const instances = window[ns + "_instances"] || {{}};
     const app = instances["{id}"];
     if (app) {{
-        const result = await app.{name}({escaped});
-        // window.cosmol_viewer_result.set("cosmol_result", result);
+        try {{
+            const result = await app.{name}({escaped});
+            console.log("Call `{name}` on instance {id} (v{VERSION}) result:", result);
+        }} catch (err) {{
+            console.error("Error calling `{name}` on instance {id} (v{VERSION}):", err);
+        }}
     }} else {{
-        console.error("No app found for ID {id}");
+        console.error("No app found for ID {id} in namespace", ns);
     }}
 }})();
-            "#,
+        "#,
+            VERSION = VERSION,
             id = self.id,
+            name = name,
+            escaped = escaped
         );
 
         let ipython = py.import("IPython.display").unwrap();
@@ -159,6 +254,13 @@ impl WasmViewer {
     pub fn take_screenshot(&self, py: Python) {
         self.call(py, "take_screenshot", None::<u8>)
     }
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct Frames {
+    frames: Vec<Scene>,
+    interval: u64,
+    loops: i64, // -1 = infinite
 }
 
 pub trait JsBridge {
@@ -191,7 +293,6 @@ pub struct WebHandle {
 #[cfg(feature = "wasm")]
 #[wasm_bindgen]
 impl WebHandle {
-    
     #[wasm_bindgen(constructor)]
     pub fn new() -> Self {
         #[cfg(target_arch = "wasm32")]
@@ -248,7 +349,72 @@ impl WebHandle {
     }
 
     #[wasm_bindgen]
+    pub async fn initate_viewer_and_play(
+        &mut self,
+        canvas: HtmlCanvasElement,
+        frames_json: String,
+    ) -> Result<(), JsValue> {
+        use std::{thread, time::Duration};
+        let frames: Frames = serde_json::from_str(&frames_json)
+            .map_err(|e| JsValue::from_str(&format!("Frames parse error: {}", e)))?;
+
+        let app = Arc::clone(&self.app);
+
+        let scene = frames.frames[0].clone();
+
+        #[cfg(target_arch = "wasm32")]
+        let _ = self
+            .runner
+            .start(
+                canvas,
+                eframe::WebOptions::default(),
+                Box::new(move |cc| {
+                    use cosmol_viewer_core::AppWrapper;
+
+                    let mut guard = app.lock().unwrap();
+                    *guard = Some(App::new(cc, scene));
+                    Ok(Box::new(AppWrapper(app.clone())))
+                }),
+            )
+            .await;
+
+        let timeout_ms = 30000;
+        let mut waited = 0;
+        loop {
+            if self.app.lock().unwrap().is_some() {
+                break;
+            }
+            if waited > timeout_ms {
+                panic!("Fail to initialize App");
+            }
+            gloo_timers::future::sleep(Duration::from_millis(10)).await;
+            // Delay::new(Duration::from_secs(1)).await.unwrap();
+            waited += 10;
+        }
+
+        let mut count = 0;
+        loop {
+            if frames.loops >= 0 && count >= frames.loops {
+                break;
+            }
+            count += 1;
+            for frame in &frames.frames {
+                {
+                    let mut guard = self.app.lock().unwrap();
+                    if let Some(app) = &mut *guard {
+                        app.update_scene(frame.clone());
+                        app.ctx.request_repaint();
+                    }
+                }
+                gloo_timers::future::sleep(Duration::from_millis(frames.interval)).await;
+            }
+        }
+
+        Ok(())
+    }
+
+    #[wasm_bindgen]
     pub async fn take_screenshot(&self) -> Option<String> {
-        Some("javavavavavavav".to_string())
+        Some("The returned value is omitted!".to_string())
     }
 }

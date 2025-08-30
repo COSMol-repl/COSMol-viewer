@@ -38,6 +38,23 @@ pub struct App {
 }
 
 impl App {
+    pub fn play(
+        cc: &eframe::CreationContext<'_>,
+        frames: Vec<Scene>,
+        interval: f32,
+        loop_: bool,
+    ) -> Self {
+        let gl = cc.gl.clone();
+        let canvas = Canvas::new(gl.as_ref().unwrap().clone(), frames[0].clone()).unwrap();
+        App {
+            gl,
+            canvas,
+            ctx: cc.egui_ctx.clone(),
+            screenshot_requested: false,
+            screenshot_result: None,
+        }
+    }
+
     pub fn new(cc: &eframe::CreationContext<'_>, scene: Scene) -> Self {
         let gl = cc.gl.clone();
         let canvas = Canvas::new(gl.as_ref().unwrap().clone(), scene).unwrap();
@@ -130,7 +147,7 @@ pub struct NativeGuiViewer {
 }
 
 impl NativeGuiViewer {
-    pub fn render(scene: &Scene) -> Self {
+    pub fn render(scene: &Scene, width: f32, height: f32) -> Self {
         use std::{
             sync::{Arc, Mutex},
             thread,
@@ -142,7 +159,7 @@ impl NativeGuiViewer {
             egui::{Vec2, ViewportBuilder},
         };
 
-        let viewport_size = scene.viewport.unwrap_or([800, 500]);
+        // let viewport_size = scene.viewport.unwrap_or([800, 500]);
 
         let app: Arc<Mutex<Option<App>>> = Arc::new(Mutex::new(None));
         let app_clone = Arc::clone(&app);
@@ -173,8 +190,7 @@ impl NativeGuiViewer {
                 }));
 
             let native_options = NativeOptions {
-                viewport: ViewportBuilder::default()
-                    .with_inner_size(Vec2::new(viewport_size[0] as f32, viewport_size[1] as f32)),
+                viewport: ViewportBuilder::default().with_inner_size(Vec2::new(width, height)),
                 depth_buffer: 24,
                 event_loop_builder,
                 ..Default::default()
@@ -193,7 +209,7 @@ impl NativeGuiViewer {
         });
 
         // 等待 App 初始化完成
-        let timeout_ms = 3000;
+        let timeout_ms = 30000;
         let mut waited = 0;
 
         loop {
@@ -243,5 +259,101 @@ impl NativeGuiViewer {
             drop(app_guard);
             std::thread::sleep(std::time::Duration::from_millis(100));
         }
+    }
+
+    pub fn play(frames: Vec<Scene>, interval: f32, loops: i64, width: f32, height: f32) {
+        use std::{
+            sync::{Arc, Mutex},
+            thread,
+        };
+
+        #[cfg(not(target_arch = "wasm32"))]
+        use eframe::{
+            NativeOptions,
+            egui::{Vec2, ViewportBuilder},
+        };
+
+        let app: Arc<Mutex<Option<App>>> = Arc::new(Mutex::new(None));
+        let app_clone = Arc::clone(&app);
+
+        let scene_init = frames[0].clone();
+
+        #[cfg(not(target_arch = "wasm32"))]
+        thread::spawn(move || {
+            use std::process;
+
+            use eframe::{EventLoopBuilderHook, run_native};
+            let event_loop_builder: Option<EventLoopBuilderHook> =
+                Some(Box::new(|event_loop_builder| {
+                    #[cfg(target_family = "windows")]
+                    {
+                        use egui_winit::winit::platform::windows::EventLoopBuilderExtWindows;
+                        event_loop_builder.with_any_thread(true);
+                    }
+                    #[cfg(feature = "wayland")]
+                    {
+                        use egui_winit::winit::platform::wayland::EventLoopBuilderExtWayland;
+                        event_loop_builder.with_any_thread(true);
+                    }
+                    #[cfg(feature = "x11")]
+                    {
+                        use egui_winit::winit::platform::x11::EventLoopBuilderExtX11;
+                        event_loop_builder.with_any_thread(true);
+                    }
+                }));
+
+            let native_options = NativeOptions {
+                viewport: ViewportBuilder::default().with_inner_size(Vec2::new(width, height)),
+                depth_buffer: 24,
+                event_loop_builder,
+                ..Default::default()
+            };
+
+            let _ = run_native(
+                "cosmol_viewer",
+                native_options,
+                Box::new(move |cc| {
+                    let mut guard = app_clone.lock().unwrap();
+                    *guard = Some(App::new(cc, scene_init));
+                    Ok(Box::new(AppWrapper(app_clone.clone())))
+                }),
+            );
+            process::exit(0);
+        });
+
+        // 等待 App 初始化完成
+        let timeout_ms = 30000;
+        let mut waited = 0;
+
+        loop {
+            if app.lock().unwrap().is_some() {
+                break;
+            }
+            if waited > timeout_ms {
+                panic!("Fail to initialize App");
+            }
+            thread::sleep(Duration::from_millis(10));
+            waited += 10;
+        }
+
+        let mut count = 0;
+        loop {
+            if loops >= 0 && count >= loops {
+                break;
+            }
+            count += 1;
+            for frame in &frames {
+                {
+                    let mut guard = app.lock().unwrap();
+                    if let Some(app) = &mut *guard {
+                        app.update_scene(frame.clone());
+                        app.ctx.request_repaint();
+                    }
+                }
+                thread::sleep(Duration::from_secs_f32(interval));
+            }
+        }
+
+        // Self { app }
     }
 }

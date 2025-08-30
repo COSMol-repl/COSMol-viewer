@@ -727,7 +727,7 @@ dependencies = [
 
 [[package]]
 name = "cosmol_viewer"
-version = "0.1.2-nightly.5"
+version = "0.1.2"
 dependencies = [
  "bytemuck",
  "cosmol_viewer_core",
@@ -740,7 +740,7 @@ dependencies = [
 
 [[package]]
 name = "cosmol_viewer_core"
-version = "0.1.2-nightly.5"
+version = "0.1.2"
 dependencies = [
  "bytemuck",
  "eframe",
@@ -770,11 +770,12 @@ dependencies = [
 
 [[package]]
 name = "cosmol_viewer_wasm"
-version = "0.1.2-nightly.5"
+version = "0.1.2"
 dependencies = [
  "base64",
  "cosmol_viewer_core",
  "eframe",
+ "gloo-timers",
  "log",
  "pyo3",
  "serde",
@@ -1256,6 +1257,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "futures-channel"
+version = "0.3.31"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2dff15bf788c671c1934e366d07e30c1814a8ef514e1af724a602e8a2fbe1b10"
+dependencies = [
+ "futures-core",
+]
+
+[[package]]
 name = "futures-core"
 version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1372,6 +1382,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "50a99dbe56b72736564cfa4b85bf9a33079f16ae8b74983ab06af3b1a3696b11"
 dependencies = [
  "serde",
+]
+
+[[package]]
+name = "gloo-timers"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbb143cf96099802033e0d4f4963b19fd2e0b728bcf076cd9cf7f6634f092994"
+dependencies = [
+ "futures-channel",
+ "futures-core",
+ "js-sys",
+ "wasm-bindgen",
 ]
 
 [[package]]

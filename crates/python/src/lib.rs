@@ -9,10 +9,12 @@ use crate::{
 };
 use cosmol_viewer_core::{NativeGuiViewer, scene::Scene as _Scene};
 use cosmol_viewer_wasm::{WasmViewer, setup_wasm_if_needed};
+use std::borrow::Borrow;
 
 mod parser;
 mod shapes;
 
+#[derive(Clone)]
 #[pyclass]
 /// A 3D scene container for visualizing molecular or geometric shapes.
 ///
@@ -107,20 +109,6 @@ impl Scene {
         self.inner.delete_shape(id);
     }
 
-    /// Set the viewport size of the scene.
-    ///
-    /// # Arguments
-    ///
-    /// * `width` - Width of the viewport in pixels.
-    /// * `height` - Height of the viewport in pixels.
-    ///
-    /// # Example
-    /// ```python
-    /// scene.set_viewport(600, 400)
-    /// ```
-    pub fn set_viewport(&mut self, width: usize, height: usize) {
-        self.inner.set_viewport(width, height);
-    }
 
     /// Sets the global scale factor of the scene.
     ///
@@ -265,6 +253,8 @@ impl Viewer {
     ///
     /// Args:
     ///     scene (Scene): The scene to render.
+    ///     width (float): The width of the viewport in pixels.
+    ///     height (float): The height of the viewport in pixels.
     ///
     /// Returns:
     ///     Viewer: The created viewer instance.
@@ -276,21 +266,21 @@ impl Viewer {
     /// scene = Scene()
     /// scene.add_shape(Sphere(center=[0.0, 0.0, 0.0], radius=1.0))
     ///
-    /// viewer = Viewer.render(scene)
+    /// viewer = Viewer.render(scene, 800.0, 500.0)
     /// ```
-    pub fn render(scene: &Scene, py: Python) -> Self {
+    pub fn render(scene: &Scene, width: f32, height: f32, py: Python) -> Self {
         let env_type = detect_runtime_env(py).unwrap();
         match env_type {
             RuntimeEnv::Colab | RuntimeEnv::Jupyter => {
                 print_to_notebook(
                     c_str!(
                         r#"from IPython.display import display, HTML
-display(HTML("<div style='color:red;font-weight:bold;'>⚠️ Note: When running in Jupyter or Colab, animation updates may be limited by the notebook's output capacity, which can cause incomplete or delayed rendering.</div>"))"#
+display(HTML("<div style='color:red;font-weight:bold;font-size:1rem;'>⚠️ Note: When running in Jupyter or Colab, animation updates may be limited by the notebook's output capacity, which can cause incomplete or delayed rendering.</div>"))"#
                     ),
                     py,
                 );
                 setup_wasm_if_needed(py);
-                let wasm_viewer = WasmViewer::initate_viewer(py, &scene.inner);
+                let wasm_viewer = WasmViewer::initate_viewer(py, &scene.inner, width, height);
 
                 Viewer {
                     environment: env_type,
@@ -301,8 +291,67 @@ display(HTML("<div style='color:red;font-weight:bold;'>⚠️ Note: When running
             RuntimeEnv::PlainScript | RuntimeEnv::IPythonTerminal => Viewer {
                 environment: env_type,
                 wasm_viewer: None,
-                native_gui_viewer: Some(NativeGuiViewer::render(&scene.inner)),
+                native_gui_viewer: Some(NativeGuiViewer::render(&scene.inner, width, height)),
             },
+            _ => panic!("Error: Invalid runtime environment"),
+        }
+    }
+
+    #[staticmethod]
+    /// Render a 3D scene based on the current environment.
+    ///
+    /// If running inside Jupyter or Colab, the scene will be displayed inline using WebAssembly.
+    /// If running from a script or terminal, a native GUI window is used (if supported).
+    ///
+    /// Args:
+    ///     scene (Scene): The scene to render.
+    ///     width (float): The width of the viewport in pixels.
+    ///     height (float): The height of the viewport in pixels.
+    ///
+    /// Returns:
+    ///     Viewer: The created viewer instance.
+    ///
+    /// Examples:
+    /// ```python
+    /// from cosmol_viewer import Viewer, Scene, Sphere
+    ///
+    /// scene = Scene()
+    /// scene.add_shape(Sphere(center=[0.0, 0.0, 0.0], radius=1.0))
+    ///
+    /// viewer = Viewer.render(scene, 800.0, 500.0)
+    /// ```
+    pub fn play(
+        frames: Vec<Scene>,
+        interval: f32,
+        loops: i64,
+        width: f32,
+        height: f32,
+        py: Python,
+    ) -> Self {
+        let env_type = detect_runtime_env(py).unwrap();
+        let rust_frames: Vec<_Scene> = frames.iter().map(|frame| frame.inner.clone()).collect();
+
+        match env_type {
+            RuntimeEnv::Colab | RuntimeEnv::Jupyter => {
+                setup_wasm_if_needed(py);
+                let wasm_viewer = WasmViewer::initate_viewer_and_play(py, rust_frames, (interval * 1000.0) as u64, loops, width, height);
+
+                Viewer {
+                    environment: env_type,
+                    wasm_viewer: Some(wasm_viewer),
+                    native_gui_viewer: None,
+                }
+            }
+
+            RuntimeEnv::PlainScript | RuntimeEnv::IPythonTerminal => {
+                NativeGuiViewer::play(rust_frames, interval, loops, width, height);
+
+                Viewer {
+                    environment: env_type,
+                    wasm_viewer: None,
+                    native_gui_viewer: None,
+                }
+            }
             _ => panic!("Error: Invalid runtime environment"),
         }
     }
@@ -362,11 +411,13 @@ display(HTML("<div style='color:red;font-weight:bold;'>⚠️ Note: When running
                 // let image = self.wasm_viewer.as_ref().unwrap().take_screenshot(py);
                 print_to_notebook(
                     c_str!(
-                        r#"<div style='color:red;font-weight:bold;'>⚠️ Image saving in Jupyter/Colab is not yet fully supported. This feature is still under development.</div>"))"#
+                        r#"<div style='color:red;font-weight:bold;font-size:1rem;'>⚠️ Image saving in Jupyter/Colab is not yet fully supported.</div>"))"#
                     ),
                     py,
                 );
-                panic!("Error saving image. Saving images from Jupyter/Colab is not yet supported. This feature is still under development.")
+                panic!(
+                    "Error saving image. Saving images from Jupyter/Colab is not yet supported."
+                )
             }
             RuntimeEnv::PlainScript | RuntimeEnv::IPythonTerminal => {
                 let native_gui_viewer = &self.native_gui_viewer.as_ref().unwrap();
@@ -393,4 +444,10 @@ fn cosmol_viewer(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Viewer>()?;
     m.add_function(wrap_pyfunction!(parse_sdf, m)?)?;
     Ok(())
+}
+
+fn a(py: Python, frame: Py<Scene>) -> usize {
+    let sc: Scene = frame.extract(py).unwrap();
+
+    1
 }
