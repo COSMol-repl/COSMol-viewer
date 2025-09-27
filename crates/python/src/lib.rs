@@ -159,7 +159,7 @@ display(HTML("<div style='color:red;font-weight:bold;font-size:1rem;'>⚠️ Not
                     py,
                 );
                 setup_wasm_if_needed(py);
-                let wasm_viewer = WasmViewer::initate_viewer(py, &scene.inner, width, height);
+                let wasm_viewer = WasmViewer::initiate_viewer(py, &scene.inner, width, height);
 
                 Viewer {
                     environment: env_type,
@@ -191,7 +191,7 @@ display(HTML("<div style='color:red;font-weight:bold;font-size:1rem;'>⚠️ Not
         match env_type {
             RuntimeEnv::Colab | RuntimeEnv::Jupyter => {
                 setup_wasm_if_needed(py);
-                let wasm_viewer = WasmViewer::initate_viewer_and_play(py, rust_frames, (interval * 1000.0) as u64, loops, width, height);
+                let wasm_viewer = WasmViewer::initiate_viewer_and_play(py, rust_frames, (interval * 1000.0) as u64, loops, width, height);
 
                 Viewer {
                     environment: env_type,

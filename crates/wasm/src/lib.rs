@@ -71,7 +71,7 @@ pub struct WasmViewer {
 }
 #[cfg(feature = "js_bridge")]
 impl WasmViewer {
-    pub fn initate_viewer(py: Python, scene: &Scene, width: f32, height: f32) -> Self {
+    pub fn initiate_viewer(py: Python, scene: &Scene, width: f32, height: f32) -> Self {
         use pyo3::types::PyAnyMethods;
         use uuid::Uuid;
 
@@ -133,7 +133,7 @@ impl WasmViewer {
         Self { id: unique_id }
     }
 
-    pub fn initate_viewer_and_play(
+    pub fn initiate_viewer_and_play(
         py: Python,
         frames: Vec<Scene>,
         interval: u64,
@@ -175,7 +175,7 @@ impl WasmViewer {
         const canvas = document.getElementById('{id}');
         const app = new mod.WebHandle();
         const framesJson = {FRAMES_JSON};
-        await app.initate_viewer_and_play(canvas, framesJson);
+        await app.initiate_viewer_and_play(canvas, framesJson);
 
         window[ns + "_instances"] = window[ns + "_instances"] || {{}};
         window[ns + "_instances"]["{id}"] = app;

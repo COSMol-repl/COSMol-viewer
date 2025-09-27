@@ -33,7 +33,7 @@ wasm = [
 js_bridge = [
     "pyo3",
     "base64",
-    "uuid"
+    "uuid",
 ]
 
 [lib]
