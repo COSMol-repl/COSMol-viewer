@@ -329,9 +329,10 @@ impl Shader {
             gl.enable(glow::CULL_FACE);
             gl.cull_face(glow::BACK);
             gl.front_face(glow::CCW);
-
+            
             gl.enable(glow::DEPTH_TEST);
             gl.depth_func(glow::LEQUAL);
+            gl.enable(glow::MULTISAMPLE); // 开启多重采样
 
             gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
 

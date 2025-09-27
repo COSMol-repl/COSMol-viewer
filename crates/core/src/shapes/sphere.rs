@@ -120,11 +120,6 @@ impl Sphere {
         self
     }
 
-    // pub fn clickable(mut self, val: bool) -> Self {
-    //     self.interaction.clickable = val;
-    //     self
-    // }
-
     pub fn to_mesh(&self, scale: f32) -> MeshData {
         let template = get_or_generate_sphere_mesh_template(self.quality);
 

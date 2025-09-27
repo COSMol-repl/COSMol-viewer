@@ -16,29 +16,12 @@ mod shapes;
 
 #[derive(Clone)]
 #[pyclass]
-/// A 3D scene container for visualizing molecular or geometric shapes.
-///
-/// This class allows adding, updating, and removing shapes in a 3D scene,
-/// as well as modifying scene-level properties like scale and background color.
-///
-/// Supported shape types:
-/// - `Sphere`
-/// - `Stick`
-/// - `Molecules`
-///
-/// Shapes can be optionally identified with a string `id`, which allows updates and deletion.
 pub struct Scene {
     inner: _Scene,
 }
 
 #[pymethods]
 impl Scene {
-    /// Creates a new empty scene.
-    ///
-    /// # Example (Python)
-    /// ```python
-    /// scene = Scene()
-    /// ```
     #[new]
     pub fn new() -> Self {
         Self {
@@ -46,20 +29,6 @@ impl Scene {
         }
     }
 
-    /// Add a shape to the scene.
-    ///
-    /// # Arguments
-    ///
-    /// * `shape` - A shape instance (`PySphere`, `PyStick`, or `PyMolecules`).
-    /// * `id` - Optional string ID to associate with the shape.
-    ///
-    /// If the `id` is provided and a shape with the same ID exists, the new shape will replace it.
-    ///
-    /// # Example
-    /// ```python
-    /// scene.add_shape(sphere)
-    /// scene.add_shape(stick, id="bond1")
-    /// ```
     #[pyo3(signature = (shape, id=None))]
     pub fn add_shape(&mut self, shape: &Bound<'_, PyAny>, id: Option<&str>) {
         if let Ok(sphere) = shape.extract::<PyRef<PySphere>>() {
@@ -72,17 +41,6 @@ impl Scene {
         ()
     }
 
-    /// Updates an existing shape in the scene by its ID.
-    ///
-    /// # Arguments
-    ///
-    /// * `id` - ID of the shape to update.
-    /// * `shape` - New shape object to replace the existing one.
-    ///
-    /// # Example
-    /// ```python
-    /// scene.update_shape("atom1", updated_sphere)
-    /// ```
     pub fn update_shape(&mut self, id: &str, shape: &Bound<'_, PyAny>) {
         if let Ok(sphere) = shape.extract::<PyRef<PySphere>>() {
             self.inner.update_shape(id, sphere.inner.clone());
@@ -95,47 +53,14 @@ impl Scene {
         }
     }
 
-    /// Removes a shape from the scene by its ID.
-    ///
-    /// # Arguments
-    ///
-    /// * `id` - ID of the shape to remove.
-    ///
-    /// # Example
-    /// ```python
-    /// scene.delete_shape("bond1")
-    /// ```
     pub fn delete_shape(&mut self, id: &str) {
         self.inner.delete_shape(id);
     }
 
-
-    /// Sets the global scale factor of the scene.
-    ///
-    /// This affects the visual size of all shapes uniformly.
-    ///
-    /// # Arguments
-    ///
-    /// * `scale` - A positive float scaling factor.
-    ///
-    /// # Example
-    /// ```python
-    /// scene.scale(1.5)
-    /// ```
     pub fn scale(&mut self, scale: f32) {
         self.inner.scale(scale);
     }
 
-    /// Sets the background color of the scene.
-    ///
-    /// # Arguments
-    ///
-    /// * `background_color` - An RGB array of 3 float values between 0.0 and 1.0.
-    ///
-    /// # Example
-    /// ```python
-    /// scene.set_background_color([1.0, 1.0, 1.0])  # white background
-    /// ```
     pub fn set_background_color(&mut self, background_color: [f32; 3]) {
         self.inner.set_background_color(background_color);
     }
@@ -167,20 +92,6 @@ impl std::fmt::Display for RuntimeEnv {
 
 #[pyclass]
 #[pyo3(crate = "pyo3", unsendable)]
-/// A viewer that renders 3D scenes in different runtime environments (e.g., Jupyter, Colab, or native GUI).
-///
-/// The `Viewer` handles the logic for rendering scenes either through a browser-based WebAssembly canvas
-/// or via a native GUI window depending on the execution environment.
-///
-/// Use `Viewer.render(scene)` to create and display a viewer instance.
-///
-/// # Examples:
-/// ```python
-/// from cosmol_viewer import Viewer, Scene, Sphere
-/// scene = Scene()
-/// scene.add_shape(Sphere(...))
-/// viewer = Viewer.render(scene)
-/// ```
 pub struct Viewer {
     environment: RuntimeEnv,
     wasm_viewer: Option<WasmViewer>,
@@ -229,16 +140,6 @@ def detect_env():
 
 #[pymethods]
 impl Viewer {
-    /// Get the current runtime environment as a string.
-    ///
-    /// Returns:
-    ///     str: One of "Jupyter", "Colab", "PlainScript", or "IPythonTerminal".
-    ///
-    /// Examples:
-    /// ```python
-    /// env = Viewer.get_environment()
-    /// print(env)  # e.g., "Jupyter"
-    /// ```
     #[staticmethod]
     pub fn get_environment(py: Python) -> PyResult<String> {
         let env = detect_runtime_env(py)?;
@@ -246,28 +147,6 @@ impl Viewer {
     }
 
     #[staticmethod]
-    /// Render a 3D scene based on the current environment.
-    ///
-    /// If running inside Jupyter or Colab, the scene will be displayed inline using WebAssembly.
-    /// If running from a script or terminal, a native GUI window is used (if supported).
-    ///
-    /// Args:
-    ///     scene (Scene): The scene to render.
-    ///     width (float): The width of the viewport in pixels.
-    ///     height (float): The height of the viewport in pixels.
-    ///
-    /// Returns:
-    ///     Viewer: The created viewer instance.
-    ///
-    /// Examples:
-    /// ```python
-    /// from cosmol_viewer import Viewer, Scene, Sphere
-    ///
-    /// scene = Scene()
-    /// scene.add_shape(Sphere(center=[0.0, 0.0, 0.0], radius=1.0))
-    ///
-    /// viewer = Viewer.render(scene, 800.0, 500.0)
-    /// ```
     pub fn render(scene: &Scene, width: f32, height: f32, py: Python) -> Self {
         let env_type = detect_runtime_env(py).unwrap();
         match env_type {
@@ -298,28 +177,6 @@ display(HTML("<div style='color:red;font-weight:bold;font-size:1rem;'>⚠️ Not
     }
 
     #[staticmethod]
-    /// Render a 3D scene based on the current environment.
-    ///
-    /// If running inside Jupyter or Colab, the scene will be displayed inline using WebAssembly.
-    /// If running from a script or terminal, a native GUI window is used (if supported).
-    ///
-    /// Args:
-    ///     scene (Scene): The scene to render.
-    ///     width (float): The width of the viewport in pixels.
-    ///     height (float): The height of the viewport in pixels.
-    ///
-    /// Returns:
-    ///     Viewer: The created viewer instance.
-    ///
-    /// Examples:
-    /// ```python
-    /// from cosmol_viewer import Viewer, Scene, Sphere
-    ///
-    /// scene = Scene()
-    /// scene.add_shape(Sphere(center=[0.0, 0.0, 0.0], radius=1.0))
-    ///
-    /// viewer = Viewer.render(scene, 800.0, 500.0)
-    /// ```
     pub fn play(
         frames: Vec<Scene>,
         interval: f32,
@@ -356,23 +213,6 @@ display(HTML("<div style='color:red;font-weight:bold;font-size:1rem;'>⚠️ Not
         }
     }
 
-    /// Update the viewer with a new scene.
-    ///
-    /// Works for both Web-based rendering (Jupyter/Colab) and native GUI windows.
-    ///
-    /// ⚠️ **Note (Jupyter/Colab)**:
-    /// When running in notebook environments, animation updates may be limited by
-    /// the output rendering capacity of the frontend. This may result in delayed or
-    /// incomplete rendering during frequent scene updates.
-    ///
-    /// Args:
-    ///     scene (Scene): The updated scene to apply.
-    ///
-    /// Examples:
-    /// ```python
-    /// scene.add_shape(Sphere(center=[1.0, 1.0, 1.0], radius=0.5))
-    /// viewer.update(scene)
-    /// ```
     pub fn update(&mut self, scene: &Scene, py: Python) {
         let env_type = self.environment;
         match env_type {
@@ -394,16 +234,6 @@ display(HTML("<div style='color:red;font-weight:bold;font-size:1rem;'>⚠️ Not
         }
     }
 
-    /// Save the current image to a file.
-    ///
-    /// Args:
-    ///     path (str): The path to save the image to.
-    ///
-    /// Examples:
-    /// ```python
-    /// viewer = Viewer.render(scene)
-    /// viewer.save_image("image.png")
-    /// ```
     pub fn save_image(&self, path: &str, py: Python) {
         let env_type = self.environment;
         match env_type {
@@ -438,16 +268,10 @@ fn print_to_notebook(msg: &CStr, py: Python) {
 #[pymodule]
 fn cosmol_viewer(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Scene>()?;
+    m.add_class::<Viewer>()?;
     m.add_class::<PySphere>()?;
     m.add_class::<PyStick>()?;
     m.add_class::<PyMolecules>()?;
-    m.add_class::<Viewer>()?;
     m.add_function(wrap_pyfunction!(parse_sdf, m)?)?;
     Ok(())
-}
-
-fn a(py: Python, frame: Py<Scene>) -> usize {
-    let sc: Scene = frame.extract(py).unwrap();
-
-    1
 }

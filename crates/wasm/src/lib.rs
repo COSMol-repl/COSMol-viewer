@@ -294,6 +294,7 @@ pub struct WebHandle {
 #[wasm_bindgen]
 impl WebHandle {
     #[wasm_bindgen(constructor)]
+    #[expect(clippy::new_without_default)]
     pub fn new() -> Self {
         #[cfg(target_arch = "wasm32")]
         eframe::WebLogger::init(log::LevelFilter::Debug).ok();
@@ -319,7 +320,10 @@ impl WebHandle {
             .runner
             .start(
                 canvas,
-                eframe::WebOptions::default(),
+                eframe::WebOptions {
+                    // multisampling: 4, // Enable 4x MSAA
+                    ..Default::default()
+                },
                 Box::new(move |cc| {
                     use cosmol_viewer_core::AppWrapper;
 
@@ -349,7 +353,7 @@ impl WebHandle {
     }
 
     #[wasm_bindgen]
-    pub async fn initate_viewer_and_play(
+    pub async fn initiate_viewer_and_play(
         &mut self,
         canvas: HtmlCanvasElement,
         frames_json: String,

@@ -192,6 +192,7 @@ impl NativeGuiViewer {
             let native_options = NativeOptions {
                 viewport: ViewportBuilder::default().with_inner_size(Vec2::new(width, height)),
                 depth_buffer: 24,
+                multisampling: 4,
                 event_loop_builder,
                 ..Default::default()
             };

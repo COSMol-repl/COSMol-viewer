@@ -27,7 +27,7 @@ wasm = [
     "wasm-bindgen-futures",
     "web-sys",
     "wasm-bindgen",
-    "gloo-timers"
+    "gloo-timers",
 ]
 
 js_bridge = [

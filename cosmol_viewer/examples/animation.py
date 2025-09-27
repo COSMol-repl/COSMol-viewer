@@ -36,4 +36,7 @@ for frame_idx in range(num_frames):
     frames.append(scene)
 
 # 一次性提交：间隔0.02秒
-Viewer.play(frames, interval=interval, loop_=-1, width=800.0 ,height=500.0)
+Viewer.play(frames, interval=interval, loops=-1, width=800.0 ,height=500.0)
+
+print("Press Any Key to exit...", end='', flush=True)
+_ = input()

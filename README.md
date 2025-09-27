@@ -31,11 +31,9 @@ scene = Scene()
 scene.scale(0.1)
 scene.add_shape(mol, "mol")
 
-viewer = Viewer.render(scene)  # Launch the viewer
+viewer = Viewer.render(scene, width=600, height=400)  # Launch the viewer
 
 # === Step 2: Update the same molecule dynamically ===
-# Useful for molecular dynamics simulations or other animations
-# where the molecule changes over time.
 import time
 
 for i in range(1, 10):  # Simulate multiple frames
@@ -47,6 +45,36 @@ for i in range(1, 10):  # Simulate multiple frames
     viewer.update(scene)
 
     time.sleep(0.033)  # ~30 FPS
+
+print("Press Any Key to exit...", end='', flush=True)
+_ = input()
+```
+
+```python
+from cosmol_viewer import Scene, Viewer, parse_sdf, Molecules
+import time
+
+interval = 0.033   # ~30 FPS
+
+frames = []
+
+# Preload all frames (you could also compute on the fly)
+for i in range(1, 10):  # assume you have frames/frame_1.sdf ... frame_9.sdf
+    with open(f"frames/frame_{i}.sdf", "r") as f:
+        sdf = f.read()
+        mol = Molecules(parse_sdf(sdf)).centered()
+
+    scene = Scene()
+    scene.scale(0.1)
+    scene.add_shape(mol, "mol")
+
+    frames.append(scene)
+
+# Play them back once
+Viewer.play(frames, interval=interval, loops=1, width=600, height=400)
+
+print("Press Any Key to exit...", end='', flush=True)
+_ = input()
 ```
 
 ## Rust
