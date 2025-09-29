@@ -1,9 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    Shape,
-    scene::Scene,
-    utils::{Interaction, MeshData, VisualShape, VisualStyle},
+    scene::Scene, utils::{Interaction, Interpolatable, MeshData, VisualShape, VisualStyle}, Shape
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
@@ -15,6 +13,27 @@ pub struct Stick {
 
     pub style: VisualStyle,
     interaction: Interaction,
+}
+
+impl Interpolatable for Stick {
+    fn interpolate(&self, other: &Self, t: f32) -> Self {
+        Self {
+            start: [
+                self.start[0] * (1.0 - t) + other.start[0] * t,
+                self.start[1] * (1.0 - t) + other.start[1] * t,
+                self.start[2] * (1.0 - t) + other.start[2] * t,
+            ],
+            end: [
+                self.end[0] * (1.0 - t) + other.end[0] * t,
+                self.end[1] * (1.0 - t) + other.end[1] * t,
+                self.end[2] * (1.0 - t) + other.end[2] * t,
+            ],
+            thickness_radius: self.thickness_radius * (1.0 - t) + other.thickness_radius * t,
+            quality: ((self.quality as f32) * (1.0 - t) + (other.quality as f32) * t) as u32,
+            style: self.style.clone(),           // 直接 clone，或者实现 style 插值
+            interaction: self.interaction.clone(),
+        }
+    }
 }
 
 impl Into<Shape> for Stick {

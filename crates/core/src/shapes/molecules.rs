@@ -2,10 +2,7 @@ use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
 use crate::{
-    Shape,
-    parser::sdf::MoleculeData,
-    shapes::{sphere::Sphere, stick::Stick},
-    utils::{Interaction, MeshData, VisualShape, VisualStyle},
+    parser::sdf::MoleculeData, scene::{InstanceGroups, SphereInstance}, shapes::{sphere::Sphere, stick::Stick}, utils::{Interaction, Interpolatable, MeshData, VisualShape, VisualStyle}, Shape
 };
 
 use std::{collections::HashMap, str::FromStr};
@@ -98,6 +95,30 @@ pub struct Molecules {
 
     pub style: VisualStyle,
     pub interaction: Interaction,
+}
+
+impl Interpolatable for Molecules {
+    fn interpolate(&self, other: &Self, t: f32) -> Self {
+        // 原子坐标插值
+        let atoms: Vec<[f32; 3]> = self.atoms.iter()
+            .zip(&other.atoms)
+            .map(|(a, b)| [
+                a[0] * (1.0 - t) + b[0] * t,
+                a[1] * (1.0 - t) + b[1] * t,
+                a[2] * (1.0 - t) + b[2] * t,
+            ])
+            .collect();
+
+        Self {
+            atom_types: self.atom_types.clone(), // 假设 atom 类型不变
+            atoms,
+            bond_types: self.bond_types.clone(),
+            bonds: self.bonds.clone(),
+            quality: ((self.quality as f32) * (1.0 - t) + (other.quality as f32) * t) as u32,
+            style: self.style.clone(),
+            interaction: self.interaction.clone(),
+        }
+    }
 }
 
 impl Into<Shape> for Molecules {
@@ -315,6 +336,32 @@ impl Molecules {
             transform: None,
             is_wireframe: self.style.wireframe,
         }
+    }
+
+    pub fn to_meta_shape_group(&self) -> InstanceGroups {
+        let mut groups = InstanceGroups::default();
+
+        for (i, pos) in self.atoms.iter().enumerate() {
+            let radius = self
+                .atom_types
+                .get(i)
+                .unwrap_or(&AtomType::Unknown)
+                .radius()
+                * 0.2;
+            let color = self
+                .style
+                .color
+                .unwrap_or(self.atom_types.get(i).unwrap_or(&AtomType::Unknown).color());
+            let alpha = self.style.opacity.clamp(0.0, 1.0);
+            let color_rgba = [color[0], color[1], color[2], alpha];
+
+            groups.spheres.push(SphereInstance {
+                position: *pos,
+                radius,
+                color: color_rgba,
+            });
+        }
+        groups
     }
 }
 

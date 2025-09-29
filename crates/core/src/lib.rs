@@ -8,13 +8,16 @@ pub mod parser;
 pub mod utils;
 pub use eframe::egui;
 
-use eframe::egui::{Color32, Stroke, UserData, ViewportCommand};
+use eframe::{
+    Frame,
+    egui::{Color32, Stroke, UserData, ViewportCommand},
+};
 
 use shader::Canvas;
 
 pub use crate::utils::Shape;
 pub mod shapes;
-use crate::scene::Scene;
+use crate::{scene::Scene, utils::Frames};
 
 pub mod scene;
 use image::{ImageBuffer, Rgba};
@@ -38,14 +41,9 @@ pub struct App {
 }
 
 impl App {
-    pub fn play(
-        cc: &eframe::CreationContext<'_>,
-        frames: Vec<Scene>,
-        interval: f32,
-        loop_: bool,
-    ) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>, scene: Scene) -> Self {
         let gl = cc.gl.clone();
-        let canvas = Canvas::new(gl.as_ref().unwrap().clone(), frames[0].clone()).unwrap();
+        let canvas = Canvas::new(gl.as_ref().unwrap().clone(), scene).unwrap();
         App {
             gl,
             canvas,
@@ -55,9 +53,9 @@ impl App {
         }
     }
 
-    pub fn new(cc: &eframe::CreationContext<'_>, scene: Scene) -> Self {
+    pub fn new_play(cc: &eframe::CreationContext<'_>, scene: Frames) -> Self {
         let gl = cc.gl.clone();
-        let canvas = Canvas::new(gl.as_ref().unwrap().clone(), scene).unwrap();
+        let canvas = Canvas::new_play(gl.as_ref().unwrap().clone(), scene).unwrap();
         App {
             gl,
             canvas,
@@ -268,6 +266,12 @@ impl NativeGuiViewer {
             thread,
         };
 
+        let frames = Frames {
+            frames,
+            interval: (interval * 1000.0) as u64,
+            loops,
+        };
+
         #[cfg(not(target_arch = "wasm32"))]
         use eframe::{
             NativeOptions,
@@ -276,8 +280,6 @@ impl NativeGuiViewer {
 
         let app: Arc<Mutex<Option<App>>> = Arc::new(Mutex::new(None));
         let app_clone = Arc::clone(&app);
-
-        let scene_init = frames[0].clone();
 
         #[cfg(not(target_arch = "wasm32"))]
         thread::spawn(move || {
@@ -306,6 +308,7 @@ impl NativeGuiViewer {
             let native_options = NativeOptions {
                 viewport: ViewportBuilder::default().with_inner_size(Vec2::new(width, height)),
                 depth_buffer: 24,
+                multisampling: 4,
                 event_loop_builder,
                 ..Default::default()
             };
@@ -315,46 +318,14 @@ impl NativeGuiViewer {
                 native_options,
                 Box::new(move |cc| {
                     let mut guard = app_clone.lock().unwrap();
-                    *guard = Some(App::new(cc, scene_init));
+                    *guard = Some(App::new_play(cc, frames));
                     Ok(Box::new(AppWrapper(app_clone.clone())))
                 }),
             );
             process::exit(0);
         });
 
-        // 等待 App 初始化完成
-        let timeout_ms = 30000;
-        let mut waited = 0;
-
         loop {
-            if app.lock().unwrap().is_some() {
-                break;
-            }
-            if waited > timeout_ms {
-                panic!("Fail to initialize App");
-            }
-            thread::sleep(Duration::from_millis(10));
-            waited += 10;
         }
-
-        let mut count = 0;
-        loop {
-            if loops >= 0 && count >= loops {
-                break;
-            }
-            count += 1;
-            for frame in &frames {
-                {
-                    let mut guard = app.lock().unwrap();
-                    if let Some(app) = &mut *guard {
-                        app.update_scene(frame.clone());
-                        app.ctx.request_repaint();
-                    }
-                }
-                thread::sleep(Duration::from_secs_f32(interval));
-            }
-        }
-
-        // Self { app }
     }
 }

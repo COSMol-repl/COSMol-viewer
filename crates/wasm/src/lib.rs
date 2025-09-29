@@ -1,5 +1,6 @@
 use cosmol_viewer_core::App;
 use cosmol_viewer_core::scene::Scene;
+use cosmol_viewer_core::utils::Frames;
 #[cfg(feature = "js_bridge")]
 use serde::Serialize;
 use std::sync::Arc;
@@ -141,6 +142,7 @@ impl WasmViewer {
         width: f32,
         height: f32,
     ) -> Self {
+        use cosmol_viewer_core::utils::Frames;
         use pyo3::types::PyAnyMethods;
         use uuid::Uuid;
 
@@ -256,13 +258,6 @@ impl WasmViewer {
     }
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
-struct Frames {
-    frames: Vec<Scene>,
-    interval: u64,
-    loops: i64, // -1 = infinite
-}
-
 pub trait JsBridge {
     fn update(scene: &Scene) -> ();
 }
@@ -376,45 +371,12 @@ impl WebHandle {
                     use cosmol_viewer_core::AppWrapper;
 
                     let mut guard = app.lock().unwrap();
-                    *guard = Some(App::new(cc, scene));
+                    *guard = Some(App::new_play(cc, frames));
                     Ok(Box::new(AppWrapper(app.clone())))
                 }),
             )
             .await;
-
-        let timeout_ms = 30000;
-        let mut waited = 0;
-        loop {
-            if self.app.lock().unwrap().is_some() {
-                break;
-            }
-            if waited > timeout_ms {
-                panic!("Fail to initialize App");
-            }
-            gloo_timers::future::sleep(Duration::from_millis(10)).await;
-            // Delay::new(Duration::from_secs(1)).await.unwrap();
-            waited += 10;
-        }
-
-        let mut count = 0;
-        loop {
-            if frames.loops >= 0 && count >= frames.loops {
-                break;
-            }
-            count += 1;
-            for frame in &frames.frames {
-                {
-                    let mut guard = self.app.lock().unwrap();
-                    if let Some(app) = &mut *guard {
-                        app.update_scene(frame.clone());
-                        app.ctx.request_repaint();
-                    }
-                }
-                gloo_timers::future::sleep(Duration::from_millis(frames.interval)).await;
-            }
-        }
-
-        Ok(())
+        loop {}
     }
 
     #[wasm_bindgen]
