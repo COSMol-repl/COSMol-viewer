@@ -2,8 +2,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     Shape,
-    scene::Scene,
-    utils::{Interaction, Interpolatable, MeshData, VisualShape, VisualStyle},
+    scene::{Instance, InstanceGroups, Scene, SphereInstance},
+    utils::{
+        Interaction, Interpolatable, IntoInstanceGroups, MeshData, VisualShape,
+        VisualStyle,
+    },
 };
 
 use once_cell::sync::Lazy;
@@ -11,13 +14,13 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 #[derive(Clone)]
-pub struct SphereMeshTemplate {
+pub struct MeshTemplate {
     pub vertices: Vec<[f32; 3]>,
     pub normals: Vec<[f32; 3]>,
     pub indices: Vec<u32>,
 }
 
-static SPHERE_TEMPLATE_CACHE: Lazy<Mutex<HashMap<u32, SphereMeshTemplate>>> =
+static SPHERE_TEMPLATE_CACHE: Lazy<Mutex<HashMap<u32, MeshTemplate>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
@@ -78,46 +81,48 @@ impl Sphere {
     }
 
     pub fn to_mesh(&self, scale: f32) -> MeshData {
-        let template = Self::get_or_generate_sphere_mesh_template(self.quality);
+        return MeshData::default();
 
-        let [cx, cy, cz] = self.center;
-        let r = self.radius;
+        // let template = Self::get_or_generate_sphere_mesh_template(self.quality);
 
-        let transformed_vertices: Vec<[f32; 3]> = template
-            .vertices
-            .iter()
-            .map(|v| {
-                [
-                    (v[0] * r + cx) * scale,
-                    (v[1] * r + cy) * scale,
-                    (v[2] * r + cz) * scale,
-                ]
-            })
-            .collect();
+        // let [cx, cy, cz] = self.center;
+        // let r = self.radius;
 
-        let transformed_normals: Vec<[f32; 3]> = template
-            .normals
-            .iter()
-            .map(|n| n.map(|x| x * scale)) // 你可以不乘 scale，如果只用于方向
-            .collect();
+        // let transformed_vertices: Vec<[f32; 3]> = template
+        //     .vertices
+        //     .iter()
+        //     .map(|v| {
+        //         [
+        //             (v[0] * r + cx) * scale,
+        //             (v[1] * r + cy) * scale,
+        //             (v[2] * r + cz) * scale,
+        //         ]
+        //     })
+        //     .collect();
 
-        let base_color = self.style.color.unwrap_or([1.0, 1.0, 1.0]);
-        let alpha = self.style.opacity.clamp(0.0, 1.0);
-        let color = [base_color[0], base_color[1], base_color[2], alpha];
+        // let transformed_normals: Vec<[f32; 3]> = template
+        //     .normals
+        //     .iter()
+        //     .map(|n| n.map(|x| x * scale)) // 你可以不乘 scale，如果只用于方向
+        //     .collect();
 
-        let colors = vec![color; transformed_vertices.len()];
+        // let base_color = self.style.color.unwrap_or([1.0, 1.0, 1.0]);
+        // let alpha = self.style.opacity.clamp(0.0, 1.0);
+        // let color = [base_color[0], base_color[1], base_color[2], alpha];
 
-        MeshData {
-            vertices: transformed_vertices,
-            normals: transformed_normals,
-            indices: template.indices.clone(),
-            colors: Some(colors),
-            transform: None,
-            is_wireframe: self.style.wireframe,
-        }
+        // let colors = vec![color; transformed_vertices.len()];
+
+        // MeshData {
+        //     vertices: transformed_vertices,
+        //     normals: transformed_normals,
+        //     indices: template.indices.clone(),
+        //     colors: Some(colors),
+        //     transform: None,
+        //     is_wireframe: self.style.wireframe,
+        // }
     }
 
-    pub fn get_or_generate_sphere_mesh_template(quality: u32) -> SphereMeshTemplate {
+    pub fn get_or_generate_sphere_mesh_template(quality: u32) -> MeshTemplate {
         let mut cache = SPHERE_TEMPLATE_CACHE.lock().unwrap();
 
         if let Some(template) = cache.get(&quality) {
@@ -165,7 +170,7 @@ impl Sphere {
             }
         }
 
-        let template = SphereMeshTemplate {
+        let template = MeshTemplate {
             vertices,
             normals,
             indices,
@@ -174,6 +179,14 @@ impl Sphere {
         cache.insert(quality, template.clone());
 
         template
+    }
+
+            pub fn to_instance(&self, scale: f32) -> SphereInstance {
+        let base_color = self.style.color.unwrap_or([1.0, 1.0, 1.0]);
+        let alpha = self.style.opacity.clamp(0.0, 1.0);
+        let color = [base_color[0], base_color[1], base_color[2], alpha];
+
+        SphereInstance::new(self.center.map(|x| x * scale), self.radius * scale, color)
     }
 }
 

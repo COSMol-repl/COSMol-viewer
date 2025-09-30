@@ -1,8 +1,17 @@
+use std::{collections::HashMap, sync::Mutex};
+
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    scene::Scene, utils::{Interaction, Interpolatable, MeshData, VisualShape, VisualStyle}, Shape
+    Shape,
+    scene::{Scene, StickInstance},
+    shapes::sphere::MeshTemplate,
+    utils::{Interaction, Interpolatable, MeshData, VisualShape, VisualStyle},
 };
+
+static STICK_TEMPLATE_CACHE: Lazy<Mutex<HashMap<u32, MeshTemplate>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct Stick {
@@ -30,7 +39,7 @@ impl Interpolatable for Stick {
             ],
             thickness_radius: self.thickness_radius * (1.0 - t) + other.thickness_radius * t,
             quality: ((self.quality as f32) * (1.0 - t) + (other.quality as f32) * t) as u32,
-            style: self.style.clone(),           // 直接 clone，或者实现 style 插值
+            style: self.style.clone(), // 直接 clone，或者实现 style 插值
             interaction: self.interaction.clone(),
         }
     }
@@ -146,6 +155,40 @@ impl Stick {
             colors: Some(colors),
             transform: None,
             is_wireframe: self.style.wireframe,
+        }
+    }
+
+pub fn get_or_generate_cylinder_mesh_template(quality: u32) -> MeshTemplate {
+    let mut cache = STICK_TEMPLATE_CACHE.lock().unwrap();
+    if let Some(template) = cache.get(&quality) {
+        return template.clone();
+    }
+
+    let stick = Stick::new([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 1.0).set_thickness(1.0);
+
+    let mesh = stick.to_mesh(1.0);
+
+    let template = MeshTemplate {
+        vertices: mesh.vertices,
+        normals: mesh.normals,
+        indices: mesh.indices,
+    };
+
+    cache.insert(quality, template.clone());
+    template
+}
+
+
+    pub fn to_instance(&self, scale: f32) -> StickInstance {
+        let base_color = self.style.color.unwrap_or([1.0, 1.0, 1.0]);
+        let alpha = self.style.opacity.clamp(0.0, 1.0);
+        let color = [base_color[0], base_color[1], base_color[2], alpha];
+
+        StickInstance {
+            start: self.start.map(|x| x * scale),
+            end: self.end.map(|x| x * scale),
+            radius: self.thickness_radius * scale,
+            color,
         }
     }
 }

@@ -21,7 +21,7 @@ pub enum Instance {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable, Debug)]
 pub struct SphereInstance {
     pub position: [f32; 3],
     pub radius: f32,
@@ -38,14 +38,36 @@ impl SphereInstance {
     }
 }
 
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable, Debug)]
+pub struct StickInstance {
+    pub start: [f32; 3],
+    pub end: [f32; 3],
+    pub radius: f32,
+    pub color: [f32; 4],
+}
+
+impl StickInstance {
+    pub fn new(start: [f32; 3], end: [f32; 3], radius: f32, color: [f32; 4]) -> Self {
+        Self {
+            start,
+            end,
+            radius,
+            color,
+        }
+    }
+}
+
 #[derive(Clone, Default)]
 pub struct InstanceGroups {
     pub spheres: Vec<SphereInstance>,
+    pub sticks: Vec<StickInstance>,
 }
 
 impl InstanceGroups {
     pub fn merge(&mut self, other: InstanceGroups) {
         self.spheres.extend(other.spheres);
+        self.sticks.extend(other.sticks);
     }
 }
 
@@ -57,7 +79,6 @@ impl Scene {
             .chain(self.unnamed_shapes.iter())
             .map(|s| s.to_mesh(self.scale))
             .collect()
-        // vec![]
     }
     pub fn get_instances_grouped(&self) -> InstanceGroups {
         let mut groups = InstanceGroups::default();

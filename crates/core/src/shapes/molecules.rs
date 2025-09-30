@@ -2,7 +2,14 @@ use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
 use crate::{
-    parser::sdf::MoleculeData, scene::{InstanceGroups, SphereInstance}, shapes::{sphere::Sphere, stick::Stick}, utils::{Interaction, Interpolatable, MeshData, VisualShape, VisualStyle}, Shape
+    Shape,
+    parser::sdf::MoleculeData,
+    scene::{InstanceGroups, SphereInstance},
+    shapes::{sphere::Sphere, stick::Stick},
+    utils::{
+        Interaction, Interpolatable, IntoInstanceGroups, MeshData, VisualShape,
+        VisualStyle,
+    },
 };
 
 use std::{collections::HashMap, str::FromStr};
@@ -100,13 +107,17 @@ pub struct Molecules {
 impl Interpolatable for Molecules {
     fn interpolate(&self, other: &Self, t: f32) -> Self {
         // 原子坐标插值
-        let atoms: Vec<[f32; 3]> = self.atoms.iter()
+        let atoms: Vec<[f32; 3]> = self
+            .atoms
+            .iter()
             .zip(&other.atoms)
-            .map(|(a, b)| [
-                a[0] * (1.0 - t) + b[0] * t,
-                a[1] * (1.0 - t) + b[1] * t,
-                a[2] * (1.0 - t) + b[2] * t,
-            ])
+            .map(|(a, b)| {
+                [
+                    a[0] * (1.0 - t) + b[0] * t,
+                    a[1] * (1.0 - t) + b[1] * t,
+                    a[2] * (1.0 - t) + b[2] * t,
+                ]
+            })
             .collect();
 
         Self {
@@ -216,6 +227,8 @@ impl Molecules {
     }
 
     pub fn to_mesh(&self, scale: f32) -> MeshData {
+        return MeshData::default();
+
         let mut vertices = Vec::new();
         let mut normals = Vec::new();
         let mut indices = Vec::new();
@@ -238,7 +251,7 @@ impl Molecules {
 
             let mut sphere = Sphere::new(*pos, radius);
             sphere.interaction = self.interaction;
-            sphere = sphere.color(color).opacity(self.style.opacity);;
+            sphere = sphere.color(color).opacity(self.style.opacity);
 
             let mesh = sphere.to_mesh(1.0);
 
@@ -293,7 +306,9 @@ impl Molecules {
                 ];
 
                 // bond 一：A -> 中点，颜色 A
-                let stick_a = Stick::new(pos_a, mid, 0.15).color(color_a).opacity(self.style.opacity);
+                let stick_a = Stick::new(pos_a, mid, 0.15)
+                    .color(color_a)
+                    .opacity(self.style.opacity);
                 let mesh_a = stick_a.to_mesh(1.0);
                 for v in mesh_a.vertices {
                     vertices.push(v.map(|x| x * scale));
@@ -310,7 +325,9 @@ impl Molecules {
                 index_offset = vertices.len() as u32;
 
                 // bond 二：B -> 中点，颜色 B
-                let stick_b = Stick::new(pos_b, mid, 0.15).color(color_b).opacity(self.style.opacity);;
+                let stick_b = Stick::new(pos_b, mid, 0.15)
+                    .color(color_b)
+                    .opacity(self.style.opacity);
                 let mesh_b = stick_b.to_mesh(1.0);
                 for v in mesh_b.vertices {
                     vertices.push(v.map(|x| x * scale));
@@ -337,30 +354,74 @@ impl Molecules {
             is_wireframe: self.style.wireframe,
         }
     }
+}
 
-    pub fn to_meta_shape_group(&self) -> InstanceGroups {
+impl IntoInstanceGroups for Molecules {
+    fn to_instance_group(&self, scale: f32) -> InstanceGroups {
         let mut groups = InstanceGroups::default();
 
         for (i, pos) in self.atoms.iter().enumerate() {
-            let radius = self
-                .atom_types
-                .get(i)
-                .unwrap_or(&AtomType::Unknown)
-                .radius()
-                * 0.2;
-            let color = self
-                .style
-                .color
-                .unwrap_or(self.atom_types.get(i).unwrap_or(&AtomType::Unknown).color());
-            let alpha = self.style.opacity.clamp(0.0, 1.0);
-            let color_rgba = [color[0], color[1], color[2], alpha];
+            let sphere_instance = Sphere::new(
+                *pos,
+                self.atom_types
+                    .get(i)
+                    .unwrap_or(&AtomType::Unknown)
+                    .radius()* 0.2,
+            )
+            .color(
+                self.style
+                    .color
+                    .unwrap_or(self.atom_types.get(i).unwrap_or(&AtomType::Unknown).color()),
+            )
+            .opacity(self.style.opacity);
 
-            groups.spheres.push(SphereInstance {
-                position: *pos,
-                radius,
-                color: color_rgba,
-            });
+            groups.spheres.push(sphere_instance.to_instance(scale));
         }
+
+        for (_i, bond) in self.bonds.iter().enumerate() {
+            let [a, b] = *bond;
+            let pos_a = self.atoms[a as usize];
+            let pos_b = self.atoms[b as usize];
+
+            // 获取原子颜色
+            let color_a = match self
+                .atom_types
+                .get(a as usize)
+                .unwrap_or(&AtomType::Unknown)
+            {
+                AtomType::C => [0.75, 0.75, 0.75],
+                other => other.color(),
+            };
+
+            let color_b = match self
+                .atom_types
+                .get(b as usize)
+                .unwrap_or(&AtomType::Unknown)
+            {
+                AtomType::C => [0.75, 0.75, 0.75],
+                other => other.color(),
+            };
+
+            // 计算中点
+            let mid = [
+                0.5 * (pos_a[0] + pos_b[0]),
+                0.5 * (pos_a[1] + pos_b[1]),
+                0.5 * (pos_a[2] + pos_b[2]),
+            ];
+
+            // bond 一：A -> 中点，颜色 A
+            let stick_a = Stick::new(pos_a, mid, 0.15)
+                .color(color_a)
+                .opacity(self.style.opacity);
+            groups.sticks.push(stick_a.to_instance(scale));
+
+            // bond 二：B -> 中点，颜色 B
+            let stick_b = Stick::new(pos_b, mid, 0.15)
+                .color(color_b)
+                .opacity(self.style.opacity);
+            groups.sticks.push(stick_b.to_instance(scale));
+        }
+
         groups
     }
 }

@@ -63,33 +63,26 @@ impl Interpolatable for Shape {
     }
 }
 
-pub trait IntoInstanceGroups {
-    fn to_instance_group(&self, scale: f32) -> InstanceGroups;
-}
-
 impl IntoInstanceGroups for Shape {
     fn to_instance_group(&self, scale: f32) -> InstanceGroups {
         let mut groups = InstanceGroups::default();
 
         match self {
             Shape::Sphere(s) => {
-                let base_color = s.style.color.unwrap_or([1.0, 1.0, 1.0]);
-                let alpha = s.style.opacity.clamp(0.0, 1.0);
-                let color = [base_color[0], base_color[1], base_color[2], alpha];
-
-                groups
-                    .spheres
-                    .push(SphereInstance::new(s.center.map(|x| x * scale), s.radius * scale, color));
+                groups.spheres.push(s.to_instance(scale));
             }
             Shape::Molecules(m) => {
-                let m_groups = m.to_meta_shape_group();
+                let m_groups = m.to_instance_group(scale);
                 groups.merge(m_groups);
             }
             _ => {},
         }
-
         groups
     }
+}
+
+pub trait IntoInstanceGroups {
+    fn to_instance_group(&self, scale: f32) -> InstanceGroups;
 }
 
 pub trait ToMesh {
@@ -107,6 +100,7 @@ impl ToMesh for Shape {
     }
 }
 
+#[derive(Debug, Clone, Default)]
 pub struct MeshData {
     pub vertices: Vec<[f32; 3]>,
     pub normals: Vec<[f32; 3]>,
