@@ -47,6 +47,8 @@ pub fn setup_wasm_if_needed(py: Python) {
 
         window[ns + "_ready"] = true;
         console.log("Cosmol viewer setup done, version:", version);
+    }} else {{
+        console.log("Cosmol viewer already set up, version:", version);
     }}
 }})();
         "#,
@@ -141,6 +143,7 @@ impl WasmViewer {
         loops: i64,
         width: f32,
         height: f32,
+        smooth: bool,
     ) -> Self {
         use cosmol_viewer_core::utils::Frames;
         use pyo3::types::PyAnyMethods;
@@ -161,6 +164,7 @@ impl WasmViewer {
             frames,
             interval,
             loops,
+            smooth,
         })
         .unwrap();
         let escaped = serde_json::to_string(&frames_json).unwrap();
@@ -353,7 +357,6 @@ impl WebHandle {
         canvas: HtmlCanvasElement,
         frames_json: String,
     ) -> Result<(), JsValue> {
-        use std::{thread, time::Duration};
         let frames: Frames = serde_json::from_str(&frames_json)
             .map_err(|e| JsValue::from_str(&format!("Frames parse error: {}", e)))?;
 

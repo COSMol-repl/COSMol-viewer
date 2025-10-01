@@ -3,9 +3,6 @@ use glam::Mat4;
 use glam::Vec4;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use std::time::Duration;
-use std::time::Instant;
-use wasm_bindgen_futures::js_sys::WebAssembly::Instance;
 
 use eframe::{
     egui::{self, Vec2, mutex::Mutex},
@@ -13,26 +10,20 @@ use eframe::{
 };
 use glam::{Quat, Vec3};
 
-use crate::scene::StickInstance;
-use crate::shapes::Stick;
 use crate::Scene;
 use crate::scene::InstanceGroups;
 use crate::scene::SphereInstance;
+use crate::scene::StickInstance;
 use crate::shapes::Sphere;
+use crate::shapes::Stick;
 use crate::utils::Frames;
 use crate::utils::Interpolatable;
 
 pub struct Canvas {
     shader: Arc<Mutex<Shader>>,
     camera_state: CameraState,
-    last_frame_time: std::time::Instant,
     frames: Option<Frames>,
-    current_frame: usize,
-    current_loop: usize,
-}
-
-pub fn interpolate_frames(frame_a: &Scene, frame_b: &Scene, t: f32) -> Scene {
-    frame_a.interpolate(frame_b, t)
+    interpolate_enabled: bool,
 }
 
 impl Canvas {
@@ -40,20 +31,19 @@ impl Canvas {
         Some(Self {
             shader: Arc::new(Mutex::new(Shader::new(&gl, scene)?)),
             camera_state: CameraState::new(1.0),
-            last_frame_time: std::time::Instant::now(),
-            current_frame: 0,
-            current_loop: 0,
             frames: None,
+            interpolate_enabled: false,
         })
     }
 
-    pub fn new_play<'a>(gl: Arc<eframe::glow::Context>, frames: Frames) -> Option<Self> {
+    pub fn new_play<'a>(
+        gl: Arc<eframe::glow::Context>,
+        frames: Frames,
+    ) -> Option<Self> {
         Some(Self {
             shader: Arc::new(Mutex::new(Shader::new(&gl, frames.frames[0].clone())?)),
             camera_state: CameraState::new(1.0),
-            last_frame_time: Instant::now(),
-            current_frame: 0,
-            current_loop: 0,
+            interpolate_enabled: frames.smooth,
             frames: Some(frames),
         })
     }
@@ -67,45 +57,63 @@ impl Canvas {
             egui::Sense::drag(),
         );
 
+        ui.ctx().request_repaint(); 
+
         if let Some(frames) = &mut self.frames {
-            if (self.current_loop < frames.loops as usize) {
-                let now = Instant::now();
-                let elapsed = now.duration_since(self.last_frame_time);
-                let t = (elapsed.as_secs_f32() / (frames.interval as f32 / 1000.0)).clamp(0.0, 1.0);
-                let total_frames = frames.frames.len();
+            let now = ui.input(|i| i.time);
 
-                let frame_a_index = self.current_frame;
-                let frame_b_index = if self.current_frame == total_frames - 1 && frames.loops != -1
-                {
-                    self.current_frame // 不跳回 0
-                } else {
-                    if self.current_frame == total_frames - 1 {
-                        self.current_frame
-                    } else {
-                        self.current_frame + 1
-                    }
-                };
+            // 播放总时长（秒）
+            let frame_count = frames.frames.len();
+            let frame_duration = frames.interval as f64 / 1000.0; // 秒
+            let total_duration = frame_duration * frame_count as f64;
 
-                let frame_a = &frames.frames[frame_a_index];
-                let frame_b = &frames.frames[frame_b_index];
+            // 计算从动画开始到现在的累积时间
+            let elapsed = now - 0.0;
 
-                let interp_frame = interpolate_frames(frame_a, frame_b, t);
-                self.shader.lock().update_scene(interp_frame);
-
-                if elapsed.as_millis() >= frames.interval as u128 {
-                    self.current_frame = frame_b_index;
-                    self.last_frame_time = now;
-                    if self.current_frame == 0 && frames.loops != -1 {
-                        self.current_loop += 1;
-                        if self.current_loop >= frames.loops as usize {
-                            self.current_frame = frames.frames.len() - 1; // 停在最后一帧
-                        }
-                    }
+            // 判断是否结束（loops = -1 表示无限循环）
+            let mut is_finished = false;
+            if frames.loops != -1 {
+                let max_loops = frames.loops as usize;
+                let max_time = total_duration * max_loops as f64;
+                if elapsed >= max_time {
+                    is_finished = true;
                 }
-                ui.ctx().request_repaint();
             }
-        }
 
+            // 计算当前在第几个 loop 内的 offset
+            let anim_time = if frames.loops == -1 {
+                elapsed % total_duration
+            } else {
+                elapsed % total_duration
+            };
+
+            // 当前帧序号（整帧）
+            let frame_index = (anim_time / frame_duration).floor() as usize;
+            let frame_a_index = frame_index.min(frame_count - 1);
+            let frame_b_index = if frame_a_index + 1 < frame_count {
+                frame_a_index + 1
+            } else {
+                frame_a_index // 或者 0，如果你想循环插值
+            };
+
+            // 帧内插值进度 t
+            let t = ((anim_time % frame_duration) / frame_duration) as f32;
+
+            // 生成最终帧
+            let interp_frame = if is_finished {
+                frames.frames[frame_count - 1].clone()
+            } else {
+                // 这里是原先的插值 / 非插值逻辑
+                if self.interpolate_enabled {
+                    frames.frames[frame_a_index].interpolate(&frames.frames[frame_b_index], t)
+                } else {
+                    frames.frames[frame_a_index].clone()
+                }
+            };
+
+            self.shader.lock().update_scene(interp_frame);
+            ui.ctx().request_repaint();
+        }
         let scroll_delta = ui.input(|i| i.raw_scroll_delta.y);
 
         // 正值表示向上滚动，通常是“缩小”，负值是放大
@@ -392,7 +400,7 @@ impl Shader {
             // 4.1 Generate sphere mesh template
             // =========================
             let template_sphere = Sphere::get_or_generate_sphere_mesh_template(32);
-            
+
             let vertex3d_sphere: Vec<Vertex3d> = template_sphere
                 .vertices
                 .iter()
@@ -405,7 +413,7 @@ impl Shader {
                 .collect();
 
             let indices_sphere: Vec<u32> = template_sphere.indices.clone();
-            
+
             // =========================
             // 4.2 Generate stick mesh template
             // =========================
@@ -420,7 +428,7 @@ impl Shader {
                     color: default_color,
                 })
                 .collect();
-            
+
             let indices_stick: Vec<u32> = template_stick.indices.clone();
 
             // =========================
@@ -431,7 +439,7 @@ impl Shader {
             let sphere_instance_buffer = gl
                 .create_buffer()
                 .expect("Cannot create sphere instance buffer");
-            
+
             let sphere_vertex_buffer = gl
                 .create_buffer()
                 .expect("Cannot create sphere vertex buffer");
@@ -451,7 +459,7 @@ impl Shader {
                 bytemuck::cast_slice(&indices_sphere),
                 glow::STATIC_DRAW,
             );
-            
+
             let stick_instance_buffer = gl
                 .create_buffer()
                 .expect("Cannot create stick instance buffer");
@@ -484,11 +492,11 @@ impl Shader {
                 .expect("Cannot create vertex array");
             gl.bind_vertex_array(Some(vao_mesh));
             gl.bind_buffer(glow::ARRAY_BUFFER, Some(vertex_buffer));
-            
+
             let pos_loc = gl.get_attrib_location(program, "a_position").unwrap();
             let normal_loc = gl.get_attrib_location(program, "a_normal").unwrap();
             let color_loc = gl.get_attrib_location(program, "a_color").unwrap();
-            
+
             let stride_vertex = std::mem::size_of::<Vertex3d>() as i32;
 
             gl.enable_vertex_attrib_array(pos_loc);
@@ -504,9 +512,13 @@ impl Shader {
             // =========================
             // 7.1 Setup VAO for instanced spheres
             // =========================
-            let pos_a_position = gl.get_attrib_location(program_sphere, "a_position").unwrap();
+            let pos_a_position = gl
+                .get_attrib_location(program_sphere, "a_position")
+                .unwrap();
             let normal_a_position = gl.get_attrib_location(program_sphere, "a_normal").unwrap();
-            let instance_i_position = gl.get_attrib_location(program_sphere, "i_position").unwrap();
+            let instance_i_position = gl
+                .get_attrib_location(program_sphere, "i_position")
+                .unwrap();
             let instance_i_radius = gl.get_attrib_location(program_sphere, "i_radius").unwrap();
             let instance_i_color = gl.get_attrib_location(program_sphere, "i_color").unwrap();
 
@@ -522,7 +534,14 @@ impl Shader {
             gl.vertex_attrib_divisor(pos_a_position, 0);
 
             gl.enable_vertex_attrib_array(normal_a_position); // a_normal
-            gl.vertex_attrib_pointer_f32(normal_a_position, 3, glow::FLOAT, false, stride_vertex, 3 * 4);
+            gl.vertex_attrib_pointer_f32(
+                normal_a_position,
+                3,
+                glow::FLOAT,
+                false,
+                stride_vertex,
+                3 * 4,
+            );
             gl.vertex_attrib_divisor(normal_a_position, 0);
 
             // per-instance attributes
@@ -530,22 +549,43 @@ impl Shader {
             let stride_instance = std::mem::size_of::<SphereInstance>() as i32;
 
             gl.enable_vertex_attrib_array(instance_i_position); // i_position
-            gl.vertex_attrib_pointer_f32(instance_i_position, 3, glow::FLOAT, false, stride_instance, 0);
+            gl.vertex_attrib_pointer_f32(
+                instance_i_position,
+                3,
+                glow::FLOAT,
+                false,
+                stride_instance,
+                0,
+            );
             gl.vertex_attrib_divisor(instance_i_position, 1);
 
             gl.enable_vertex_attrib_array(instance_i_radius); // i_radius
-            gl.vertex_attrib_pointer_f32(instance_i_radius, 1, glow::FLOAT, false, stride_instance, 3 * 4);
+            gl.vertex_attrib_pointer_f32(
+                instance_i_radius,
+                1,
+                glow::FLOAT,
+                false,
+                stride_instance,
+                3 * 4,
+            );
             gl.vertex_attrib_divisor(instance_i_radius, 1);
 
             gl.enable_vertex_attrib_array(instance_i_color); // i_color
-            gl.vertex_attrib_pointer_f32(instance_i_color, 4, glow::FLOAT, false, stride_instance, 4 * 4);
+            gl.vertex_attrib_pointer_f32(
+                instance_i_color,
+                4,
+                glow::FLOAT,
+                false,
+                stride_instance,
+                4 * 4,
+            );
             gl.vertex_attrib_divisor(instance_i_color, 1);
 
             gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(sphere_ebo));
             gl.bind_vertex_array(None);
 
             gl.use_program(Some(program));
-            
+
             // =========================
             // 7.2 Setup VAO for instanced sticks
             // =========================
@@ -568,7 +608,14 @@ impl Shader {
             gl.vertex_attrib_divisor(pos_a_position, 0);
 
             gl.enable_vertex_attrib_array(normal_a_position); // a_normal
-            gl.vertex_attrib_pointer_f32(normal_a_position, 3, glow::FLOAT, false, stride_vertex, 3 * 4);
+            gl.vertex_attrib_pointer_f32(
+                normal_a_position,
+                3,
+                glow::FLOAT,
+                false,
+                stride_vertex,
+                3 * 4,
+            );
             gl.vertex_attrib_divisor(normal_a_position, 0);
 
             // per-instance attributes
@@ -576,19 +623,47 @@ impl Shader {
             let stride_instance = std::mem::size_of::<StickInstance>() as i32;
 
             gl.enable_vertex_attrib_array(instance_i_start); // i_start
-            gl.vertex_attrib_pointer_f32(instance_i_start, 3, glow::FLOAT, false, stride_instance, 0);
-            gl.vertex_attrib_divisor(instance_i_start, 1);  
+            gl.vertex_attrib_pointer_f32(
+                instance_i_start,
+                3,
+                glow::FLOAT,
+                false,
+                stride_instance,
+                0,
+            );
+            gl.vertex_attrib_divisor(instance_i_start, 1);
 
             gl.enable_vertex_attrib_array(instance_i_end); // i_end
-            gl.vertex_attrib_pointer_f32(instance_i_end, 3, glow::FLOAT, false, stride_instance, 3 * 4);
+            gl.vertex_attrib_pointer_f32(
+                instance_i_end,
+                3,
+                glow::FLOAT,
+                false,
+                stride_instance,
+                3 * 4,
+            );
             gl.vertex_attrib_divisor(instance_i_end, 1);
 
             gl.enable_vertex_attrib_array(instance_i_radius); // i_radius
-            gl.vertex_attrib_pointer_f32(instance_i_radius, 1, glow::FLOAT, false, stride_instance, 6 * 4);
+            gl.vertex_attrib_pointer_f32(
+                instance_i_radius,
+                1,
+                glow::FLOAT,
+                false,
+                stride_instance,
+                6 * 4,
+            );
             gl.vertex_attrib_divisor(instance_i_radius, 1);
 
             gl.enable_vertex_attrib_array(instance_i_color); // i_color
-            gl.vertex_attrib_pointer_f32(instance_i_color, 4, glow::FLOAT, false, stride_instance, 7 * 4);
+            gl.vertex_attrib_pointer_f32(
+                instance_i_color,
+                4,
+                glow::FLOAT,
+                false,
+                stride_instance,
+                7 * 4,
+            );
             gl.vertex_attrib_divisor(instance_i_color, 1);
 
             gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(stick_ebo));

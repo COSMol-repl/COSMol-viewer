@@ -145,4 +145,5 @@ pub struct Frames {
     pub frames: Vec<Scene>,
     pub interval: u64,
     pub loops: i64, // -1 = infinite
+    pub smooth: bool,
 }

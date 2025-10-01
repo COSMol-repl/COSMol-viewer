@@ -1,7 +1,6 @@
 use std::ffi::CStr;
 
-use base64::Engine as _;
-use pyo3::{exceptions::PyTypeError, ffi::c_str, prelude::*};
+use pyo3::{ffi::c_str, prelude::*};
 
 use crate::{
     parser::parse_sdf,
@@ -9,7 +8,6 @@ use crate::{
 };
 use cosmol_viewer_core::{NativeGuiViewer, scene::Scene as _Scene};
 use cosmol_viewer_wasm::{WasmViewer, setup_wasm_if_needed};
-use std::borrow::Borrow;
 
 mod parser;
 mod shapes;
@@ -183,6 +181,7 @@ display(HTML("<div style='color:red;font-weight:bold;font-size:1rem;'>⚠️ Not
         loops: i64,
         width: f32,
         height: f32,
+        smooth: bool,
         py: Python,
     ) -> Self {
         let env_type = detect_runtime_env(py).unwrap();
@@ -191,7 +190,7 @@ display(HTML("<div style='color:red;font-weight:bold;font-size:1rem;'>⚠️ Not
         match env_type {
             RuntimeEnv::Colab | RuntimeEnv::Jupyter => {
                 setup_wasm_if_needed(py);
-                let wasm_viewer = WasmViewer::initiate_viewer_and_play(py, rust_frames, (interval * 1000.0) as u64, loops, width, height);
+                let wasm_viewer = WasmViewer::initiate_viewer_and_play(py, rust_frames, (interval * 1000.0) as u64, loops, width, height, smooth);
 
                 Viewer {
                     environment: env_type,
@@ -201,7 +200,7 @@ display(HTML("<div style='color:red;font-weight:bold;font-size:1rem;'>⚠️ Not
             }
 
             RuntimeEnv::PlainScript | RuntimeEnv::IPythonTerminal => {
-                NativeGuiViewer::play(rust_frames, interval, loops, width, height);
+                NativeGuiViewer::play(rust_frames, interval, loops, width, height, smooth);
 
                 Viewer {
                     environment: env_type,

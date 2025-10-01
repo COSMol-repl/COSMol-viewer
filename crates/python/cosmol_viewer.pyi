@@ -189,7 +189,8 @@ class Viewer:
         interval: float,
         loops: int,
         width: float = 800.0,
-        height: float = 600.0
+        height: float = 600.0,
+        smooth: bool = False
     ) -> "Viewer":
         """
         Play an animation of multiple frames.
@@ -200,6 +201,8 @@ class Viewer:
           - loops: Number of loops to repeat (-1 for infinite).
           - width: The viewport width in pixels.
           - height: The viewport height in pixels.
+          - smooth: Whether to smooth the animation by 
+            interpolating between frames.
 
         # Returns
           - Viewer: The created viewer instance.

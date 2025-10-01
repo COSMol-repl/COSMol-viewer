@@ -3,10 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     Shape,
     scene::{Instance, InstanceGroups, Scene, SphereInstance},
-    utils::{
-        Interaction, Interpolatable, IntoInstanceGroups, MeshData, VisualShape,
-        VisualStyle,
-    },
+    utils::{Interaction, Interpolatable, IntoInstanceGroups, MeshData, VisualShape, VisualStyle},
 };
 
 use once_cell::sync::Lazy;
@@ -181,7 +178,7 @@ impl Sphere {
         template
     }
 
-            pub fn to_instance(&self, scale: f32) -> SphereInstance {
+    pub fn to_instance(&self, scale: f32) -> SphereInstance {
         let base_color = self.style.color.unwrap_or([1.0, 1.0, 1.0]);
         let alpha = self.style.opacity.clamp(0.0, 1.0);
         let color = [base_color[0], base_color[1], base_color[2], alpha];

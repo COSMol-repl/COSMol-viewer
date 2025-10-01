@@ -46,5 +46,5 @@ fn main() {
     }
 
     // 一次性提交所有帧，由 Viewer 控制播放
-    Viewer::play(frames, interval, -1, 800.0, 500.0);
+    Viewer::play(frames, interval, 1, 800.0, 500.0, true);
 }

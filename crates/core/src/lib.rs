@@ -1,7 +1,6 @@
 mod shader;
 use std::{
     sync::{Arc, Mutex},
-    time::Duration,
 };
 
 pub mod parser;
@@ -150,6 +149,7 @@ impl NativeGuiViewer {
             sync::{Arc, Mutex},
             thread,
         };
+        use std::time::Duration;
 
         #[cfg(not(target_arch = "wasm32"))]
         use eframe::{
@@ -166,7 +166,6 @@ impl NativeGuiViewer {
         #[cfg(not(target_arch = "wasm32"))]
         thread::spawn(move || {
             use std::process;
-
             use eframe::{EventLoopBuilderHook, run_native};
             let event_loop_builder: Option<EventLoopBuilderHook> =
                 Some(Box::new(|event_loop_builder| {
@@ -260,7 +259,7 @@ impl NativeGuiViewer {
         }
     }
 
-    pub fn play(frames: Vec<Scene>, interval: f32, loops: i64, width: f32, height: f32) {
+    pub fn play(frames: Vec<Scene>, interval: f32, loops: i64, width: f32, height: f32, smooth: bool) {
         use std::{
             sync::{Arc, Mutex},
             thread,
@@ -270,6 +269,7 @@ impl NativeGuiViewer {
             frames,
             interval: (interval * 1000.0) as u64,
             loops,
+            smooth,
         };
 
         #[cfg(not(target_arch = "wasm32"))]

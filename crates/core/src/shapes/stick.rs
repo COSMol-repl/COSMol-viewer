@@ -158,26 +158,25 @@ impl Stick {
         }
     }
 
-pub fn get_or_generate_cylinder_mesh_template(quality: u32) -> MeshTemplate {
-    let mut cache = STICK_TEMPLATE_CACHE.lock().unwrap();
-    if let Some(template) = cache.get(&quality) {
-        return template.clone();
+    pub fn get_or_generate_cylinder_mesh_template(quality: u32) -> MeshTemplate {
+        let mut cache = STICK_TEMPLATE_CACHE.lock().unwrap();
+        if let Some(template) = cache.get(&quality) {
+            return template.clone();
+        }
+
+        let stick = Stick::new([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 1.0).set_thickness(1.0);
+
+        let mesh = stick.to_mesh(1.0);
+
+        let template = MeshTemplate {
+            vertices: mesh.vertices,
+            normals: mesh.normals,
+            indices: mesh.indices,
+        };
+
+        cache.insert(quality, template.clone());
+        template
     }
-
-    let stick = Stick::new([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 1.0).set_thickness(1.0);
-
-    let mesh = stick.to_mesh(1.0);
-
-    let template = MeshTemplate {
-        vertices: mesh.vertices,
-        normals: mesh.normals,
-        indices: mesh.indices,
-    };
-
-    cache.insert(quality, template.clone());
-    template
-}
-
 
     pub fn to_instance(&self, scale: f32) -> StickInstance {
         let base_color = self.style.color.unwrap_or([1.0, 1.0, 1.0]);
