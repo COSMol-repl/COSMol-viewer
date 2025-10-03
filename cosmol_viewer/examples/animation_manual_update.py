@@ -38,5 +38,5 @@ while True:
         scene.update_shape(id, updated)
 
     viewer.update(scene)
-    time.sleep(0.01)
+    time.sleep(0.02)
     t += 0.02

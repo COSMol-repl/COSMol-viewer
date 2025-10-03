@@ -57,8 +57,6 @@ impl Canvas {
             egui::Sense::drag(),
         );
 
-        ui.ctx().request_repaint(); 
-
         if let Some(frames) = &mut self.frames {
             let now = ui.input(|i| i.time);
 

@@ -95,6 +95,7 @@ fn color_image_to_rgba_bytes(image: &egui::ColorImage) -> Vec<u8> {
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        #[cfg(not(target_arch = "wasm32"))]
         egui_extras::install_image_loaders(ctx);
         egui::CentralPanel::default()
             .frame(

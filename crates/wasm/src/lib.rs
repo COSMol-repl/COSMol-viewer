@@ -227,7 +227,7 @@ impl WasmViewer {
     if (app) {{
         try {{
             const result = await app.{name}({escaped});
-            console.log("Call `{name}` on instance {id} (v{VERSION}) result:", result);
+            // console.log("Call `{name}` on instance {id} (v{VERSION}) result:", result);
         }} catch (err) {{
             console.error("Error calling `{name}` on instance {id} (v{VERSION}):", err);
         }}
@@ -379,7 +379,7 @@ impl WebHandle {
                 }),
             )
             .await;
-        loop {}
+        Ok(())
     }
 
     #[wasm_bindgen]

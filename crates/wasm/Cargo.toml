@@ -8,13 +8,13 @@ publish = false
 cosmol_viewer_core.workspace = true
 serde_json.workspace = true
 serde.workspace = true
-log = "0.4.27"
+log = "0.4.28"
 
-uuid = { version = "1.17.0", features = ["v4"], optional = true }
+uuid = { version = "1.18.1", features = ["v4"], optional = true }
 eframe = { workspace = true, optional = true }
-wasm-bindgen-futures = { version = "0.4.50", optional = true }
-web-sys = { version = "0.3.77", features = ["HtmlCanvasElement"], optional = true }
-wasm-bindgen = { version = "0.2.100", optional = true }
+wasm-bindgen-futures = { version = "0.4.54", optional = true }
+web-sys = { version = "0.3.81", features = ["HtmlCanvasElement"], optional = true }
+wasm-bindgen = { version = "0.2.104", optional = true }
 gloo-timers = { version = "0.3.0", features = ["futures-core", "futures"], optional = true }
 pyo3 = { workspace = true, optional = true }
 base64 = { version = "0.22.1", optional = true }

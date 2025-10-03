@@ -8,7 +8,7 @@ fn main() {
     let ids = ["a", "b", "c", "d", "e", "f"];
 
     // 动画参数
-    let interval: f32 = 0.02; // 每帧间隔 (秒)
+    let interval: f32 = 0.05; // 每帧间隔 (秒)
     let duration: f32 = 10.0; // 总时长 (秒)
     let num_frames = (duration / interval) as usize;
 
@@ -46,5 +46,5 @@ fn main() {
     }
 
     // 一次性提交所有帧，由 Viewer 控制播放
-    Viewer::play(frames, interval, 1, 800.0, 500.0, true);
+    Viewer::play(frames, interval, -1, 800.0, 500.0, true);
 }

@@ -2,7 +2,7 @@ from cosmol_viewer import Scene, Sphere, Viewer
 import math
 
 ids = ["a", "b", "c", "d", "e", "f"]
-interval = 0.02        # 每帧间隔 (秒)
+interval = 0.05        # 每帧间隔 (秒)
 duration = 10.0        # 动画时长 (秒)
 num_frames = int(duration / interval)
 
@@ -36,7 +36,7 @@ for frame_idx in range(num_frames):
     frames.append(scene)
 
 # 一次性提交：间隔0.02秒
-Viewer.play(frames, interval=interval, loops=-1, width=800.0 ,height=500.0)
+Viewer.play(frames, interval=interval, loops=-1, width=800.0 ,height=500.0, smooth=True)
 
 print("Press Any Key to exit...", end='', flush=True)
 _ = input()
