@@ -2,3 +2,5 @@
 *.ipynb
 .vscode
 example.sdf
+frames/
+cosmol_viewer/screenshot.png

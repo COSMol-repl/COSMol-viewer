@@ -21,7 +21,7 @@ fn main() {
 
     scene.add_shape(mol, Some("mol"));
 
-    let viewer = Viewer::render(&scene);
+    let viewer = Viewer::render(&scene, 800.0, 500.0);
 
     let img = viewer.take_screenshot();
 

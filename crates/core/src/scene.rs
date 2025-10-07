@@ -3,9 +3,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    Shape,
-    shader::CameraState,
-    utils::{self, ToMesh},
+    shader::CameraState, utils::{self, InstanceData, Interpolatable, IntoInstanceGroups, ShapeKind, ToMesh}, Shape
 };
 
 #[derive(Deserialize, Serialize, Clone)]
@@ -18,6 +16,62 @@ pub struct Scene {
     pub viewport: Option<[usize; 2]>,
 }
 
+pub enum Instance {
+    Sphere(SphereInstance),
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable, Debug)]
+pub struct SphereInstance {
+    pub position: [f32; 3],
+    pub radius: f32,
+    pub color: [f32; 4],
+}
+
+impl SphereInstance {
+    pub fn new(position: [f32; 3], radius: f32, color: [f32; 4]) -> Self {
+        Self {
+            position,
+            radius,
+            color,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable, Debug)]
+pub struct StickInstance {
+    pub start: [f32; 3],
+    pub end: [f32; 3],
+    pub radius: f32,
+    pub color: [f32; 4],
+}
+
+impl StickInstance {
+    pub fn new(start: [f32; 3], end: [f32; 3], radius: f32, color: [f32; 4]) -> Self {
+        Self {
+            start,
+            end,
+            radius,
+            color,
+        }
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct InstanceGroups {
+    pub spheres: Vec<SphereInstance>,
+    pub sticks: Vec<StickInstance>,
+}
+
+impl InstanceGroups {
+    pub fn merge(&mut self, other: InstanceGroups) {
+        self.spheres.extend(other.spheres);
+        self.sticks.extend(other.sticks);
+    }
+}
+
+
 impl Scene {
     pub fn _get_meshes(&self) -> Vec<utils::MeshData> {
         self.named_shapes
@@ -25,6 +79,16 @@ impl Scene {
             .chain(self.unnamed_shapes.iter())
             .map(|s| s.to_mesh(self.scale))
             .collect()
+    }
+    pub fn get_instances_grouped(&self) -> InstanceGroups {
+        let mut groups = InstanceGroups::default();
+
+        for shape in self.named_shapes.values().chain(self.unnamed_shapes.iter()) {
+            let shape_groups = shape.to_instance_group(self.scale);
+            groups.merge(shape_groups);
+        }
+
+        groups
     }
 
     pub fn new() -> Self {
@@ -66,11 +130,36 @@ impl Scene {
         }
     }
 
-    pub fn set_viewport(&mut self, width: usize, height: usize) {
-        self.viewport = Some([width, height]);
-    }
-
     pub fn set_background_color(&mut self, background_color: [f32; 3]) {
         self.background_color = background_color;
+    }
+}
+
+impl Interpolatable for Scene {
+    fn interpolate(&self, other: &Self, t: f32) -> Self {
+        let named_shapes = self
+            .named_shapes
+            .iter()
+            .map(|(k, v)| {
+                let other_shape = &other.named_shapes[k];
+                (k.clone(), v.interpolate(other_shape, t))
+            })
+            .collect();
+
+        let unnamed_shapes = self
+            .unnamed_shapes
+            .iter()
+            .zip(&other.unnamed_shapes)
+            .map(|(a, b)| a.interpolate(b, t))
+            .collect();
+
+        Self {
+            background_color: self.background_color,
+            camera_state: self.camera_state, // 可以单独插值
+            named_shapes,
+            unnamed_shapes,
+            scale: self.scale * (1.0 - t) + other.scale * t,
+            viewport: self.viewport,
+        }
     }
 }

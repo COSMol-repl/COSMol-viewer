@@ -13,9 +13,7 @@ scene.scale(0.1)
 
 scene.add_shape(mol, "molecule")
 
-scene.set_viewport(width=600, height=400)
-
-viewer = Viewer.render(scene)
+viewer = Viewer.render(scene, width=800, height=500)
 
 viewer.save_image("screenshot.png")
 

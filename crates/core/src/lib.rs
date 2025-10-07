@@ -1,20 +1,22 @@
 mod shader;
 use std::{
     sync::{Arc, Mutex},
-    time::Duration,
 };
 
 pub mod parser;
 pub mod utils;
 pub use eframe::egui;
 
-use eframe::egui::{Color32, Stroke, UserData, ViewportCommand};
+use eframe::{
+    Frame,
+    egui::{Color32, Stroke, UserData, ViewportCommand},
+};
 
 use shader::Canvas;
 
 pub use crate::utils::Shape;
 pub mod shapes;
-use crate::scene::Scene;
+use crate::{scene::Scene, utils::Frames};
 
 pub mod scene;
 use image::{ImageBuffer, Rgba};
@@ -41,6 +43,18 @@ impl App {
     pub fn new(cc: &eframe::CreationContext<'_>, scene: Scene) -> Self {
         let gl = cc.gl.clone();
         let canvas = Canvas::new(gl.as_ref().unwrap().clone(), scene).unwrap();
+        App {
+            gl,
+            canvas,
+            ctx: cc.egui_ctx.clone(),
+            screenshot_requested: false,
+            screenshot_result: None,
+        }
+    }
+
+    pub fn new_play(cc: &eframe::CreationContext<'_>, scene: Frames) -> Self {
+        let gl = cc.gl.clone();
+        let canvas = Canvas::new_play(gl.as_ref().unwrap().clone(), scene).unwrap();
         App {
             gl,
             canvas,
@@ -81,6 +95,7 @@ fn color_image_to_rgba_bytes(image: &egui::ColorImage) -> Vec<u8> {
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        #[cfg(not(target_arch = "wasm32"))]
         egui_extras::install_image_loaders(ctx);
         egui::CentralPanel::default()
             .frame(
@@ -130,11 +145,12 @@ pub struct NativeGuiViewer {
 }
 
 impl NativeGuiViewer {
-    pub fn render(scene: &Scene) -> Self {
+    pub fn render(scene: &Scene, width: f32, height: f32) -> Self {
         use std::{
             sync::{Arc, Mutex},
             thread,
         };
+        use std::time::Duration;
 
         #[cfg(not(target_arch = "wasm32"))]
         use eframe::{
@@ -142,7 +158,7 @@ impl NativeGuiViewer {
             egui::{Vec2, ViewportBuilder},
         };
 
-        let viewport_size = scene.viewport.unwrap_or([800, 500]);
+        // let viewport_size = scene.viewport.unwrap_or([800, 500]);
 
         let app: Arc<Mutex<Option<App>>> = Arc::new(Mutex::new(None));
         let app_clone = Arc::clone(&app);
@@ -151,7 +167,6 @@ impl NativeGuiViewer {
         #[cfg(not(target_arch = "wasm32"))]
         thread::spawn(move || {
             use std::process;
-
             use eframe::{EventLoopBuilderHook, run_native};
             let event_loop_builder: Option<EventLoopBuilderHook> =
                 Some(Box::new(|event_loop_builder| {
@@ -173,9 +188,9 @@ impl NativeGuiViewer {
                 }));
 
             let native_options = NativeOptions {
-                viewport: ViewportBuilder::default()
-                    .with_inner_size(Vec2::new(viewport_size[0] as f32, viewport_size[1] as f32)),
+                viewport: ViewportBuilder::default().with_inner_size(Vec2::new(width, height)),
                 depth_buffer: 24,
+                multisampling: 4,
                 event_loop_builder,
                 ..Default::default()
             };
@@ -193,7 +208,7 @@ impl NativeGuiViewer {
         });
 
         // 等待 App 初始化完成
-        let timeout_ms = 3000;
+        let timeout_ms = 30000;
         let mut waited = 0;
 
         loop {
@@ -242,6 +257,76 @@ impl NativeGuiViewer {
             }
             drop(app_guard);
             std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+    }
+
+    pub fn play(frames: Vec<Scene>, interval: f32, loops: i64, width: f32, height: f32, smooth: bool) {
+        use std::{
+            sync::{Arc, Mutex},
+            thread,
+        };
+
+        let frames = Frames {
+            frames,
+            interval: (interval * 1000.0) as u64,
+            loops,
+            smooth,
+        };
+
+        #[cfg(not(target_arch = "wasm32"))]
+        use eframe::{
+            NativeOptions,
+            egui::{Vec2, ViewportBuilder},
+        };
+
+        let app: Arc<Mutex<Option<App>>> = Arc::new(Mutex::new(None));
+        let app_clone = Arc::clone(&app);
+
+        #[cfg(not(target_arch = "wasm32"))]
+        thread::spawn(move || {
+            use std::process;
+
+            use eframe::{EventLoopBuilderHook, run_native};
+            let event_loop_builder: Option<EventLoopBuilderHook> =
+                Some(Box::new(|event_loop_builder| {
+                    #[cfg(target_family = "windows")]
+                    {
+                        use egui_winit::winit::platform::windows::EventLoopBuilderExtWindows;
+                        event_loop_builder.with_any_thread(true);
+                    }
+                    #[cfg(feature = "wayland")]
+                    {
+                        use egui_winit::winit::platform::wayland::EventLoopBuilderExtWayland;
+                        event_loop_builder.with_any_thread(true);
+                    }
+                    #[cfg(feature = "x11")]
+                    {
+                        use egui_winit::winit::platform::x11::EventLoopBuilderExtX11;
+                        event_loop_builder.with_any_thread(true);
+                    }
+                }));
+
+            let native_options = NativeOptions {
+                viewport: ViewportBuilder::default().with_inner_size(Vec2::new(width, height)),
+                depth_buffer: 24,
+                multisampling: 4,
+                event_loop_builder,
+                ..Default::default()
+            };
+
+            let _ = run_native(
+                "cosmol_viewer",
+                native_options,
+                Box::new(move |cc| {
+                    let mut guard = app_clone.lock().unwrap();
+                    *guard = Some(App::new_play(cc, frames));
+                    Ok(Box::new(AppWrapper(app_clone.clone())))
+                }),
+            );
+            process::exit(0);
+        });
+
+        loop {
         }
     }
 }

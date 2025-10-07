@@ -1,16 +1,42 @@
-# COSMol-viewer: Molecular visualization tools by rust
+# COSMol-viewer
+A high-performance molecular viewer for `Python` and `Rust`, backed by `Rust`.  
+Supports both static rendering and smooth animation playback — including inside Jupyter notebooks.
 
 <div align="center">
   <a href="https://crates.io/crates/cosmol_viewer">
-    <img src="https://img.shields.io/crates/v/cosmol_viewer.svg" alt="crates.io Latest Release"/>
+    <img src="https://img.shields.io/crates/v/cosmol_viewer.svg" alt="crates.io Latest Release" />
   </a>
   <a href="https://pypi.org/project/cosmol_viewer/">
-    <img src="https://img.shields.io/pypi/v/cosmol_viewer.svg" alt="PyPi Latest Release"/>
+    <img src="https://img.shields.io/pypi/v/cosmol_viewer.svg" alt="PyPi Latest Release" />
   </a>
   <a href="https://cosmol-repl.github.io/COSMol-viewer">
-    <img src="https://img.shields.io/badge/docs-latest-blue.svg" alt="Documentation Status"/>
+    <img src="https://img.shields.io/badge/docs-latest-blue.svg" alt="Documentation Status" />
   </a>
 </div>
+
+A compact, high-performance renderer for molecular and scientific shapes with two usage patterns:
+
+- **Static rendering + update** — push individual scene updates from your application or simulation.
+- **Play (recommended for demonstrations & smooth playback)** — precompute frames and hand the sequence to the viewer to play back with optional interpolation (`smooth`).
+
+---
+
+## Quick concepts
+
+- **Scene**: container for shapes (molecules, spheres, lines, etc.).
+- **Viewer.render(scene, ...)**: create a static viewer bound to a canvas (native or notebook). Good for static visualization.
+- **viewer.update(scene)**: push incremental changes (real-time / streaming use-cases).
+- **Viewer.play(frames, interval, loops, width, height, smooth)**: *recommended* for precomputed animations and demonstrations. The viewer takes care of playback timing and looping.
+
+**Why prefer `play` for demos?**
+- Single call API (hand off responsibility to the viewer).
+- Built-in timing & loop control.
+- Optional `smooth` interpolation between frames for visually pleasing playback even when input frame rate is low.
+
+**Why keep `update`?**
+- `update` is ideal for real-time simulations, MD runs, or streaming data where frames are not precomputed. It provides strict fidelity (no interpolation) and minimal latency.
+
+---
 
 # Usage
 
@@ -19,10 +45,11 @@ See examples in [Google Colab](https://colab.research.google.com/drive/1Sw72QWjQ
 
 Install with `pip install cosmol-viewer`
 
+### 1. Static molecular rendering
+
 ```python
 from cosmol_viewer import Scene, Viewer, parse_sdf, Molecules
 
-# === Step 1: Load and render a molecule ===
 with open("molecule.sdf", "r") as f:
     sdf = f.read()
     mol = Molecules(parse_sdf(sdf)).centered()
@@ -31,34 +58,52 @@ scene = Scene()
 scene.scale(0.1)
 scene.add_shape(mol, "mol")
 
-viewer = Viewer.render(scene)  # Launch the viewer
+viewer = Viewer.render(scene, width=600, height=400)
 
-# === Step 2: Update the same molecule dynamically ===
-# Useful for molecular dynamics simulations or other animations
-# where the molecule changes over time.
+print("Press Any Key to exit...", end='', flush=True)
+_ = input()  # Keep the viewer open until you decide to close
+```
+
+### 2. Animation playback with `Viewer.play`
+
+```python
+from cosmol_viewer import Scene, Viewer, parse_sdf, Molecules
 import time
 
-for i in range(1, 10):  # Simulate multiple frames
+interval = 0.033   # ~30 FPS
+
+frames = []
+
+for i in range(1, 10):
     with open(f"frames/frame_{i}.sdf", "r") as f:
         sdf = f.read()
-        updated_mol = Molecules(parse_sdf(sdf)).centered()
+        mol = Molecules(parse_sdf(sdf)).centered()
 
-    scene.update_shape("mol", updated_mol)
-    viewer.update(scene)
+    scene = Scene()
+    scene.scale(0.1)
+    scene.add_shape(mol, "mol")
 
-    time.sleep(0.033)  # ~30 FPS
+    frames.append(scene)
+
+Viewer.play(frames, interval=interval, loops=1, width=600, height=400, smooth=True)
+```
+
+more examples can be found in the [examples](https://github.com/COSMol-repl/COSMol-viewer/tree/main/cosmol_viewer/examples) folder:
+```bash
+cd cosmol_viewer
+cargo run --example animation
 ```
 
 ## Rust
 
 Install with `cargo add cosmol_viewer`
 
+### 1. Static rendering
 ```rust
 use cosmol_viewer::{Scene, Viewer, shapes::Molecules};
 use cosmol_viewer::parser::sdf::{ParserOptions, parse_sdf};
 
 fn main() {
-    // === Step 1: Load and render a molecule ===
     let sdf_string = std::fs::read_to_string("molecule.sdf").unwrap();
 
     let parser_options = ParserOptions {
@@ -73,33 +118,43 @@ fn main() {
     scene.scale(0.1);
     scene.add_shape(mol, Some("mol"));
 
-    let viewer = Viewer::render(&scene);
+    let _viewer = Viewer::render(&scene, 600.0, 400.0);
+}
+```
 
-    // === Step 2: Update the same molecule dynamically ===
-    // Useful for molecular dynamics simulations or other animations
-    // where the molecule changes over time.
+### 2. Animation playback
+```rust
+use cosmol_viewer::{Scene, Viewer, shapes::Molecules};
+use cosmol_viewer::parser::sdf::{ParserOptions, parse_sdf};
+
+fn main() {
+    let parser_options = ParserOptions {
+        multimodel: true,
+        ..Default::default()
+    };
+
+    let mut frames: Vec<Scene> = Vec::new();
+    let interval: f32 = 0.033; // ~30 FPS
+
     for i in 1..10 {
         let path = format!("frames/frame_{}.sdf", i);
         let sdf = std::fs::read_to_string(path).unwrap();
 
-        let updated_mol = Molecules::new(parse_sdf(&sdf, &parser_options))
+        let mol = Molecules::new(parse_sdf(&sdf, &parser_options))
             .centered();
 
-        scene.update_shape("mol", updated_mol);
-        viewer.update(&scene);
+        let mut scene = Scene::new();
+        scene.scale(0.1);
+        scene.add_shape(mol, Some("mol"));
 
-        std::thread::sleep(std::time::Duration::from_millis(33)); // ~30 FPS
+        frames.push(scene);
     }
 
-    use std::io::{self, Write};
-    println!("Press Enter to exit...");
-    let _ = io::stdout().flush();
-    let _ = io::stdin().read_line(&mut String::new());
+    // Loop indefinitely with smooth interpolation enabled
+    Viewer::play(frames, interval, -1, 600.0, 400.0, true);
 }
+
 ```
 
-more examples can be found in the [examples](https://github.com/COSMol-repl/COSMol-viewer/tree/main/cosmol_viewer/examples) folder:
-```bash
-cd cosmol_viewer
-cargo run --example animation
-```
+
+
