@@ -92,7 +92,7 @@ jobs:
         uses: PyO3/maturin-action@v1.49.4
         with:
           target: ${{ matrix.platform.target }}
-          args: --release --out dist --find-interpreter --interpreter python
+          args: --release --out dist --find-interpreter
           working-directory: crates/python
           sccache: true
       - name: Upload wheels
