@@ -26,7 +26,7 @@ jobs:
       - name: Build wasm module
         run: |
           cargo binstall -y wasm-pack --force
-          wasm-pack build ./crates/wasm --target web --out-dir ./pkg
+          wasm-pack build ./crates/wasm --target web --out-dir ./pkg --release
       - name: Upload wasm pkg
         uses: actions/upload-artifact@v4
         with:
@@ -39,13 +39,13 @@ jobs:
     strategy:
       matrix:
         platform:
-          - runner: ubuntu-22.04
+          - runner: ubuntu-24.04
             target: x86_64
-          - runner: ubuntu-22.04
+          - runner: ubuntu-24.04
             target: aarch64
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: 3.x
       - name: Download wasm pkg
@@ -54,7 +54,7 @@ jobs:
           name: wasm-pkg
           path: crates/wasm/pkg
       - name: Build wheels
-        uses: PyO3/maturin-action@v1
+        uses: PyO3/maturin-action@v1.49.4
         with:
           target: ${{ matrix.platform.target }}
           args: --release --out dist --find-interpreter --features x11,wayland 
@@ -73,26 +73,26 @@ jobs:
     strategy:
       matrix:
         platform:
-          - runner: windows-latest
+          - runner: windows-2025
             target: x64
-          - runner: windows-latest
-            target: x86
+          # - runner: windows-2025
+          #   target: x86
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: 3.x
-          architecture: ${{ matrix.platform.target }}
+          architecture: ${{ matrix.platform.target == 'x86' && 'x86' || 'x64' }}
       - name: Download wasm pkg
         uses: actions/download-artifact@v4
         with:
           name: wasm-pkg
           path: crates/wasm/pkg
       - name: Build wheels
-        uses: PyO3/maturin-action@v1
+        uses: PyO3/maturin-action@v1.49.4
         with:
           target: ${{ matrix.platform.target }}
-          args: --release --out dist --find-interpreter
+          args: --release --out dist --find-interpreter --interpreter python
           working-directory: crates/python
           sccache: true
       - name: Upload wheels
@@ -107,13 +107,13 @@ jobs:
     strategy:
       matrix:
         platform:
-          - runner: macos-13
+          - runner: macos-26
             target: x86_64
-          - runner: macos-14
+          - runner: macos-26
             target: aarch64
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: 3.x
       - name: Download wasm pkg
@@ -122,7 +122,7 @@ jobs:
           name: wasm-pkg
           path: crates/wasm/pkg
       - name: Build wheels
-        uses: PyO3/maturin-action@v1
+        uses: PyO3/maturin-action@v1.49.4
         with:
           target: ${{ matrix.platform.target }}
           args: --release --out dist --find-interpreter
