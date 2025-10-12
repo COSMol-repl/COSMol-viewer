@@ -6,10 +6,7 @@ use crate::{
     parser::sdf::MoleculeData,
     scene::{InstanceGroups, SphereInstance},
     shapes::{sphere::Sphere, stick::Stick},
-    utils::{
-        Interaction, Interpolatable, IntoInstanceGroups, MeshData, VisualShape,
-        VisualStyle,
-    },
+    utils::{Interaction, Interpolatable, IntoInstanceGroups, MeshData, VisualShape, VisualStyle},
 };
 
 use std::{collections::HashMap, str::FromStr};
@@ -366,7 +363,8 @@ impl IntoInstanceGroups for Molecules {
                 self.atom_types
                     .get(i)
                     .unwrap_or(&AtomType::Unknown)
-                    .radius()* 0.2,
+                    .radius()
+                    * 0.2,
             )
             .color(
                 self.style
@@ -378,12 +376,110 @@ impl IntoInstanceGroups for Molecules {
             groups.spheres.push(sphere_instance.to_instance(scale));
         }
 
-        for (_i, bond) in self.bonds.iter().enumerate() {
+        for (i, bond) in self.bonds.iter().enumerate() {
             let [a, b] = *bond;
             let pos_a = self.atoms[a as usize];
             let pos_b = self.atoms[b as usize];
 
-            // 获取原子颜色
+            let bond_type = self.bond_types.get(i).unwrap_or(&BondType::SINGLE);
+
+            // 方向向量
+            let dir = [
+                pos_b[0] - pos_a[0],
+                pos_b[1] - pos_a[1],
+                pos_b[2] - pos_a[2],
+            ];
+
+            // 归一化方向
+            let norm = (dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2]).sqrt();
+            let dir_n = [dir[0] / norm, dir[1] / norm, dir[2] / norm];
+
+            // === Step 1: 先找 A 的邻居方向（排除 B）===
+            let mut neighbor_dir_opt = None;
+            for (j, other_bond) in self.bonds.iter().enumerate() {
+                let [x, y] = *other_bond;
+                if x as usize == a as usize && y != b {
+                    let pos_n = self.atoms[y as usize];
+                    neighbor_dir_opt = Some([
+                        pos_n[0] - pos_a[0],
+                        pos_n[1] - pos_a[1],
+                        pos_n[2] - pos_a[2],
+                    ]);
+                    break;
+                } else if y as usize == a as usize && x != b {
+                    let pos_n = self.atoms[x as usize];
+                    neighbor_dir_opt = Some([
+                        pos_n[0] - pos_a[0],
+                        pos_n[1] - pos_a[1],
+                        pos_n[2] - pos_a[2],
+                    ]);
+                    break;
+                }
+            }
+
+            // ✅ 若 A 没有邻居，则去找 B 的邻居
+            if neighbor_dir_opt.is_none() {
+                for (j, other_bond) in self.bonds.iter().enumerate() {
+                    let [x, y] = *other_bond;
+                    if x as usize == b as usize && y != a {
+                        let pos_n = self.atoms[y as usize];
+                        neighbor_dir_opt = Some([
+                            pos_n[0] - pos_b[0],
+                            pos_n[1] - pos_b[1],
+                            pos_n[2] - pos_b[2],
+                        ]);
+                        break;
+                    } else if y as usize == b as usize && x != a {
+                        let pos_n = self.atoms[x as usize];
+                        neighbor_dir_opt = Some([
+                            pos_n[0] - pos_b[0],
+                            pos_n[1] - pos_b[1],
+                            pos_n[2] - pos_b[2],
+                        ]);
+                        break;
+                    }
+                }
+            }
+
+            // === Step 2: 计算 offset 方向 ===
+            let offset = if let Some(nd) = neighbor_dir_opt {
+                // 用邻居方向构造共面偏移
+                let nd_norm = (nd[0] * nd[0] + nd[1] * nd[1] + nd[2] * nd[2]).sqrt();
+                let nd_n = [nd[0] / nd_norm, nd[1] / nd_norm, nd[2] / nd_norm];
+
+                // 计算 nd_n 在 dir_n 方向的投影分量
+                let dot = nd_n[0] * dir_n[0] + nd_n[1] * dir_n[1] + nd_n[2] * dir_n[2];
+                let proj = [dot * dir_n[0], dot * dir_n[1], dot * dir_n[2]];
+
+                // 去掉投影分量，得到“共面但不沿键方向”的偏移矢量
+                [nd_n[0] - proj[0], nd_n[1] - proj[1], nd_n[2] - proj[2]]
+            } else {
+                // ✅ A 和 B 都没有邻居 → 回到默认垂直方向
+                let up = if dir_n[0].abs() < 0.9 {
+                    [1.0, 0.0, 0.0]
+                } else {
+                    [0.0, 1.0, 0.0]
+                };
+                [
+                    dir_n[1] * up[2] - dir_n[2] * up[1],
+                    dir_n[2] * up[0] - dir_n[0] * up[2],
+                    dir_n[0] * up[1] - dir_n[1] * up[0],
+                ]
+            };
+
+            // 归一化 offset
+            let off_norm =
+                (offset[0] * offset[0] + offset[1] * offset[1] + offset[2] * offset[2]).sqrt();
+            let off_n = [
+                offset[0] / off_norm,
+                offset[1] / off_norm,
+                offset[2] / off_norm,
+            ];
+
+            // 偏移距离（可调）
+            let d = 0.22;
+
+            // 颜色和半径与原来一致
             let color_a = match self
                 .atom_types
                 .get(a as usize)
@@ -392,7 +488,6 @@ impl IntoInstanceGroups for Molecules {
                 AtomType::C => [0.75, 0.75, 0.75],
                 other => other.color(),
             };
-
             let color_b = match self
                 .atom_types
                 .get(b as usize)
@@ -402,26 +497,59 @@ impl IntoInstanceGroups for Molecules {
                 other => other.color(),
             };
 
-            // 计算中点
-            let mid = [
-                0.5 * (pos_a[0] + pos_b[0]),
-                0.5 * (pos_a[1] + pos_b[1]),
-                0.5 * (pos_a[2] + pos_b[2]),
-            ];
+            // 根据键类型生成多个 stick
+            let (num_sticks, radius) = match bond_type {
+                BondType::SINGLE => (1, 0.135),
+                BondType::DOUBLE => (2, 0.09),
+                BondType::TRIPLE => (3, 0.05),
+                _ => (1, 0.15), // aromatic等以后再处理
+            };
 
-            // bond 一：A -> 中点，颜色 A
-            let stick_a = Stick::new(pos_a, mid, 0.15)
+            for k in 0..num_sticks {
+                let offset_mul = (k as f32 - (num_sticks - 1) as f32 * 0.5) * d;
+
+                let pos_a_k = [
+                    pos_a[0] + off_n[0] * offset_mul,
+                    pos_a[1] + off_n[1] * offset_mul,
+                    pos_a[2] + off_n[2] * offset_mul,
+                ];
+                let pos_b_k = [
+                    pos_b[0] + off_n[0] * offset_mul,
+                    pos_b[1] + off_n[1] * offset_mul,
+                    pos_b[2] + off_n[2] * offset_mul,
+                ];
+
+                // A -> 中点
+                let stick_a = Stick::new(
+                    pos_a_k,
+                    [
+                        0.5 * (pos_a_k[0] + pos_b_k[0]),
+                        0.5 * (pos_a_k[1] + pos_b_k[1]),
+                        0.5 * (pos_a_k[2] + pos_b_k[2]),
+                    ],
+                    radius,
+                )
                 .color(color_a)
                 .opacity(self.style.opacity);
-            groups.sticks.push(stick_a.to_instance(scale));
 
-            // bond 二：B -> 中点，颜色 B
-            let stick_b = Stick::new(pos_b, mid, 0.15)
+                groups.sticks.push(stick_a.to_instance(scale));
+
+                // B -> 中点
+                let stick_b = Stick::new(
+                    pos_b_k,
+                    [
+                        0.5 * (pos_a_k[0] + pos_b_k[0]),
+                        0.5 * (pos_a_k[1] + pos_b_k[1]),
+                        0.5 * (pos_a_k[2] + pos_b_k[2]),
+                    ],
+                    radius,
+                )
                 .color(color_b)
                 .opacity(self.style.opacity);
-            groups.sticks.push(stick_b.to_instance(scale));
-        }
 
+                groups.sticks.push(stick_b.to_instance(scale));
+            }
+        }
         groups
     }
 }
