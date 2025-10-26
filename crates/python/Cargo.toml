@@ -10,7 +10,7 @@ serde_json.workspace = true
 eframe.workspace = true
 egui_extras.workspace = true
 pyo3.workspace = true
-base64 = "0.22.1"
+base64.workspace = true
 
 [lib]
 name = "cosmol_viewer"

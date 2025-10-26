@@ -36,10 +36,7 @@ impl Canvas {
         })
     }
 
-    pub fn new_play<'a>(
-        gl: Arc<eframe::glow::Context>,
-        frames: Frames,
-    ) -> Option<Self> {
+    pub fn new_play<'a>(gl: Arc<eframe::glow::Context>, frames: Frames) -> Option<Self> {
         Some(Self {
             shader: Arc::new(Mutex::new(Shader::new(&gl, frames.frames[0].clone())?)),
             camera_state: CameraState::new(1.0),
@@ -759,6 +756,7 @@ impl Shader {
 
             gl.enable(glow::DEPTH_TEST);
             gl.depth_func(glow::LEQUAL);
+            #[cfg(not(target_arch = "wasm32"))]
             gl.enable(glow::MULTISAMPLE); // 开启多重采样
 
             gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);

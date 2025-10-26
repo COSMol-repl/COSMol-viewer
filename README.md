@@ -82,7 +82,6 @@ for i in range(1, 10):
     scene = Scene()
     scene.scale(0.1)
     scene.add_shape(mol, "mol")
-
     frames.append(scene)
 
 Viewer.play(frames, interval=interval, loops=1, width=600, height=400, smooth=True)
