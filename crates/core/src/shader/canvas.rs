@@ -394,7 +394,7 @@ impl Shader {
             // =========================
             // 4.1 Generate sphere mesh template
             // =========================
-            let template_sphere = Sphere::get_or_generate_sphere_mesh_template(32);
+            let template_sphere = Sphere::get_or_generate_sphere_mesh_template(2);
 
             let vertex3d_sphere: Vec<Vertex3d> = template_sphere
                 .vertices

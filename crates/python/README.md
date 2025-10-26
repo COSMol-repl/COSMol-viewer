@@ -12,8 +12,8 @@
   </a>
 </div>
 
-A high-performance molecular viewer for `Python` and `Rust`, backed by `Rust`.  
-Supports both static rendering and smooth animation playback — including inside Jupyter notebooks. 
+A high-performance molecular viewer for `Python` and `Rust`, backed by `Rust`.
+Supports both static rendering and smooth animation playback — including inside Jupyter notebooks.
 
 
 A compact, high-performance renderer for molecular and scientific shapes with two usage patterns:
@@ -49,7 +49,7 @@ pip install cosmol-viewer
 ---
 
 ## Quick Start
-
+See examples in [Google Colab](https://colab.research.google.com/drive/1Sw72QWjQh_sbbY43jGyBOfF1AQCycmIx?usp=sharing).
 ### 1. Static molecular rendering
 
 ```python
@@ -95,4 +95,4 @@ Viewer.play(frames, interval=interval, loops=1, width=600, height=400, smooth=Tr
 
 ## Documentation
 
-For API reference and advanced usage, please see the [latest documentation](https://cosmol-repl.github.io/COSMol-viewer).  
+For API reference and advanced usage, please see the [latest documentation](https://cosmol-repl.github.io/COSMol-viewer).
