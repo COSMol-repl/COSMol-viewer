@@ -1,7 +1,6 @@
 [package]
 name = "cosmol_viewer_wasm"
-version.workspace = true
-edition = "2024"
+edition.workspace = true
 publish = false
 
 [dependencies]
@@ -17,7 +16,7 @@ web-sys = { version = "0.3.81", features = ["HtmlCanvasElement"], optional = tru
 wasm-bindgen = { version = "0.2.104", optional = true }
 gloo-timers = { version = "0.3.0", features = ["futures-core", "futures"], optional = true }
 pyo3 = { workspace = true, optional = true }
-base64 = { version = "0.22.1", optional = true }
+base64 = { workspace = true, optional = true }
 
 [features]
 default = ["wasm"]

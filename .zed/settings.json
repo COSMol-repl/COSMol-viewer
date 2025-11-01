@@ -1,0 +1,39 @@
+// Folder-specific settings
+//
+// For a full list of overridable settings, and general information on folder-specific settings,
+// see the documentation: https://zed.dev/docs/configuring-zed#settings-files
+{
+  "terminal": {
+    "detect_venv": {
+      "on": {
+        "directories": [".env", "env", ".venv", "venv"],
+        "activate_script": "default"
+      }
+    }
+  },
+  "languages": {
+    "Python": {
+      "language_servers": ["!ty", "!pylsp"]
+    }
+  },
+  "lsp": {
+    "rust-analyzer": {
+      "initialization_options": {
+        "cargo": {
+          "allTargets": true,
+          "extraEnv": {
+            "PYO3_PYTHON": "C:\\Users\\95028\\.conda\\envs\\BIO\\python.exe"
+          }
+        }
+        // If there is a way to set extra environment variables,
+        // rust-analyzer’s upstream config might allow it here:
+        // "procMacro": {
+        //   "enable": true
+        // },
+        // "env": {
+        //   "PYO3_PYTHON": "C:\\Users\\95028\\.conda\\envs\\BIO\\python.exe"
+        // }
+      }
+    }
+  }
+}

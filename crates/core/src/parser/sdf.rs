@@ -9,7 +9,7 @@ pub struct Atom {
     pub index: usize,
     pub hetflag: bool,
     pub bonds: Vec<usize>,
-    pub bond_order: Vec<f32>,
+    pub bond_order: Vec<usize>,
     pub properties: std::collections::HashMap<String, String>,
 }
 
@@ -105,7 +105,7 @@ fn parse_v2000(mut lines: Vec<&str>, options: &ParserOptions) -> MoleculeData {
                 .parse::<usize>()
                 .unwrap_or(0)
                 .saturating_sub(1);
-            let order = line[6..].trim().parse::<f32>().unwrap_or(1.0);
+            let order = line[6..9].trim().parse::<usize>().unwrap_or(1);
             if let (Some(f), Some(t)) = (
                 serial_to_index.get(from).and_then(|x| *x),
                 serial_to_index.get(to).and_then(|x| *x),
@@ -208,7 +208,7 @@ fn parse_v3000(mut lines: Vec<&str>, options: &ParserOptions) -> MoleculeData {
             if parts.len() > 3 {
                 let from = parts[2].parse::<usize>().unwrap_or(0).saturating_sub(1);
                 let to = parts[3].parse::<usize>().unwrap_or(0).saturating_sub(1);
-                let order = parts[1].parse::<f32>().unwrap_or(1.0);
+                let order = parts[1].parse::<usize>().unwrap_or(1);
                 if let (Some(f), Some(t)) = (
                     serial_to_index.get(from).and_then(|x| *x),
                     serial_to_index.get(to).and_then(|x| *x),

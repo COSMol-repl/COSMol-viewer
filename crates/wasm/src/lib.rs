@@ -102,6 +102,11 @@ impl WasmViewer {
         await mod.default(window[ns + "_wasm_bytes"]);
 
         const canvas = document.getElementById('{id}');
+        const gl = canvas.getContext('webgl2', {{ antialias: true }});
+        if (!gl) {{
+            console.error("WebGL2 not supported or failed to initialize");
+            return;
+        }}
         const app = new mod.WebHandle();
         const sceneJson = {SCENE_JSON};
         await app.start_with_scene(canvas, sceneJson);
@@ -179,6 +184,11 @@ impl WasmViewer {
         await mod.default(window[ns + "_wasm_bytes"]);
 
         const canvas = document.getElementById('{id}');
+        const gl = canvas.getContext('webgl2', {{ antialias: true }});
+        if (!gl) {{
+            console.error("WebGL2 not supported or failed to initialize");
+            return;
+        }}
         const app = new mod.WebHandle();
         const framesJson = {FRAMES_JSON};
         await app.initiate_viewer_and_play(canvas, framesJson);
