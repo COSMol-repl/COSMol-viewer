@@ -5,7 +5,7 @@ with open("./examples/example.sdf", "r", encoding="utf-8") as f:
 
 mol_data  = parse_sdf(sdf_string)
 
-mol = Molecules(mol_data)
+mol = Molecules(mol_data).centered()
 
 scene = Scene()
 

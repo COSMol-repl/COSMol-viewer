@@ -1,4 +1,4 @@
-from typing import Optional, Union, List 
+from typing import Optional, Union, List
 
 def parse_sdf(
     sdf: str,
@@ -201,7 +201,7 @@ class Viewer:
           - loops: Number of loops to repeat (-1 for infinite).
           - width: The viewport width in pixels.
           - height: The viewport height in pixels.
-          - smooth: Whether to smooth the animation by 
+          - smooth: Whether to smooth the animation by
             interpolating between frames.
 
         # Returns
@@ -306,6 +306,7 @@ class Molecules:
     """
 
     def __init__(self, molecule_data: "MoleculeData") -> None: ...
+    def get_center(self) -> List[float]: ...
     def centered(self) -> "Molecules": ...
     def color(self, color: List[float]) -> "Molecules": ...
     def color_rgba(self, color: List[float]) -> "Molecules": ...

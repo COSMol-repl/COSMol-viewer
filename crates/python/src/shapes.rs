@@ -7,13 +7,13 @@ use pyo3::{PyRefMut, pyclass, pymethods};
 
 #[pyclass(name = "Sphere")]
 /// Sphere(center: [f32; 3], radius: f32)
-/// 
+///
 /// A sphere in the scene.
-/// 
+///
 /// # Arguments
 /// * `center` - The center of the sphere.
 /// * `radius` - The radius of the sphere.
-/// 
+///
 /// # Examples
 /// ```
 /// scene = Scene()
@@ -21,7 +21,7 @@ use pyo3::{PyRefMut, pyclass, pymethods};
 /// scene.add_shape(sphere, id)
 /// viewer = Viewer.render(scene)
 /// ```
-/// 
+///
 #[derive(Clone)]
 pub struct PySphere {
     pub inner: Sphere,
@@ -123,6 +123,10 @@ impl PyMolecules {
         }
     }
 
+    pub fn get_center(slf: PyRefMut<'_, Self>) -> [f32; 3] {
+        slf.inner.clone().get_center()
+    }
+
     pub fn centered(mut slf: PyRefMut<'_, Self>) -> PyRefMut<'_, Self> {
         slf.inner = slf.inner.clone().centered();
         slf
@@ -137,7 +141,6 @@ impl PyMolecules {
         slf.inner = slf.inner.clone().color_rgba(color);
         slf
     }
-
 
     pub fn opacity(mut slf: PyRefMut<'_, Self>, opacity: f32) -> PyRefMut<'_, Self> {
         slf.inner = slf.inner.clone().opacity(opacity);

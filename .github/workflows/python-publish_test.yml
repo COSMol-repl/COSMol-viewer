@@ -1,0 +1,93 @@
+﻿name: python-publish
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  wasm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions-rs/toolchain@v1.0.6
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+          target: wasm32-unknown-unknown
+      - uses: cargo-bins/cargo-binstall@main
+      - name: Build wasm module
+        run: |
+          cargo binstall -y wasm-pack --force
+          wasm-pack build ./crates/wasm --target web --out-dir ./pkg --release
+      - name: Upload wasm pkg
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasm-pkg
+          path: ./crates/wasm/pkg
+
+  # windows:
+  #   needs: wasm
+  #   runs-on: ${{ matrix.platform.runner }}
+  #   strategy:
+  #     matrix:
+  #       platform:
+  #         - runner: windows-2025
+  #           target: x64
+  #         - runner: windows-2025
+  #           target: x86
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-python@v6
+  #       with:
+  #         python-version: 3.x
+  #         architecture: ${{ matrix.platform.target }}
+  #     - name: Download wasm pkg
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: wasm-pkg
+  #         path: crates/wasm/pkg
+  #     - name: Build wheels
+  #       uses: PyO3/maturin-action@v1.49.4
+  #       with:
+  #         target: ${{ matrix.platform.target }}
+  #         args: --release --out dist --find-interpreter
+  #         working-directory: crates/python
+  #         sccache: true
+  #     - name: Upload wheels
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: wheels-windows-${{ matrix.platform.target }}
+  #         path: crates/python/dist
+
+  windows-arm:
+    needs: wasm
+    runs-on: windows-11-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v6
+        with:
+          python-version: 3.x
+          architecture: arm64
+      - name: Download wasm pkg
+        uses: actions/download-artifact@v4
+        with:
+          name: wasm-pkg
+          path: crates/wasm/pkg
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1.49.4
+        with:
+          target: aarch64
+          args: --release --out dist --find-interpreter
+          working-directory: crates/python
+          sccache: true
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-windows-arm64
+          path: crates/python/dist

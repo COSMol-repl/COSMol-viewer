@@ -192,11 +192,9 @@ impl Molecules {
         }
     }
 
-    /// Centers the molecule by translating all atoms so that the geometric center
-    /// is at the origin (0.0, 0.0, 0.0).
-    pub fn centered(mut self) -> Self {
+    pub fn get_center(&self) -> [f32; 3] {
         if self.atoms.is_empty() {
-            return self;
+            return [0.0; 3];
         }
 
         // 1. 累加所有原子坐标
@@ -213,11 +211,17 @@ impl Molecules {
         center[1] /= count;
         center[2] /= count;
 
-        // 3. 所有原子坐标减去中心
-        for pos in &mut self.atoms {
-            pos[0] -= center[0];
-            pos[1] -= center[1];
-            pos[2] -= center[2];
+        center
+    }
+
+    /// Centers the molecule by translating all atoms so that the geometric center
+    /// is at the origin (0.0, 0.0, 0.0).
+    pub fn centered(mut self) -> Self {
+        let center = self.get_center();
+        for atom in &mut self.atoms {
+            atom[0] -= center[0];
+            atom[1] -= center[1];
+            atom[2] -= center[2];
         }
 
         self

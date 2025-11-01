@@ -20,16 +20,19 @@
     "rust-analyzer": {
       "initialization_options": {
         "cargo": {
-          "allTargets": true
-        },
+          "allTargets": true,
+          "extraEnv": {
+            "PYO3_PYTHON": "C:\\Users\\95028\\.conda\\envs\\BIO\\python.exe"
+          }
+        }
         // If there is a way to set extra environment variables,
         // rust-analyzer’s upstream config might allow it here:
-        "procMacro": {
-          "enable": true
-        },
-        "env": {
-          "PYO3_PYTHON": "C:\\Users\\95028\\.conda\\envs\\BIO\\python.exe"
-        }
+        // "procMacro": {
+        //   "enable": true
+        // },
+        // "env": {
+        //   "PYO3_PYTHON": "C:\\Users\\95028\\.conda\\envs\\BIO\\python.exe"
+        // }
       }
     }
   }
