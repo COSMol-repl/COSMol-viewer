@@ -759,7 +759,7 @@ dependencies = [
 
 [[package]]
 name = "cosmol_viewer"
-version = "0.1.4-nightly.3"
+version = "0.1.4"
 dependencies = [
  "bytemuck",
  "cosmol_viewer_core",
@@ -772,7 +772,7 @@ dependencies = [
 
 [[package]]
 name = "cosmol_viewer_core"
-version = "0.1.4-nightly.3"
+version = "0.1.4"
 dependencies = [
  "bytemuck",
  "eframe",
@@ -802,7 +802,7 @@ dependencies = [
 
 [[package]]
 name = "cosmol_viewer_wasm"
-version = "0.1.4-nightly.3"
+version = "0.1.4"
 dependencies = [
  "base64",
  "cosmol_viewer_core",

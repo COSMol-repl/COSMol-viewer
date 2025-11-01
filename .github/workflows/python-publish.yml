@@ -3,7 +3,7 @@
 on:
   push:
     tags:
-      - '*'
+      - "*"
   pull_request:
   workflow_dispatch:
 
@@ -59,7 +59,7 @@ jobs:
         uses: PyO3/maturin-action@v1.49.4
         with:
           target: ${{ matrix.platform.target }}
-          args: --release --out dist --find-interpreter --features x11,wayland 
+          args: --release --out dist --find-interpreter --features x11,wayland
           working-directory: crates/python
           sccache: true
           manylinux: auto
@@ -101,6 +101,33 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: wheels-windows-${{ matrix.platform.target }}
+          path: crates/python/dist
+
+  windows-arm:
+    needs: wasm
+    runs-on: windows-11-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v6
+        with:
+          python-version: 3.x
+          architecture: arm64
+      - name: Download wasm pkg
+        uses: actions/download-artifact@v4
+        with:
+          name: wasm-pkg
+          path: crates/wasm/pkg
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1.49.4
+        with:
+          target: aarch64
+          args: --release --out dist --find-interpreter
+          working-directory: crates/python
+          sccache: true
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-windows-arm64
           path: crates/python/dist
 
   macos:
@@ -156,7 +183,7 @@ jobs:
     name: Release
     runs-on: ubuntu-latest
     if: ${{ startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' }}
-    needs: [linux, windows, macos, sdist]
+    needs: [linux, windows, macos, windows-arm, sdist]
     permissions:
       id-token: write
       contents: write
@@ -166,7 +193,7 @@ jobs:
       - name: Generate artifact attestation
         uses: actions/attest-build-provenance@v2
         with:
-          subject-path: 'wheels-*/*'
+          subject-path: "wheels-*/*"
       - name: Publish to PyPI
         if: ${{ startsWith(github.ref, 'refs/tags/') }}
         uses: PyO3/maturin-action@v1
