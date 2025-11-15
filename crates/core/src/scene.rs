@@ -1,9 +1,12 @@
+use crate::utils::Logger;
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    shader::CameraState, utils::{self, InstanceData, Interpolatable, IntoInstanceGroups, ShapeKind, ToMesh}, Shape
+    Shape,
+    shader::CameraState,
+    utils::{self, InstanceData, Interpolatable, IntoInstanceGroups, ShapeKind, ToMesh},
 };
 
 #[derive(Deserialize, Serialize, Clone)]
@@ -71,7 +74,6 @@ impl InstanceGroups {
     }
 }
 
-
 impl Scene {
     pub fn _get_meshes(&self) -> Vec<utils::MeshData> {
         self.named_shapes
@@ -136,13 +138,13 @@ impl Scene {
 }
 
 impl Interpolatable for Scene {
-    fn interpolate(&self, other: &Self, t: f32) -> Self {
+    fn interpolate(&self, other: &Self, t: f32, logger: impl Logger) -> Self {
         let named_shapes = self
             .named_shapes
             .iter()
             .map(|(k, v)| {
                 let other_shape = &other.named_shapes[k];
-                (k.clone(), v.interpolate(other_shape, t))
+                (k.clone(), v.interpolate(other_shape, t, logger))
             })
             .collect();
 
@@ -150,7 +152,7 @@ impl Interpolatable for Scene {
             .unnamed_shapes
             .iter()
             .zip(&other.unnamed_shapes)
-            .map(|(a, b)| a.interpolate(b, t))
+            .map(|(a, b)| a.interpolate(b, t, logger))
             .collect();
 
         Self {

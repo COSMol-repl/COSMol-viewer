@@ -6,7 +6,9 @@ use crate::{
     parser::sdf::MoleculeData,
     scene::{InstanceGroups, SphereInstance},
     shapes::{sphere::Sphere, stick::Stick},
-    utils::{Interaction, Interpolatable, IntoInstanceGroups, MeshData, VisualShape, VisualStyle},
+    utils::{
+        Interaction, Interpolatable, IntoInstanceGroups, Logger, MeshData, VisualShape, VisualStyle,
+    },
 };
 
 use std::{collections::HashMap, str::FromStr};
@@ -102,7 +104,29 @@ pub struct Molecules {
 }
 
 impl Interpolatable for Molecules {
-    fn interpolate(&self, other: &Self, t: f32) -> Self {
+    fn interpolate(&self, other: &Self, t: f32, logger: impl Logger) -> Self {
+        // 检查原子数量是否匹配
+        if self.atoms.len() != other.atoms.len() {
+            logger.error(format!(
+                "Interpolation aborted: atom count differs (self: {}, other: {}). \
+                Smooth interpolation requires scenes with identical atom structures.",
+                self.atoms.len(),
+                other.atoms.len()
+            ));
+            panic!("Smooth interpolation requires matching atom structures.");
+        }
+
+        // 检查键数量是否匹配（可选，根据需要）
+        if self.bonds.len() != other.bonds.len() {
+            logger.error(format!(
+                "Interpolation aborted: bond topology differs (self: {}, other: {}). \
+                Smooth interpolation cannot proceed with different bonding graphs.",
+                self.bonds.len(),
+                other.bonds.len()
+            ));
+            panic!("Smooth interpolation requires matching bond topology.");
+        }
+
         // 原子坐标插值
         let atoms: Vec<[f32; 3]> = self
             .atoms
@@ -224,6 +248,11 @@ impl Molecules {
             atom[2] -= center[2];
         }
 
+        self
+    }
+
+    pub fn reset_color(mut self) -> Self {
+        self.style_mut().color = None;
         self
     }
 
@@ -484,22 +513,26 @@ impl IntoInstanceGroups for Molecules {
             let d = 0.22;
 
             // 颜色和半径与原来一致
-            let color_a = match self
-                .atom_types
-                .get(a as usize)
-                .unwrap_or(&AtomType::Unknown)
-            {
-                AtomType::C => [0.75, 0.75, 0.75],
-                other => other.color(),
-            };
-            let color_b = match self
-                .atom_types
-                .get(b as usize)
-                .unwrap_or(&AtomType::Unknown)
-            {
-                AtomType::C => [0.75, 0.75, 0.75],
-                other => other.color(),
-            };
+            let color_a = self.style.color.unwrap_or(
+                match self
+                    .atom_types
+                    .get(a as usize)
+                    .unwrap_or(&AtomType::Unknown)
+                {
+                    AtomType::C => [0.75, 0.75, 0.75],
+                    other => other.color(),
+                },
+            );
+            let color_b = self.style.color.unwrap_or(
+                match self
+                    .atom_types
+                    .get(b as usize)
+                    .unwrap_or(&AtomType::Unknown)
+                {
+                    AtomType::C => [0.75, 0.75, 0.75],
+                    other => other.color(),
+                },
+            );
 
             // 根据键类型生成多个 stick
             let (num_sticks, radius) = match bond_type {

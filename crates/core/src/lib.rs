@@ -1,7 +1,5 @@
 mod shader;
-use std::{
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 
 pub mod parser;
 pub mod utils;
@@ -14,16 +12,16 @@ use eframe::{
 
 use shader::Canvas;
 
-pub use crate::utils::Shape;
+pub use crate::utils::{Logger, RustLogger, Shape};
 pub mod shapes;
 use crate::{scene::Scene, utils::Frames};
 
 pub mod scene;
 use image::{ImageBuffer, Rgba};
 
-pub struct AppWrapper(pub Arc<Mutex<Option<App>>>);
+pub struct AppWrapper<L: Logger>(pub Arc<Mutex<Option<App<L>>>>);
 
-impl eframe::App for AppWrapper {
+impl<L: Logger> eframe::App for AppWrapper<L> {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         if let Some(app) = &mut *self.0.lock().unwrap() {
             app.update(ctx, frame);
@@ -31,36 +29,41 @@ impl eframe::App for AppWrapper {
     }
 }
 
-pub struct App {
-    canvas: Canvas,
+pub struct App<L: Logger> {
+    canvas: Canvas<L>,
     gl: Option<Arc<eframe::glow::Context>>,
     pub ctx: egui::Context,
     screenshot_requested: bool,
     screenshot_result: Option<(Arc<egui::ColorImage>, egui::TextureHandle)>,
+    logger: L,
 }
 
-impl App {
-    pub fn new(cc: &eframe::CreationContext<'_>, scene: Scene) -> Self {
+impl<L: Logger> App<L> {
+    pub fn new(cc: &eframe::CreationContext<'_>, scene: Scene, logger: L) -> Self {
+        logger.log("Creating new viewer app...");
         let gl = cc.gl.clone();
-        let canvas = Canvas::new(gl.as_ref().unwrap().clone(), scene).unwrap();
+        let canvas = Canvas::new(gl.as_ref().unwrap().clone(), scene, logger).unwrap();
         App {
             gl,
             canvas,
             ctx: cc.egui_ctx.clone(),
             screenshot_requested: false,
             screenshot_result: None,
+            logger,
         }
     }
 
-    pub fn new_play(cc: &eframe::CreationContext<'_>, scene: Frames) -> Self {
+    pub fn new_play(cc: &eframe::CreationContext<'_>, scene: Frames, logger: L) -> Self {
+        logger.log("Creating new viewer app...");
         let gl = cc.gl.clone();
-        let canvas = Canvas::new_play(gl.as_ref().unwrap().clone(), scene).unwrap();
+        let canvas = Canvas::new_play(gl.as_ref().unwrap().clone(), scene, logger).unwrap();
         App {
             gl,
             canvas,
             ctx: cc.egui_ctx.clone(),
             screenshot_requested: false,
             screenshot_result: None,
+            logger,
         }
     }
 
@@ -93,7 +96,7 @@ fn color_image_to_rgba_bytes(image: &egui::ColorImage) -> Vec<u8> {
     image.pixels.iter().flat_map(|c| c.to_array()).collect()
 }
 
-impl eframe::App for App {
+impl<L: Logger> eframe::App for App<L> {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         #[cfg(not(target_arch = "wasm32"))]
         egui_extras::install_image_loaders(ctx);
@@ -141,16 +144,16 @@ impl eframe::App for App {
 }
 
 pub struct NativeGuiViewer {
-    pub app: Arc<Mutex<Option<App>>>,
+    pub app: Arc<Mutex<Option<App<RustLogger>>>>,
 }
 
 impl NativeGuiViewer {
     pub fn render(scene: &Scene, width: f32, height: f32) -> Self {
+        use std::time::Duration;
         use std::{
             sync::{Arc, Mutex},
             thread,
         };
-        use std::time::Duration;
 
         #[cfg(not(target_arch = "wasm32"))]
         use eframe::{
@@ -160,14 +163,14 @@ impl NativeGuiViewer {
 
         // let viewport_size = scene.viewport.unwrap_or([800, 500]);
 
-        let app: Arc<Mutex<Option<App>>> = Arc::new(Mutex::new(None));
+        let app: Arc<Mutex<Option<App<RustLogger>>>> = Arc::new(Mutex::new(None));
         let app_clone = Arc::clone(&app);
 
         let scene = Arc::new(Mutex::new(scene.clone()));
         #[cfg(not(target_arch = "wasm32"))]
         thread::spawn(move || {
-            use std::process;
             use eframe::{EventLoopBuilderHook, run_native};
+            use std::process;
             let event_loop_builder: Option<EventLoopBuilderHook> =
                 Some(Box::new(|event_loop_builder| {
                     #[cfg(target_family = "windows")]
@@ -200,7 +203,7 @@ impl NativeGuiViewer {
                 native_options,
                 Box::new(move |cc| {
                     let mut guard = app_clone.lock().unwrap();
-                    *guard = Some(App::new(cc, scene.lock().unwrap().clone()));
+                    *guard = Some(App::new(cc, scene.lock().unwrap().clone(), RustLogger));
                     Ok(Box::new(AppWrapper(app_clone.clone())))
                 }),
             );
@@ -260,7 +263,14 @@ impl NativeGuiViewer {
         }
     }
 
-    pub fn play(frames: Vec<Scene>, interval: f32, loops: i64, width: f32, height: f32, smooth: bool) {
+    pub fn play(
+        frames: Vec<Scene>,
+        interval: f32,
+        loops: i64,
+        width: f32,
+        height: f32,
+        smooth: bool,
+    ) {
         use std::{
             sync::{Arc, Mutex},
             thread,
@@ -279,7 +289,7 @@ impl NativeGuiViewer {
             egui::{Vec2, ViewportBuilder},
         };
 
-        let app: Arc<Mutex<Option<App>>> = Arc::new(Mutex::new(None));
+        let app: Arc<Mutex<Option<App<RustLogger>>>> = Arc::new(Mutex::new(None));
         let app_clone = Arc::clone(&app);
 
         #[cfg(not(target_arch = "wasm32"))]
@@ -319,14 +329,13 @@ impl NativeGuiViewer {
                 native_options,
                 Box::new(move |cc| {
                     let mut guard = app_clone.lock().unwrap();
-                    *guard = Some(App::new_play(cc, frames));
+                    *guard = Some(App::new_play(cc, frames, RustLogger));
                     Ok(Box::new(AppWrapper(app_clone.clone())))
                 }),
             );
             process::exit(0);
         });
 
-        loop {
-        }
+        loop {}
     }
 }

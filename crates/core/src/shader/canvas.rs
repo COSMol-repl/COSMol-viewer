@@ -17,31 +17,38 @@ use crate::scene::StickInstance;
 use crate::shapes::Sphere;
 use crate::shapes::Stick;
 use crate::utils::Frames;
-use crate::utils::Interpolatable;
+use crate::utils::{Interpolatable, Logger};
 
-pub struct Canvas {
+pub struct Canvas<L: Logger> {
     shader: Arc<Mutex<Shader>>,
     camera_state: CameraState,
     frames: Option<Frames>,
     interpolate_enabled: bool,
+    logger: L,
 }
 
-impl Canvas {
-    pub fn new<'a>(gl: Arc<eframe::glow::Context>, scene: Scene) -> Option<Self> {
+impl<L: Logger> Canvas<L> {
+    pub fn new<'a>(gl: Arc<eframe::glow::Context>, scene: Scene, logger: L) -> Option<Self> {
         Some(Self {
             shader: Arc::new(Mutex::new(Shader::new(&gl, scene)?)),
             camera_state: CameraState::new(1.0),
             frames: None,
             interpolate_enabled: false,
+            logger,
         })
     }
 
-    pub fn new_play<'a>(gl: Arc<eframe::glow::Context>, frames: Frames) -> Option<Self> {
+    pub fn new_play<'a>(gl: Arc<eframe::glow::Context>, frames: Frames, logger: L) -> Option<Self> {
+        if frames.frames.is_empty() {
+            logger.error("No frames provided");
+            return None;
+        }
         Some(Self {
             shader: Arc::new(Mutex::new(Shader::new(&gl, frames.frames[0].clone())?)),
             camera_state: CameraState::new(1.0),
             interpolate_enabled: frames.smooth,
             frames: Some(frames),
+            logger,
         })
     }
 
@@ -100,7 +107,11 @@ impl Canvas {
             } else {
                 // 这里是原先的插值 / 非插值逻辑
                 if self.interpolate_enabled {
-                    frames.frames[frame_a_index].interpolate(&frames.frames[frame_b_index], t)
+                    frames.frames[frame_a_index].interpolate(
+                        &frames.frames[frame_b_index],
+                        t,
+                        self.logger,
+                    )
                 } else {
                     frames.frames[frame_a_index].clone()
                 }

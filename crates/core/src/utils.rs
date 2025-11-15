@@ -6,6 +6,27 @@ use crate::{
     shapes::{Molecules, Sphere, Stick},
 };
 
+pub trait Logger: Send + Sync + Copy {
+    fn log(&self, message: impl std::fmt::Display);
+    fn error(&self, message: impl std::fmt::Display);
+    fn warn(&self, message: impl std::fmt::Display);
+}
+
+#[derive(Clone, Copy)]
+pub struct RustLogger;
+
+impl Logger for RustLogger {
+    fn log(&self, message: impl std::fmt::Display) {
+        println!("[LOG] {}", message);
+    }
+    fn warn(&self, message: impl std::fmt::Display) {
+        eprintln!("[WARN] {}", message);
+    }
+    fn error(&self, message: impl std::fmt::Display) {
+        eprintln!("[ERROR] {}", message);
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Default, Copy)]
 pub struct VisualStyle {
     pub color: Option<[f32; 3]>,
@@ -25,7 +46,7 @@ pub struct Interaction {
 
 pub trait Interpolatable {
     /// t ∈ [0.0, 1.0]，返回两个实例之间的插值
-    fn interpolate(&self, other: &Self, t: f32) -> Self;
+    fn interpolate(&self, other: &Self, t: f32, logger: impl Logger) -> Self;
 }
 
 // -------------------- 图元结构体 --------------------------
@@ -53,11 +74,13 @@ pub struct InstanceData {
 }
 
 impl Interpolatable for Shape {
-    fn interpolate(&self, other: &Self, t: f32) -> Self {
+    fn interpolate(&self, other: &Self, t: f32, logger: impl Logger) -> Self {
         match (self, other) {
-            (Shape::Sphere(a), Shape::Sphere(b)) => Shape::Sphere(a.interpolate(b, t)),
-            (Shape::Stick(a), Shape::Stick(b)) => Shape::Stick(a.interpolate(b, t)),
-            (Shape::Molecules(a), Shape::Molecules(b)) => Shape::Molecules(a.interpolate(b, t)),
+            (Shape::Sphere(a), Shape::Sphere(b)) => Shape::Sphere(a.interpolate(b, t, logger)),
+            (Shape::Stick(a), Shape::Stick(b)) => Shape::Stick(a.interpolate(b, t, logger)),
+            (Shape::Molecules(a), Shape::Molecules(b)) => {
+                Shape::Molecules(a.interpolate(b, t, logger))
+            }
             _ => self.clone(), // 如果类型不匹配，可以选择不插值或做默认处理
         }
     }
@@ -75,7 +98,7 @@ impl IntoInstanceGroups for Shape {
                 let m_groups = m.to_instance_group(scale);
                 groups.merge(m_groups);
             }
-            _ => {},
+            _ => {}
         }
         groups
     }

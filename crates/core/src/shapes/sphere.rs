@@ -3,7 +3,9 @@ use serde::{Deserialize, Serialize};
 use crate::{
     Shape,
     scene::{Instance, InstanceGroups, Scene, SphereInstance},
-    utils::{Interaction, Interpolatable, IntoInstanceGroups, MeshData, VisualShape, VisualStyle},
+    utils::{
+        Interaction, Interpolatable, IntoInstanceGroups, Logger, MeshData, VisualShape, VisualStyle,
+    },
 };
 
 use once_cell::sync::Lazy;
@@ -31,7 +33,7 @@ pub struct Sphere {
 }
 
 impl Interpolatable for Sphere {
-    fn interpolate(&self, other: &Self, t: f32) -> Self {
+    fn interpolate(&self, other: &Self, t: f32, logger: impl Logger) -> Self {
         Self {
             center: [
                 self.center[0] * (1.0 - t) + other.center[0] * t,

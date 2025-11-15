@@ -7,7 +7,7 @@ use crate::{
     Shape,
     scene::{Scene, StickInstance},
     shapes::sphere::MeshTemplate,
-    utils::{Interaction, Interpolatable, MeshData, VisualShape, VisualStyle},
+    utils::{Interaction, Interpolatable, Logger, MeshData, VisualShape, VisualStyle},
 };
 
 static STICK_TEMPLATE_CACHE: Lazy<Mutex<HashMap<u32, MeshTemplate>>> =
@@ -25,7 +25,7 @@ pub struct Stick {
 }
 
 impl Interpolatable for Stick {
-    fn interpolate(&self, other: &Self, t: f32) -> Self {
+    fn interpolate(&self, other: &Self, t: f32, logger: impl Logger) -> Self {
         Self {
             start: [
                 self.start[0] * (1.0 - t) + other.start[0] * t,

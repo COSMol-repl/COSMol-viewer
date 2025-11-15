@@ -1,6 +1,6 @@
 use cosmol_viewer_core::App;
 use cosmol_viewer_core::scene::Scene;
-use cosmol_viewer_core::utils::Frames;
+use cosmol_viewer_core::utils::{Frames, Logger};
 #[cfg(feature = "js_bridge")]
 use serde::Serialize;
 use std::sync::Arc;
@@ -293,10 +293,37 @@ impl WebRunner {
 }
 
 #[cfg(feature = "wasm")]
+#[derive(Clone, Copy)]
+pub struct WasmLogger;
+
+#[cfg(feature = "wasm")]
+impl Logger for WasmLogger {
+    fn log(&self, message: impl std::fmt::Display) {
+        web_sys::console::log_1(&JsValue::from_str(&message.to_string()));
+    }
+
+    fn warn(&self, message: impl std::fmt::Display) {
+        web_sys::console::warn_1(&JsValue::from_str(&message.to_string()));
+    }
+
+    fn error(&self, message: impl std::fmt::Display) {
+        let msg = message.to_string();
+
+        // Send to console
+        web_sys::console::error_1(&JsValue::from_str(&msg));
+
+        // Show browser alert
+        if let Some(window) = web_sys::window() {
+            window.alert_with_message(&msg).ok();
+        }
+    }
+}
+
+#[cfg(feature = "wasm")]
 #[wasm_bindgen]
 pub struct WebHandle {
     runner: WebRunner,
-    app: Arc<Mutex<Option<App>>>,
+    app: Arc<Mutex<Option<App<WasmLogger>>>>,
 }
 
 #[cfg(feature = "wasm")]
@@ -337,7 +364,7 @@ impl WebHandle {
                     use cosmol_viewer_core::AppWrapper;
 
                     let mut guard = app.lock().unwrap();
-                    *guard = Some(App::new(cc, scene));
+                    *guard = Some(App::new(cc, scene, WasmLogger));
                     Ok(Box::new(AppWrapper(app.clone())))
                 }),
             )
@@ -384,7 +411,7 @@ impl WebHandle {
                     use cosmol_viewer_core::AppWrapper;
 
                     let mut guard = app.lock().unwrap();
-                    *guard = Some(App::new_play(cc, frames));
+                    *guard = Some(App::new_play(cc, frames, WasmLogger));
                     Ok(Box::new(AppWrapper(app.clone())))
                 }),
             )

@@ -1,3 +1,5 @@
+pub use crate::utils::{Logger, RustLogger};
+
 #[derive(Debug, Clone)]
 pub struct Atom {
     pub atom: String,
@@ -24,6 +26,10 @@ pub struct ParserOptions {
 }
 
 pub fn parse_sdf(sdf: &str, options: &ParserOptions) -> MoleculeData {
+    _parse_sdf(sdf, options, RustLogger)
+}
+
+pub fn _parse_sdf(sdf: &str, options: &ParserOptions, logger: impl Logger) -> MoleculeData {
     let lines: Vec<&str> = sdf.lines().collect();
     if lines.len() > 3 && lines[3].len() > 38 {
         let version = lines[3][34..39].trim();
