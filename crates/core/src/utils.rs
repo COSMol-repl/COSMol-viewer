@@ -2,8 +2,8 @@ use glam::Mat4;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    scene::{Instance, InstanceGroups, Scene, SphereInstance},
-    shapes::{Molecules, Sphere, Stick},
+    scene::{InstanceGroups, Scene},
+    shapes::{Molecules, Protein, Sphere, Stick},
 };
 
 pub trait Logger: Send + Sync + Copy {
@@ -56,6 +56,7 @@ pub enum Shape {
     Sphere(Sphere),
     Stick(Stick),
     Molecules(Molecules),
+    Protein(Protein),
     Qudrate, // Custom(CustomShape),
              // ...
 }
@@ -118,6 +119,7 @@ impl ToMesh for Shape {
             Shape::Sphere(s) => s.to_mesh(scale),
             Shape::Stick(s) => s.to_mesh(scale),
             Shape::Molecules(s) => s.to_mesh(scale),
+            Shape::Protein(s) => s.to_mesh(scale),
             Shape::Qudrate => todo!(),
         }
     }

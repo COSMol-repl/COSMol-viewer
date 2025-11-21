@@ -25,7 +25,7 @@ pub struct Stick {
 }
 
 impl Interpolatable for Stick {
-    fn interpolate(&self, other: &Self, t: f32, logger: impl Logger) -> Self {
+    fn interpolate(&self, other: &Self, t: f32, _logger: impl Logger) -> Self {
         Self {
             start: [
                 self.start[0] * (1.0 - t) + other.start[0] * t,
@@ -198,11 +198,11 @@ impl VisualShape for Stick {
     }
 }
 
-pub trait UpdateStick {
+pub trait _UpdateStick {
     fn update_stick(&mut self, id: &str, f: impl FnOnce(&mut Stick));
 }
 
-impl UpdateStick for Scene {
+impl _UpdateStick for Scene {
     fn update_stick(&mut self, id: &str, f: impl FnOnce(&mut Stick)) {
         if let Some(Shape::Stick(stick)) = self.named_shapes.get_mut(id) {
             f(stick);

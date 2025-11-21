@@ -4,3 +4,5 @@ mod stick;
 pub use stick::Stick;
 mod molecules;
 pub use molecules::Molecules;
+mod protein;
+pub use protein::Protein;

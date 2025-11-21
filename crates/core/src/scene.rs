@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     Shape,
     shader::CameraState,
-    utils::{self, InstanceData, Interpolatable, IntoInstanceGroups, ShapeKind, ToMesh},
+    utils::{self, Interpolatable, IntoInstanceGroups, ToMesh},
 };
 
 #[derive(Deserialize, Serialize, Clone)]

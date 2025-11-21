@@ -18,6 +18,7 @@ egui_extras.workspace = true
 serde = { workspace = true, features = ["derive"] }
 bytemuck = "1.23.1"
 wasm-bindgen-futures = "0.4.50"
+bio_files = "0.3.4"
 
 [features]
 default = []

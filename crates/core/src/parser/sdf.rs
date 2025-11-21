@@ -1,4 +1,5 @@
 pub use crate::utils::{Logger, RustLogger};
+use bio_files::MmCif;
 
 #[derive(Debug, Clone)]
 pub struct Atom {
@@ -25,11 +26,29 @@ pub struct ParserOptions {
     pub onemol: bool,
 }
 
+pub fn parse_mmcif(sdf: &str, options: &ParserOptions) -> MmCif {
+    _parse_mmcif(sdf, options, RustLogger)
+}
+
+pub fn _parse_mmcif(mmcif_str: &str, options: &ParserOptions, _logger: impl Logger) -> MmCif {
+    use bio_files::MmCif;
+
+    let mmcif = MmCif::new(mmcif_str);
+
+    match mmcif {
+        Ok(mmcif) => mmcif,
+        Err(err) => {
+            _logger.error(&format!("Error parsing MMCIF: {}", err));
+            panic!("Error parsing MMCIF: {}", err)
+        }
+    }
+}
+
 pub fn parse_sdf(sdf: &str, options: &ParserOptions) -> MoleculeData {
     _parse_sdf(sdf, options, RustLogger)
 }
 
-pub fn _parse_sdf(sdf: &str, options: &ParserOptions, logger: impl Logger) -> MoleculeData {
+pub fn _parse_sdf(sdf: &str, options: &ParserOptions, _logger: impl Logger) -> MoleculeData {
     let lines: Vec<&str> = sdf.lines().collect();
     if lines.len() > 3 && lines[3].len() > 38 {
         let version = lines[3][34..39].trim();

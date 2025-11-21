@@ -3,12 +3,10 @@ use std::sync::{Arc, Mutex};
 
 pub mod parser;
 pub mod utils;
-pub use eframe::egui;
+pub use eframe;
+use eframe::egui;
 
-use eframe::{
-    Frame,
-    egui::{Color32, Stroke, UserData, ViewportCommand},
-};
+use eframe::egui::{Color32, Stroke, UserData, ViewportCommand};
 
 use shader::Canvas;
 
@@ -31,11 +29,11 @@ impl<L: Logger> eframe::App for AppWrapper<L> {
 
 pub struct App<L: Logger> {
     canvas: Canvas<L>,
-    gl: Option<Arc<eframe::glow::Context>>,
+    _gl: Option<Arc<eframe::glow::Context>>,
     pub ctx: egui::Context,
     screenshot_requested: bool,
     screenshot_result: Option<(Arc<egui::ColorImage>, egui::TextureHandle)>,
-    logger: L,
+    _logger: L,
 }
 
 impl<L: Logger> App<L> {
@@ -44,12 +42,12 @@ impl<L: Logger> App<L> {
         let gl = cc.gl.clone();
         let canvas = Canvas::new(gl.as_ref().unwrap().clone(), scene, logger).unwrap();
         App {
-            gl,
+            _gl: gl,
             canvas,
             ctx: cc.egui_ctx.clone(),
             screenshot_requested: false,
             screenshot_result: None,
-            logger,
+            _logger: logger,
         }
     }
 
@@ -58,12 +56,12 @@ impl<L: Logger> App<L> {
         let gl = cc.gl.clone();
         let canvas = Canvas::new_play(gl.as_ref().unwrap().clone(), scene, logger).unwrap();
         App {
-            gl,
+            _gl: gl,
             canvas,
             ctx: cc.egui_ctx.clone(),
             screenshot_requested: false,
             screenshot_result: None,
-            logger,
+            _logger: logger,
         }
     }
 

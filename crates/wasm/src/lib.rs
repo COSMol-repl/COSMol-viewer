@@ -1,3 +1,4 @@
+#[cfg(feature = "wasm")]
 use cosmol_viewer_core::App;
 use cosmol_viewer_core::scene::Scene;
 use cosmol_viewer_core::utils::{Frames, Logger};
@@ -398,8 +399,6 @@ impl WebHandle {
             .map_err(|e| JsValue::from_str(&format!("Frames parse error: {}", e)))?;
 
         let app = Arc::clone(&self.app);
-
-        let scene = frames.frames[0].clone();
 
         #[cfg(target_arch = "wasm32")]
         let _ = self
