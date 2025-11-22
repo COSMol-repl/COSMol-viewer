@@ -99,13 +99,13 @@ impl Scene {
             camera_state: CameraState::new(1.0),
             named_shapes: HashMap::new(),
             unnamed_shapes: Vec::new(),
-            scale: 1.0,
+            scale: 0.1,
             viewport: None,
         }
     }
 
     pub fn scale(&mut self, scale: f32) {
-        self.scale = scale;
+        self.scale = scale * 0.1;
     }
 
     pub fn add_shape<S: Into<Shape>>(&mut self, shape: S, id: Option<&str>) {
@@ -134,6 +134,10 @@ impl Scene {
 
     pub fn set_background_color(&mut self, background_color: [f32; 3]) {
         self.background_color = background_color;
+    }
+
+    pub fn use_black_background(&mut self) {
+        self.background_color = [0.0, 0.0, 0.0];
     }
 }
 

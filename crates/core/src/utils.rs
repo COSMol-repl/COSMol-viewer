@@ -135,6 +135,31 @@ pub struct MeshData {
     pub is_wireframe: bool,
 }
 
+impl MeshData {
+    /// Append another MeshData into this one.
+    pub fn append(&mut self, other: &MeshData) {
+        let base = self.vertices.len() as u32;
+
+        // append vertices
+        self.vertices.extend(&other.vertices);
+
+        // append normals
+        self.normals.extend(&other.normals);
+
+        // append colors
+        if let Some(ref mut my_colors) = self.colors {
+            if let Some(ref other_colors) = other.colors {
+                my_colors.extend(other_colors);
+            }
+        } else if let Some(ref other_colors) = other.colors {
+            self.colors = Some(other_colors.clone());
+        }
+
+        // append indices with offset
+        self.indices.extend(other.indices.iter().map(|i| i + base));
+    }
+}
+
 pub trait VisualShape {
     fn style_mut(&mut self) -> &mut VisualStyle;
 

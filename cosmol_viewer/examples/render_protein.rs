@@ -1,35 +1,18 @@
-use std::path::Path;
-
-use cosmol_viewer::parser::sdf::{ParserOptions, parse_mmcif, parse_sdf};
-use cosmol_viewer::{
-    Scene, Viewer,
-    shapes::{Molecules, Protein},
-};
+use cosmol_viewer::parser::protein::parse_mmcif;
+use cosmol_viewer::{Scene, Viewer, shapes::Protein};
+// use std::path::Path;
 
 fn main() {
-    let sdf_string = std::fs::read_to_string("./examples/example.sdf").unwrap();
-    // let sdf_string = include_str!("../examples/example.sdf");
-    let opts = ParserOptions {
-        keep_h: true,
-        multimodel: true,
-        onemol: false,
-    };
-    let mol_data = parse_sdf(&sdf_string, &opts);
-    let mol = Molecules::new(mol_data).centered();
-    let mmcif_string = &std::fs::read_to_string("./examples/2AMD.cif").unwrap();
-    let opts = ParserOptions {
-        keep_h: true,
-        multimodel: true,
-        onemol: false,
-    };
-    let mmcif_data = parse_mmcif(mmcif_string, &opts);
+    // let mmcif_string = &std::fs::read_to_string("./examples/2AMD.cif").unwrap();
+    let mmcif_string = include_str!("../examples/2AMD.cif");
+    let mmcif_data = parse_mmcif(mmcif_string, None);
 
-    let prot = Protein::new(mmcif_data);
+    let prot = Protein::new(mmcif_data).centered();
 
     let mut scene = Scene::new();
     scene.scale(0.1);
+    scene.use_black_background();
     scene.add_shape(prot, Some("prot"));
-    scene.add_shape(mol, Some("mol"));
 
     let viewer = Viewer::render(&scene, 800.0, 500.0);
 

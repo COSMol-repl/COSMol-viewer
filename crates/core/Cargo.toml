@@ -14,7 +14,6 @@ serde.workspace = true
 glam = { version = "0.30.8" , features = ["serde"] }
 bio_files = "0.3.4"
 na_seq = "0.3.6"
-splines = "5.0.0"
 bytemuck = "1.24.0"
 serde_repr = "0.1.20"
 once_cell = "1.21.3"

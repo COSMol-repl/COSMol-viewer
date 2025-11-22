@@ -941,7 +941,6 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_repr",
- "splines",
 ]
 
 [[package]]
@@ -3917,12 +3916,6 @@ checksum = "eda41003dc44290527a59b13432d4a0379379fa074b70174882adfbdfd917844"
 dependencies = [
  "bitflags 2.10.0",
 ]
-
-[[package]]
-name = "splines"
-version = "5.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b882be9bf6b37258bfba80ed5b5eeccccd6700bfbaca202bbd53e4c13bf3daa7"
 
 [[package]]
 name = "stable_deref_trait"
