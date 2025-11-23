@@ -17,8 +17,6 @@ fn main() {
 
     let mut scene = Scene::new();
 
-    scene.scale(1.0);
-
     scene.add_shape(mol, Some("mol"));
 
     let viewer = Viewer::render(&scene, 800.0, 500.0);

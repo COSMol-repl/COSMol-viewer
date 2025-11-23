@@ -1,6 +1,6 @@
 use cosmol_viewer::shapes::Sphere;
 use cosmol_viewer::utils::VisualShape;
-use cosmol_viewer::{Viewer, Scene};
+use cosmol_viewer::{Scene, Viewer};
 use std::{f32::consts::PI, thread, time::Duration};
 
 fn main() {
@@ -14,7 +14,7 @@ fn main() {
         scene.add_shape(sphere, Some(id));
     }
 
-    scene.scale(0.2);
+    scene.scale(2.0);
 
     let viewer = Viewer::render(&scene, 800.0, 500.0);
 

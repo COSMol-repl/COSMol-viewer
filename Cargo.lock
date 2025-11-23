@@ -913,7 +913,7 @@ dependencies = [
 
 [[package]]
 name = "cosmol_viewer"
-version = "0.1.5-nightly.2"
+version = "0.1.5-nightly.3"
 dependencies = [
  "bio_files",
  "bytemuck",
@@ -927,7 +927,7 @@ dependencies = [
 
 [[package]]
 name = "cosmol_viewer_core"
-version = "0.1.5-nightly.2"
+version = "0.1.5-nightly.3"
 dependencies = [
  "bio_files",
  "bytemuck",

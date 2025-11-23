@@ -9,7 +9,7 @@ mol = Molecules(mol_data).centered()
 
 scene = Scene()
 
-scene.scale(0.1)
+scene.scale(1.0)
 
 scene.add_shape(mol, "molecule")
 

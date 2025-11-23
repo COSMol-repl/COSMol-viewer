@@ -1,5 +1,4 @@
 pub use crate::utils::{Logger, RustLogger};
-use bio_files::MmCif;
 
 #[derive(Debug, Clone)]
 pub struct Atom {

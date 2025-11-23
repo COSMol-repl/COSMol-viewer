@@ -11,7 +11,7 @@ for id in ids:
     sphere = Sphere([0.0, 0.0, 0.0], 0.4).color([1.0, 1.0, 1.0])
     scene.add_shape(sphere, id)
 
-scene.scale(0.2)
+scene.scale(2.0)
 viewer = Viewer.render(scene, width=800.0 ,height=500.0)
 
 # 动画主循环

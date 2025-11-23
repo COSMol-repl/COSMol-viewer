@@ -1,6 +1,6 @@
 use cosmol_viewer::shapes::Sphere;
 use cosmol_viewer::utils::VisualShape;
-use cosmol_viewer::{Viewer, Scene};
+use cosmol_viewer::{Scene, Viewer};
 use std::f32::consts::PI;
 
 fn main() {
@@ -19,7 +19,7 @@ fn main() {
         let t = frame_idx as f32 * interval;
 
         let mut scene = Scene::new();
-        scene.scale(0.2);
+        scene.scale(2.0);
 
         for (i, id) in ids.iter().enumerate() {
             let phase = i as f32 * PI / 3.0;
