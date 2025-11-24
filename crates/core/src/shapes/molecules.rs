@@ -1,4 +1,4 @@
-use bio_files::MmCif;
+use na_seq::Element;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
@@ -12,74 +12,32 @@ use crate::{
     },
 };
 
-use std::{collections::HashMap, str::FromStr};
+use std::collections::HashMap;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum AtomType {
-    H,
-    C,
-    N,
-    O,
-    F,
-    P,
-    S,
-    Cl,
-    Br,
-    I,
-    Unknown,
-}
+pub fn my_color(x: &str) -> [f32; 3] {
+    let element = Element::from_letter(x).unwrap();
 
-impl FromStr for AtomType {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_ascii_lowercase().as_str() {
-            "h" => Ok(AtomType::H),
-            "c" => Ok(AtomType::C),
-            "n" => Ok(AtomType::N),
-            "o" => Ok(AtomType::O),
-            "f" => Ok(AtomType::F),
-            "p" => Ok(AtomType::P),
-            "s" => Ok(AtomType::S),
-            "cl" => Ok(AtomType::Cl),
-            "br" => Ok(AtomType::Br),
-            "i" => Ok(AtomType::I),
-            _ => Ok(AtomType::Unknown),
-        }
+    // 优先使用自定义颜色
+    match element {
+        Element::Hydrogen => [1.0, 1.0, 1.0],
+        Element::Carbon => [0.3, 0.3, 0.3],
+        Element::Nitrogen => [0.2, 0.4, 1.0],
+        Element::Oxygen => [1.0, 0.0, 0.0],
+        Element::Fluorine => [0.0, 0.8, 0.0],
+        Element::Phosphorus => [1.0, 0.5, 0.0],
+        Element::Sulfur => [1.0, 1.0, 0.0],
+        Element::Chlorine => [0.0, 0.8, 0.0],
+        Element::Bromine => [0.6, 0.2, 0.2],
+        Element::Iodine => [0.4, 0.0, 0.8],
+        _ => element.color().into(), // 其他未定义的元素
     }
 }
 
-impl AtomType {
-    pub fn color(&self) -> [f32; 3] {
-        match self {
-            AtomType::H => [1.0, 1.0, 1.0],       // 白色
-            AtomType::C => [0.3, 0.3, 0.3],       // 深灰
-            AtomType::N => [0.2, 0.4, 1.0],       // 蓝色
-            AtomType::O => [1.0, 0.0, 0.0],       // 红色
-            AtomType::F => [0.0, 0.8, 0.0],       // 绿
-            AtomType::P => [1.0, 0.5, 0.0],       // 橙
-            AtomType::S => [1.0, 1.0, 0.0],       // 黄
-            AtomType::Cl => [0.0, 0.8, 0.0],      // 绿
-            AtomType::Br => [0.6, 0.2, 0.2],      // 棕
-            AtomType::I => [0.4, 0.0, 0.8],       // 紫
-            AtomType::Unknown => [0.5, 0.5, 0.5], // 灰
-        }
-    }
-
-    pub fn radius(&self) -> f32 {
-        match self {
-            AtomType::H => 1.20,
-            AtomType::C => 1.70,
-            AtomType::N => 1.55,
-            AtomType::O => 1.52,
-            AtomType::F => 1.47,
-            AtomType::P => 1.80,
-            AtomType::S => 1.80,
-            AtomType::Cl => 1.75,
-            AtomType::Br => 1.85,
-            AtomType::I => 1.98,
-            AtomType::Unknown => 1.5,
-        }
+pub fn my_radius(x: &str) -> f32 {
+    let element = Element::from_letter(x).unwrap();
+    match element {
+        Element::Hydrogen => 1.20,
+        _ => element.vdw_radius(), // 默认半径
     }
 }
 
@@ -94,7 +52,7 @@ pub enum BondType {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Molecules {
-    atom_types: Vec<AtomType>,
+    atom_types: Vec<String>,
     atoms: Vec<[f32; 3]>,
     bond_types: Vec<BondType>,
     bonds: Vec<[u32; 2]>,
@@ -171,7 +129,7 @@ impl Molecules {
         for molecule in molecule_data {
             for atom in &molecule {
                 // 原子类型
-                let atom_type = atom.elem.parse().unwrap_or(AtomType::Unknown);
+                let atom_type: Element = Element::from_letter(&atom.elem).unwrap();
                 atom_types.push(atom_type);
 
                 // 原子坐标
@@ -203,7 +161,10 @@ impl Molecules {
         }
 
         Self {
-            atom_types,
+            atom_types: atom_types
+                .iter()
+                .map(|&element| element.to_letter())
+                .collect(),
             atoms,
             bond_types,
             bonds,
@@ -395,16 +356,12 @@ impl IntoInstanceGroups for Molecules {
         for (i, pos) in self.atoms.iter().enumerate() {
             let sphere_instance = Sphere::new(
                 *pos,
-                self.atom_types
-                    .get(i)
-                    .unwrap_or(&AtomType::Unknown)
-                    .radius()
-                    * 0.2,
+                self.atom_types.get(i).map(|x| my_radius(x) * 0.2).unwrap(),
             )
             .color(
                 self.style
                     .color
-                    .unwrap_or(self.atom_types.get(i).unwrap_or(&AtomType::Unknown).color()),
+                    .unwrap_or(self.atom_types.get(i).map(|x| my_color(x)).unwrap()),
             )
             .opacity(self.style.opacity);
 
@@ -516,24 +473,22 @@ impl IntoInstanceGroups for Molecules {
 
             // 颜色和半径与原来一致
             let color_a = self.style.color.unwrap_or(
-                match self
-                    .atom_types
+                self.atom_types
                     .get(a as usize)
-                    .unwrap_or(&AtomType::Unknown)
-                {
-                    AtomType::C => [0.75, 0.75, 0.75],
-                    other => other.color(),
-                },
+                    .map(|x| match x.as_str() {
+                        "C" => [0.75, 0.75, 0.75],
+                        _ => my_color(x),
+                    })
+                    .unwrap(),
             );
             let color_b = self.style.color.unwrap_or(
-                match self
-                    .atom_types
+                self.atom_types
                     .get(b as usize)
-                    .unwrap_or(&AtomType::Unknown)
-                {
-                    AtomType::C => [0.75, 0.75, 0.75],
-                    other => other.color(),
-                },
+                    .map(|x| match x.as_str() {
+                        "C" => [0.75, 0.75, 0.75],
+                        _ => my_color(x),
+                    })
+                    .unwrap(),
             );
 
             // 根据键类型生成多个 stick

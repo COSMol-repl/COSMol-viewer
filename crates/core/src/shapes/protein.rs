@@ -1,11 +1,10 @@
 use crate::Shape;
-use crate::parser::protein::Chain;
-use crate::parser::protein::Residue;
-use crate::parser::protein::ResidueType;
-use crate::parser::protein::SecondaryStructure;
-use crate::utils::MeshData;
-use bio_files;
-use bio_files::MmCif;
+use crate::parser::mmcif::Chain;
+use crate::parser::mmcif::MmCif;
+use crate::parser::mmcif::Residue;
+use crate::parser::mmcif::ResidueType;
+use crate::parser::mmcif::SecondaryStructure;
+use crate::utils::{MeshData, VisualShape, VisualStyle};
 use glam::Vec3;
 use na_seq::AtomTypeInRes;
 use serde::{Deserialize, Serialize};
@@ -25,7 +24,7 @@ impl Protein {
             let mut residues = Vec::new();
             for residue_id in chain.residue_sns {
                 let residue = &mmcif.residues[centers.len()];
-                let res_type: ResidueType = (&residue.res_type).into();
+                let res_type: ResidueType = residue.res_type.clone();
                 let mut ca_opt = None;
                 let mut cb_opt = None;
                 for atom_id in &residue.atom_sns {
@@ -99,6 +98,12 @@ impl Protein {
     }
 }
 
+impl VisualShape for Protein {
+    fn style_mut(&mut self) -> &mut VisualStyle {
+        unimplemented!()
+    }
+}
+
 impl Protein {
     pub fn get_center(&self) -> [f32; 3] {
         [self.center.x, self.center.y, self.center.z]
@@ -118,6 +123,7 @@ impl Protein {
                 }
             }
         }
+        self.center = Vec3::ZERO;
         self
     }
 

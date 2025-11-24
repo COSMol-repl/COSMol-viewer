@@ -1,6 +1,6 @@
-use crate::parser::PyMoleculeData;
+use crate::parser::{PyMoleculeData, PyProteinData};
 use cosmol_viewer_core::{
-    shapes::{Molecules, Sphere, Stick},
+    shapes::{Molecules, Protein, Sphere, Stick},
     utils::VisualShape,
 };
 use pyo3::{PyRefMut, pyclass, pymethods};
@@ -120,6 +120,46 @@ impl PyMolecules {
     pub fn new(molecule_data: &PyMoleculeData) -> Self {
         Self {
             inner: Molecules::new(molecule_data.inner.clone()),
+        }
+    }
+
+    pub fn get_center(slf: PyRefMut<'_, Self>) -> [f32; 3] {
+        slf.inner.clone().get_center()
+    }
+
+    pub fn centered(mut slf: PyRefMut<'_, Self>) -> PyRefMut<'_, Self> {
+        slf.inner = slf.inner.clone().centered();
+        slf
+    }
+
+    pub fn color(mut slf: PyRefMut<'_, Self>, color: [f32; 3]) -> PyRefMut<'_, Self> {
+        slf.inner = slf.inner.clone().color(color);
+        slf
+    }
+
+    pub fn color_rgba(mut slf: PyRefMut<'_, Self>, color: [f32; 4]) -> PyRefMut<'_, Self> {
+        slf.inner = slf.inner.clone().color_rgba(color);
+        slf
+    }
+
+    pub fn opacity(mut slf: PyRefMut<'_, Self>, opacity: f32) -> PyRefMut<'_, Self> {
+        slf.inner = slf.inner.clone().opacity(opacity);
+        slf
+    }
+}
+
+#[pyclass(name = "Protein")]
+#[derive(Clone)]
+pub struct PyProtein {
+    pub inner: Protein,
+}
+
+#[pymethods]
+impl PyProtein {
+    #[new]
+    pub fn new(molecule_data: &PyProteinData) -> Self {
+        Self {
+            inner: Protein::new(molecule_data.inner.clone()),
         }
     }
 

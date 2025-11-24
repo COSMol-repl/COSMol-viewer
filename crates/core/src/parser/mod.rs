@@ -1,2 +1,2 @@
-pub mod protein;
+pub mod mmcif;
 pub mod sdf;

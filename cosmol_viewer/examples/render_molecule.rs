@@ -25,8 +25,8 @@ fn main() {
 
     img.save(Path::new("screenshot.png")).unwrap();
 
-    use std::io::{self, Write};
     println!("Press Enter to exit...");
+    use std::io::{self, Write};
     let _ = io::stdout().flush();
     let _ = io::stdin().read_line(&mut String::new());
 }

@@ -1,7 +1,6 @@
 use crate::utils::Logger;
 use glam::Mat3;
 use glam::Mat4;
-use glam::Vec4;
 use std::collections::HashMap;
 
 use glam::Vec3;
@@ -153,10 +152,7 @@ impl Scene {
     /// === u_model ===
     /// 把整个模型平移，使得 scene_center 成为原点
     pub fn model_matrix(&self) -> Mat4 {
-        Mat4::from_translation(-Vec3::from(self.scene_center))
-        // let t = Mat4::from_translation(-Vec3::from(self.scene_center));
-        // let s = Mat4::from_scale(Vec3::splat(self.scale));
-        // t * s // 先缩放后平移（右乘 a_position）
+        Mat4::from_translation(-Vec3::from(self.scene_center) * self.scale)
     }
 
     /// === u_normal_matrix ===

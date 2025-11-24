@@ -882,23 +882,25 @@ impl Shader {
             if let Some(instance_groups) = &self.instance_groups {
                 gl.use_program(Some(self.program_sphere));
                 gl.uniform_matrix_4_f32_slice(
-                    gl.get_uniform_location(self.program, "u_model").as_ref(),
+                    gl.get_uniform_location(self.program_sphere, "u_model")
+                        .as_ref(),
                     false,
                     (u_model).as_ref(),
                 );
                 gl.uniform_matrix_4_f32_slice(
-                    gl.get_uniform_location(self.program, "u_view").as_ref(),
+                    gl.get_uniform_location(self.program_sphere, "u_view")
+                        .as_ref(),
                     false,
                     (u_view).as_ref(),
                 );
                 gl.uniform_matrix_4_f32_slice(
-                    gl.get_uniform_location(self.program, "u_projection")
+                    gl.get_uniform_location(self.program_sphere, "u_projection")
                         .as_ref(),
                     false,
                     (u_projection).as_ref(),
                 );
                 gl.uniform_matrix_3_f32_slice(
-                    gl.get_uniform_location(self.program, "u_normal_matrix")
+                    gl.get_uniform_location(self.program_sphere, "u_normal_matrix")
                         .as_ref(),
                     false,
                     (u_normal_matrix).as_ref(),
@@ -946,23 +948,25 @@ impl Shader {
 
                 gl.use_program(Some(self.program_stick));
                 gl.uniform_matrix_4_f32_slice(
-                    gl.get_uniform_location(self.program, "u_model").as_ref(),
+                    gl.get_uniform_location(self.program_stick, "u_model")
+                        .as_ref(),
                     false,
                     (u_model).as_ref(),
                 );
                 gl.uniform_matrix_4_f32_slice(
-                    gl.get_uniform_location(self.program, "u_view").as_ref(),
+                    gl.get_uniform_location(self.program_stick, "u_view")
+                        .as_ref(),
                     false,
                     (u_view).as_ref(),
                 );
                 gl.uniform_matrix_4_f32_slice(
-                    gl.get_uniform_location(self.program, "u_projection")
+                    gl.get_uniform_location(self.program_stick, "u_projection")
                         .as_ref(),
                     false,
                     (u_projection).as_ref(),
                 );
                 gl.uniform_matrix_3_f32_slice(
-                    gl.get_uniform_location(self.program, "u_normal_matrix")
+                    gl.get_uniform_location(self.program_stick, "u_normal_matrix")
                         .as_ref(),
                     false,
                     (u_normal_matrix).as_ref(),

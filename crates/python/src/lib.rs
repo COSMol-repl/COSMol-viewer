@@ -3,8 +3,8 @@ use std::ffi::CStr;
 use pyo3::{ffi::c_str, prelude::*};
 
 use crate::{
-    parser::parse_sdf,
-    shapes::{PyMolecules, PySphere, PyStick},
+    parser::{parse_mmcif, parse_sdf},
+    shapes::{PyMolecules, PyProtein, PySphere, PyStick},
 };
 use cosmol_viewer_core::{NativeGuiViewer, scene::Scene as _Scene};
 use cosmol_viewer_wasm::{WasmViewer, setup_wasm_if_needed};
@@ -35,8 +35,11 @@ impl Scene {
             self.inner.add_shape(stick.inner.clone(), id);
         } else if let Ok(molecules) = shape.extract::<PyRef<PyMolecules>>() {
             self.inner.add_shape(molecules.inner.clone(), id);
+        } else if let Ok(protein) = shape.extract::<PyRef<PyProtein>>() {
+            self.inner.add_shape(protein.inner.clone(), id);
+        } else {
+            panic!("Unsupported shape type");
         }
-        ()
     }
 
     pub fn update_shape(&mut self, id: &str, shape: &Bound<'_, PyAny>) {
@@ -46,6 +49,8 @@ impl Scene {
             self.inner.update_shape(id, stick.inner.clone());
         } else if let Ok(molecules) = shape.extract::<PyRef<PyMolecules>>() {
             self.inner.update_shape(id, molecules.inner.clone());
+        } else if let Ok(protein) = shape.extract::<PyRef<PyProtein>>() {
+            self.inner.update_shape(id, protein.inner.clone());
         } else {
             panic!("Unsupported shape type");
         }
@@ -55,12 +60,20 @@ impl Scene {
         self.inner.delete_shape(id);
     }
 
+    pub fn recenter(&mut self, center: [f32; 3]) {
+        self.inner.recenter(center);
+    }
+
     pub fn scale(&mut self, scale: f32) {
         self.inner.scale(scale);
     }
 
     pub fn set_background_color(&mut self, background_color: [f32; 3]) {
         self.inner.set_background_color(background_color);
+    }
+
+    pub fn use_black_background(&mut self) {
+        self.inner.use_black_background();
     }
 }
 
@@ -190,7 +203,15 @@ display(HTML("<div style='color:red;font-weight:bold;font-size:1rem;'>⚠️ Not
         match env_type {
             RuntimeEnv::Colab | RuntimeEnv::Jupyter => {
                 setup_wasm_if_needed(py);
-                let wasm_viewer = WasmViewer::initiate_viewer_and_play(py, rust_frames, (interval * 1000.0) as u64, loops, width, height, smooth);
+                let wasm_viewer = WasmViewer::initiate_viewer_and_play(
+                    py,
+                    rust_frames,
+                    (interval * 1000.0) as u64,
+                    loops,
+                    width,
+                    height,
+                    smooth,
+                );
 
                 Viewer {
                     environment: env_type,
@@ -244,9 +265,7 @@ display(HTML("<div style='color:red;font-weight:bold;font-size:1rem;'>⚠️ Not
                     ),
                     py,
                 );
-                panic!(
-                    "Error saving image. Saving images from Jupyter/Colab is not yet supported."
-                )
+                panic!("Error saving image. Saving images from Jupyter/Colab is not yet supported.")
             }
             RuntimeEnv::PlainScript | RuntimeEnv::IPythonTerminal => {
                 let native_gui_viewer = &self.native_gui_viewer.as_ref().unwrap();
@@ -271,6 +290,8 @@ fn cosmol_viewer(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PySphere>()?;
     m.add_class::<PyStick>()?;
     m.add_class::<PyMolecules>()?;
+    m.add_class::<PyProtein>()?;
     m.add_function(wrap_pyfunction!(parse_sdf, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_mmcif, m)?)?;
     Ok(())
 }
