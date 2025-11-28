@@ -51,7 +51,7 @@ impl SecondaryStructureCalculator {
             return vec![SecondaryStructure::Coil; residues.len()];
         }
 
-        let mut residues_with_h = self.add_imide_hydrogens(residues);
+        let residues_with_h = self.add_imide_hydrogens(residues);
         let hbonds = self.find_hydrogen_bonds(&residues_with_h);
         let (helices, strands) = self.identify_secondary_structure(&residues_with_h, &hbonds);
 
@@ -84,29 +84,29 @@ impl SecondaryStructureCalculator {
         let o_coord = previous.o;
 
         // 计算向量
-        let mut n_to_ca = ca_coord - &n_coord;
-        let mut n_to_c = c_coord - &n_coord;
-        let mut c_to_o = o_coord - &c_coord;
+        let n_to_ca = ca_coord - &n_coord;
+        let n_to_c = c_coord - &n_coord;
+        let c_to_o = o_coord - &c_coord;
 
-        n_to_ca.normalize();
-        n_to_c.normalize();
-        c_to_o.normalize();
+        let _ = n_to_ca.normalize();
+        let _ = n_to_c.normalize();
+        let _ = c_to_o.normalize();
 
         // 计算角平分线
-        let mut cac_bisect = Vec3 {
+        let cac_bisect = Vec3 {
             x: n_to_ca.x + n_to_c.x,
             y: n_to_ca.y + n_to_c.y,
             z: n_to_ca.z + n_to_c.z,
         };
-        cac_bisect.normalize();
+        let _ = cac_bisect.normalize();
 
         // 计算氢原子方向
-        let mut h_direction = Vec3 {
+        let h_direction = Vec3 {
             x: cac_bisect.x + c_to_o.x,
             y: cac_bisect.y + c_to_o.y,
             z: cac_bisect.z + c_to_o.z,
         };
-        h_direction.normalize();
+        let _ = h_direction.normalize();
 
         // 氢键长度约1.01Å
         let nh_length = 1.01;

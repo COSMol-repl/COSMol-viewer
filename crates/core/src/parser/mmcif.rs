@@ -1,7 +1,9 @@
-use crate::parser::CompSS::SecondaryStructureCalculator;
+use crate::parser::compute_secondary_structure::SecondaryStructureCalculator;
+use crate::utils::vec_f16;
 pub use crate::utils::{Logger, RustLogger};
 use glam::Vec3;
 use na_seq::{AminoAcid, AtomTypeInRes, Element};
+use once_cell::sync::OnceCell;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -597,12 +599,25 @@ pub fn _parse_mmcif(
 pub struct Chain {
     pub id: String,
     pub residues: Vec<Residue>,
+
+    #[serde(skip)]
+    ss_cache: OnceCell<Vec<SecondaryStructure>>,
 }
 
 impl Chain {
-    pub fn get_ss(&self) -> Vec<SecondaryStructure> {
-        let calculator = SecondaryStructureCalculator::new();
-        calculator.compute_secondary_structure(&self.residues)
+    pub fn get_ss(&self) -> &Vec<SecondaryStructure> {
+        self.ss_cache.get_or_init(|| {
+            let calculator = SecondaryStructureCalculator::new();
+            calculator.compute_secondary_structure(&self.residues)
+        })
+    }
+
+    pub fn new(id: String, residues: Vec<Residue>) -> Self {
+        Self {
+            id,
+            residues,
+            ss_cache: OnceCell::new(), // 初始化私有缓存
+        }
     }
 }
 
@@ -614,10 +629,14 @@ pub struct Residue {
     pub sns: usize, // PDB numbering or sequential
 
     // Minimum for cartoon backbone
-    pub c: Vec3,         // or pseudo-CB for glycine
-    pub n: Vec3,         // C-alpha coordinates
-    pub ca: Vec3,        // C-alpha coordinates
-    pub o: Vec3,         // C-alpha coordinates
+    #[serde(with = "vec_f16")]
+    pub c: Vec3, // or pseudo-CB for glycine
+    #[serde(with = "vec_f16")]
+    pub n: Vec3, // C-alpha coordinates
+    #[serde(with = "vec_f16")]
+    pub ca: Vec3, // C-alpha coordinates
+    #[serde(with = "vec_f16")]
+    pub o: Vec3, // C-alpha coordinates
     pub h: Option<Vec3>, // C-alpha coordinates
 
     // Secondary structure tag

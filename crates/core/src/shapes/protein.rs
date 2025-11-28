@@ -1,5 +1,4 @@
 use crate::Shape;
-use crate::parser::CompSS::SecondaryStructureCalculator;
 use crate::parser::mmcif::Chain;
 use crate::parser::mmcif::MmCif;
 use crate::parser::mmcif::Residue;
@@ -7,7 +6,7 @@ use crate::parser::mmcif::ResidueType;
 use crate::parser::mmcif::SecondaryStructure;
 use crate::shapes::protein::ResidueType::AminoAcid;
 use crate::utils::{MeshData, VisualShape, VisualStyle};
-use glam::{Mat3, Quat, Vec3, Vec4};
+use glam::{Quat, Vec3, Vec4};
 use na_seq::AtomTypeInRes;
 use serde::{Deserialize, Serialize};
 
@@ -15,26 +14,6 @@ use serde::{Deserialize, Serialize};
 pub struct Protein {
     pub chains: Vec<Chain>,
     pub center: Vec3,
-}
-
-fn torsion(a: Vec3, b: Vec3, c: Vec3, d: Vec3) -> f32 {
-    let b1 = b - a;
-    let b2 = c - b;
-    let b3 = d - c;
-
-    let n1 = b1.cross(b2);
-    let n2 = b2.cross(b3);
-
-    let y = b2.normalize().dot(n1.cross(n2));
-    let x = n1.dot(n2);
-
-    y.atan2(x) // 返回弧度
-}
-
-struct TmpBackbone {
-    ca: Vec3,
-    c: Vec3,
-    n: Vec3,
 }
 
 impl Protein {
@@ -125,10 +104,7 @@ impl Protein {
                 });
             }
 
-            chains.push(Chain {
-                residues: residues,
-                id: chain.id,
-            });
+            chains.push(Chain::new(chain.id.clone(), residues));
         }
 
         let mut center = Vec3::ZERO;
@@ -211,6 +187,7 @@ impl Protein {
     }
 
     pub fn to_mesh(&self, scale: f32) -> MeshData {
+        println!("to mesh started");
         let mut final_mesh = MeshData::default();
         for chain in &self.chains {
             let mut mesh = MeshData::default();
@@ -283,13 +260,13 @@ impl Protein {
             }
 
             // sections 和之前一样
-            let sections: Vec<RibbonXSection> = chain
+            let sections: Vec<&RibbonXSection> = chain
                 .get_ss()
                 .iter()
                 .map(|r| match r {
-                    SecondaryStructure::Helix => helix_section(),
-                    SecondaryStructure::Sheet => sheet_section(),
-                    _ => coil_section(),
+                    SecondaryStructure::Helix => &*HELIX_SECTION,
+                    SecondaryStructure::Sheet => &*SHEET_SECTION,
+                    _ => &*COIL_SECTION,
                 })
                 .collect();
 
@@ -304,6 +281,8 @@ impl Protein {
 
             final_mesh.append(&mesh);
         }
+        println!("to mesh finished!");
+
         final_mesh
     }
 
@@ -313,7 +292,7 @@ impl Protein {
         centers: &[Vec3],
         tangents: &[Vec3],
         normals: &[Vec3],
-        sections: &[RibbonXSection],
+        sections: &[&RibbonXSection],
         pts_per_res: usize,
         mesh: &mut MeshData,
     ) {
@@ -386,49 +365,42 @@ impl Protein {
             let n = normals[i];
             let b = binormals[i];
 
-            // Sheet 箭头只在前半段渐变（ChimeraX 就是这么做的）
-            for i in 0..n_pts {
-                let c = centers[i];
-                let n = normals[i];
-                let b = binormals[i];
+            // === 正确的箭头渐变：只在后半段出现，且尖端在末端 ===
+            let arrow_progress = if arrow_back.is_some() {
+                let local_t = i as f32 / (n_pts.saturating_sub(1)) as f32;
+                // 前半段不变，后半段从 0 → 1
+                ((local_t - 0.5) * 2.0).max(0.0).min(1.0)
+            } else {
+                0.0
+            };
 
-                // === 正确的箭头渐变：只在后半段出现，且尖端在末端 ===
-                let arrow_progress = if arrow_back.is_some() {
-                    let local_t = i as f32 / (n_pts.saturating_sub(1)) as f32;
-                    // 前半段不变，后半段从 0 → 1
-                    ((local_t - 0.5) * 2.0).max(0.0).min(1.0)
-                } else {
-                    0.0
-                };
+            for ring_idx in 0..n_ring {
+                let mut off = coords[ring_idx];
 
-                for ring_idx in 0..n_ring {
-                    let mut off = coords[ring_idx];
-
-                    // 只有在 sheet 且 arrow_back 存在时才变形
-                    if arrow_progress > 0.0 && arrow_back.is_some() {
-                        let back = arrow_back.unwrap()[ring_idx];
-                        // 正确线性插值：正常 → 箭头尖
-                        let t = arrow_progress;
-                        off[0] = off[0] * (1.0 - t) + back[0] * t;
-                        off[1] = off[1] * (1.0 - t) + back[1] * t;
-                    }
-
-                    let pos = c + n * off[0] + b * off[1];
-                    let nor = match ss {
-                        SecondaryStructure::Helix => ellipse_normal(n, b, off, 1.0, 0.25),
-                        SecondaryStructure::Sheet => match ring_idx {
-                            0 | 1 => b,  // 上表面两个点（右上、左上）
-                            2 | 3 => -n, // 左侧边两个点（左上、左下） → 朝向 -N（向后）
-                            4 | 5 => -b, // 下表面两个点（左下、右下）
-                            6 | 7 => n,  // 右侧边两个点（右下、右上） → 朝向 +B（向前）
-                            _ => n,
-                        }
-                        .normalize(),
-                        _ => (n * off[0] + b * off[1]).normalize_or_zero(),
-                    };
-                    mesh.vertices.push(pos);
-                    mesh.normals.push(nor);
+                // 只有在 sheet 且 arrow_back 存在时才变形
+                if arrow_progress > 0.0 && arrow_back.is_some() {
+                    let back = arrow_back.unwrap()[ring_idx];
+                    // 正确线性插值：正常 → 箭头尖
+                    let t = arrow_progress;
+                    off[0] = off[0] * (1.0 - t) + back[0] * t;
+                    off[1] = off[1] * (1.0 - t) + back[1] * t;
                 }
+
+                let pos = c + n * off[0] + b * off[1];
+                let nor = match ss {
+                    SecondaryStructure::Helix => ellipse_normal(n, b, off, 1.0, 0.25),
+                    SecondaryStructure::Sheet => match ring_idx {
+                        0 | 1 => b,  // 上表面两个点（右上、左上）
+                        2 | 3 => -n, // 左侧边两个点（左上、左下） → 朝向 -N（向后）
+                        4 | 5 => -b, // 下表面两个点（左下、右下）
+                        6 | 7 => n,  // 右侧边两个点（右下、右上） → 朝向 +B（向前）
+                        _ => n,
+                    }
+                    .normalize(),
+                    _ => (n * off[0] + b * off[1]).normalize(),
+                };
+                mesh.vertices.push(pos);
+                mesh.normals.push(nor);
             }
         }
 
@@ -513,22 +485,23 @@ impl Into<Shape> for Protein {
     }
 }
 
-// ---------- 下面是 ChimeraX 完全一致的 cross-section 定义 ----------
-fn helix_section() -> RibbonXSection {
-    // RibbonXSection::smooth_circle().scale(0.25, 1.0)
-    RibbonXSection::smooth_circle().scale(1.0, 0.25)
-}
+use once_cell::sync::Lazy;
 
-fn sheet_section() -> RibbonXSection {
-    // ChimeraX 默认箭头：前半段宽 1.0 → 0.0，后半段保持 0.0
-    let base_arrow = helix_section().arrow(1.0, 1.0, 0.0, 1.2); // 经典箭头比例
-    base_arrow
-}
+// Helix
+static HELIX_SECTION: Lazy<RibbonXSection> =
+    Lazy::new(|| RibbonXSection::smooth_circle().scale(1.0, 0.25).as_helix());
 
-fn coil_section() -> RibbonXSection {
-    // Coil 用细一点的圆管
-    RibbonXSection::smooth_circle().scale(0.2, 0.2)
-}
+// Sheet
+static SHEET_SECTION: Lazy<RibbonXSection> = Lazy::new(|| {
+    // Arrow: 前半段宽 1.0 → 0.0，后半段保持 0.0
+    RibbonXSection::smooth_circle()
+        .scale(1.0, 0.25)
+        .arrow(1.0, 1.0, 0.0, 1.2)
+});
+
+// Coil
+static COIL_SECTION: Lazy<RibbonXSection> =
+    Lazy::new(|| RibbonXSection::smooth_circle().scale(0.2, 0.2));
 
 struct RibbonXSection {
     coords: Vec<[f32; 2]>,               // 基础 2D 轮廓
@@ -564,7 +537,6 @@ impl RibbonXSection {
                 c[1] *= sy;
             }
         }
-        self.ss = SecondaryStructure::Helix;
         self
     }
 
@@ -595,5 +567,10 @@ impl RibbonXSection {
             ss: SecondaryStructure::Sheet,
             _smooth: true,
         }
+    }
+
+    fn as_helix(mut self) -> Self {
+        self.ss = SecondaryStructure::Helix;
+        self
     }
 }

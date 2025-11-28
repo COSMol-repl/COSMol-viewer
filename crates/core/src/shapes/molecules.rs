@@ -1,3 +1,6 @@
+use crate::utils::vec_f16;
+use glam::Vec2;
+use glam::Vec3;
 use na_seq::Element;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
@@ -53,9 +56,11 @@ pub enum BondType {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Molecules {
     atom_types: Vec<String>,
-    atoms: Vec<[f32; 3]>,
+    #[serde(with = "vec_f16::vec")]
+    atoms: Vec<Vec3>,
     bond_types: Vec<BondType>,
-    bonds: Vec<[u32; 2]>,
+    #[serde(with = "vec_f16::vec")]
+    bonds: Vec<Vec2>,
     pub quality: u32,
 
     pub style: VisualStyle,
@@ -87,16 +92,16 @@ impl Interpolatable for Molecules {
         }
 
         // 原子坐标插值
-        let atoms: Vec<[f32; 3]> = self
+        let atoms: Vec<Vec3> = self
             .atoms
             .iter()
             .zip(&other.atoms)
             .map(|(a, b)| {
-                [
+                Vec3::new(
                     a[0] * (1.0 - t) + b[0] * t,
                     a[1] * (1.0 - t) + b[1] * t,
                     a[2] * (1.0 - t) + b[2] * t,
-                ]
+                )
             })
             .collect();
 
@@ -133,7 +138,7 @@ impl Molecules {
                 atom_types.push(atom_type);
 
                 // 原子坐标
-                atoms.push([atom.x, atom.y, atom.z]);
+                atoms.push(Vec3::new(atom.x, atom.y, atom.z));
             }
 
             // 处理键（避免重复）
@@ -145,7 +150,10 @@ impl Molecules {
 
                     if !bond_set.contains_key(&key) {
                         bond_set.insert(key, true);
-                        bonds.push([key.0, key.1]);
+                        bonds.push(Vec2 {
+                            x: atom.x,
+                            y: atom.y,
+                        });
 
                         let order = atom.bond_order[i];
                         let bond_type = match order as u32 {
@@ -355,7 +363,7 @@ impl IntoInstanceGroups for Molecules {
 
         for (i, pos) in self.atoms.iter().enumerate() {
             let sphere_instance = Sphere::new(
-                *pos,
+                pos.to_array(),
                 self.atom_types.get(i).map(|x| my_radius(x) * 0.2).unwrap(),
             )
             .color(
@@ -369,7 +377,7 @@ impl IntoInstanceGroups for Molecules {
         }
 
         for (i, bond) in self.bonds.iter().enumerate() {
-            let [a, b] = *bond;
+            let [a, b] = bond.to_array();
             let pos_a = self.atoms[a as usize];
             let pos_b = self.atoms[b as usize];
 
@@ -389,7 +397,7 @@ impl IntoInstanceGroups for Molecules {
             // === Step 1: 先找 A 的邻居方向（排除 B）===
             let mut neighbor_dir_opt = None;
             for (_j, other_bond) in self.bonds.iter().enumerate() {
-                let [x, y] = *other_bond;
+                let [x, y] = other_bond.to_array();
                 if x as usize == a as usize && y != b {
                     let pos_n = self.atoms[y as usize];
                     neighbor_dir_opt = Some([
@@ -412,7 +420,7 @@ impl IntoInstanceGroups for Molecules {
             // ✅ 若 A 没有邻居，则去找 B 的邻居
             if neighbor_dir_opt.is_none() {
                 for (_j, other_bond) in self.bonds.iter().enumerate() {
-                    let [x, y] = *other_bond;
+                    let [x, y] = other_bond.to_array();
                     if x as usize == b as usize && y != a {
                         let pos_n = self.atoms[y as usize];
                         neighbor_dir_opt = Some([

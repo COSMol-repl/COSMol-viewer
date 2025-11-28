@@ -17,6 +17,7 @@ na_seq = "0.3.6"
 bytemuck = "1.24.0"
 serde_repr = "0.1.20"
 once_cell = "1.21.3"
+kiddo = "5.2.2"
 image = "0.25.8"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

@@ -1,4 +1,4 @@
-use glam::{Mat4, Vec3, Vec4};
+use glam::{Mat4, Vec2, Vec3, Vec4};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -196,4 +196,121 @@ pub struct Frames {
     pub interval: u64,
     pub loops: i64, // -1 = infinite
     pub smooth: bool,
+}
+
+use half::f16;
+use serde::{Deserializer, Serializer};
+pub mod vec_f16 {
+    use super::*;
+
+    pub fn serialize<S, T>(v: &T, s: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+        T: IntoF32Slice,
+    {
+        let bits: Vec<u16> = v
+            .as_f32_slice()
+            .iter()
+            .map(|x| f16::from_f32(*x).to_bits())
+            .collect();
+        bits.serialize(s)
+    }
+
+    pub fn deserialize<'de, D, T>(d: D) -> Result<T, D::Error>
+    where
+        D: Deserializer<'de>,
+        T: FromF32Slice,
+    {
+        let bits: Vec<u16> = Vec::<u16>::deserialize(d)?;
+        let floats: Vec<f32> = bits.iter().map(|b| f16::from_bits(*b).to_f32()).collect();
+        Ok(T::from_f32_slice(&floats))
+    }
+
+    // ---- Vec<Vec2> / Vec<Vec3> ----
+
+    pub mod vec {
+        use super::*;
+
+        pub fn serialize<S, T>(v: &Vec<T>, s: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+            T: IntoF32Slice,
+        {
+            let out: Vec<Vec<u16>> = v
+                .iter()
+                .map(|e| {
+                    e.as_f32_slice()
+                        .iter()
+                        .map(|x| f16::from_f32(*x).to_bits())
+                        .collect()
+                })
+                .collect();
+            out.serialize(s)
+        }
+
+        pub fn deserialize<'de, D, T>(d: D) -> Result<Vec<T>, D::Error>
+        where
+            D: Deserializer<'de>,
+            T: FromF32Slice,
+        {
+            let arr: Vec<Vec<u16>> = Vec::<Vec<u16>>::deserialize(d)?;
+            let out = arr
+                .into_iter()
+                .map(|v| {
+                    let floats: Vec<f32> = v.iter().map(|b| f16::from_bits(*b).to_f32()).collect();
+                    T::from_f32_slice(&floats)
+                })
+                .collect();
+            Ok(out)
+        }
+    }
+}
+
+// ====== Trait definitions ======
+
+pub trait IntoF32Slice {
+    fn as_f32_slice(&self) -> &[f32];
+}
+
+pub trait FromF32Slice {
+    fn from_f32_slice(v: &[f32]) -> Self;
+}
+
+// -------- Vec2 --------
+
+impl IntoF32Slice for Vec2 {
+    fn as_f32_slice(&self) -> &[f32] {
+        unsafe { std::slice::from_raw_parts(self as *const Vec2 as *const f32, 2) }
+    }
+}
+impl FromF32Slice for Vec2 {
+    fn from_f32_slice(v: &[f32]) -> Self {
+        Self::new(v[0], v[1])
+    }
+}
+
+// -------- Vec3 --------
+
+impl IntoF32Slice for Vec3 {
+    fn as_f32_slice(&self) -> &[f32] {
+        unsafe { std::slice::from_raw_parts(self as *const Vec3 as *const f32, 3) }
+    }
+}
+impl FromF32Slice for Vec3 {
+    fn from_f32_slice(v: &[f32]) -> Self {
+        Self::new(v[0], v[1], v[2])
+    }
+}
+
+// -------- Vec4 --------
+
+impl IntoF32Slice for Vec4 {
+    fn as_f32_slice(&self) -> &[f32] {
+        unsafe { std::slice::from_raw_parts(self as *const Vec4 as *const f32, 4) }
+    }
+}
+impl FromF32Slice for Vec4 {
+    fn from_f32_slice(v: &[f32]) -> Self {
+        Self::new(v[0], v[1], v[2], v[3])
+    }
 }
