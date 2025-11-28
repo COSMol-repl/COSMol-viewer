@@ -6,14 +6,18 @@ use crate::parser::mmcif::ResidueType;
 use crate::parser::mmcif::SecondaryStructure;
 use crate::shapes::protein::ResidueType::AminoAcid;
 use crate::utils::{MeshData, VisualShape, VisualStyle};
+use bytemuck::{Pod, Zeroable};
 use glam::{Quat, Vec3, Vec4};
 use na_seq::AtomTypeInRes;
 use serde::{Deserialize, Serialize};
+use wide::f32x8;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Protein {
     pub chains: Vec<Chain>,
     pub center: Vec3,
+
+    pub style: VisualStyle,
 }
 
 impl Protein {
@@ -116,13 +120,18 @@ impl Protein {
         Protein {
             chains: chains,
             center: center,
+            style: VisualStyle {
+                opacity: 1.0,
+                visible: true,
+                ..Default::default()
+            },
         }
     }
 }
 
 impl VisualShape for Protein {
     fn style_mut(&mut self) -> &mut VisualStyle {
-        unimplemented!()
+        &mut self.style
     }
 }
 
@@ -153,14 +162,16 @@ impl Protein {
         self
     }
 
-    fn catmull_rom_chain(&self, positions: &[Vec3]) -> Vec<Vec3> {
+    fn catmull_rom_chain(&self, positions: &[Vec3], pts_per_res: usize) -> Vec<Vec3> {
         let n = positions.len();
         if n < 2 {
             return positions.to_vec();
         }
 
-        let mut path = Vec::with_capacity(n * 5 + 1);
-        path.push(positions[0]); // 第一个点
+        // 精确预分配（关键！）
+        let total_points = 1 + (n - 1) * pts_per_res;
+        let mut path = Vec::with_capacity(total_points);
+        path.push(positions[0]);
 
         for i in 0..n - 1 {
             let p0 = if i > 0 {
@@ -176,22 +187,41 @@ impl Protein {
                 positions[i + 1]
             };
 
-            // 生成 5 个中间点 + 1终点（下一个起点）
-            for j in 1..=5 {
-                let t = j as f32 / 5.0;
+            // 预计算步长
+            let step = 1.0 / pts_per_res as f32;
+            let mut t = step;
+
+            for _ in 1..=pts_per_res {
                 path.push(catmull_rom(p0, p1, p2, p3, t));
+                t += step;
             }
         }
-
         path
     }
 
     pub fn to_mesh(&self, scale: f32) -> MeshData {
-        println!("to mesh started");
+        use std::time::Instant;
+        let start_total = Instant::now();
+        let pts_per_res = 5;
+
+        println!("to_mesh started");
+
         let mut final_mesh = MeshData::default();
+
+        // let total_res: usize = self.chains.iter().map(|c| c.residues.len()).sum();
+        // let estimated_verts = total_res * 8 * pts_per_res; // 粗估
+        // final_mesh.vertices.reserve(estimated_verts);
+        // final_mesh.normals.reserve(estimated_verts);
+        // final_mesh.indices.reserve(estimated_verts * 2);
+
+        // println!("reserve{} {}", estimated_verts, estimated_verts * 2);
+
         for chain in &self.chains {
+            let start_chain = Instant::now();
+
             let mut mesh = MeshData::default();
 
+            // 筛选有效残基
             let residues: Vec<&Residue> = chain
                 .residues
                 .iter()
@@ -205,35 +235,29 @@ impl Protein {
                 continue;
             }
 
-            // 直接生成平滑路径 + 切线（不再依赖 splines）
-            let path = self.catmull_rom_chain(&ca_positions);
-
-            // 把这段完整替换你原来的 centers/tangents/normals 计算部分
-            let mut centers = Vec::with_capacity(path.len());
-            let mut tangents = Vec::with_capacity(path.len());
-            let mut normals = Vec::with_capacity(path.len());
-            // let mut ss = Vec::with_capacity(path.len());
+            // 生成平滑路径
+            let path = self.catmull_rom_chain(&ca_positions, pts_per_res);
 
             let n = path.len();
+            let mut centers = Vec::with_capacity(n);
+            let mut tangents = Vec::with_capacity(n);
+            let mut normals = Vec::with_capacity(n);
 
-            // 1. 填充 centers 和 tangents（你原来的完全正确）
+            // === 计算 centers + tangents ===
+            let start_tangent = Instant::now();
             for i in 0..n {
-                let pos = path[i];
-                centers.push(pos);
-
-                let tan = if i == 0 {
-                    (path[1] - path[0]).normalize()
-                } else if i == n - 1 {
-                    (path[n - 1] - path[n - 2]).normalize()
-                } else {
-                    (path[i + 1] - path[i - 1]).normalize()
-                };
-                tangents.push(tan);
+                centers.push(path[i]);
+                let p0 = if i > 0 { path[i - 1] } else { path[0] };
+                let p1 = path[i];
+                let p2 = if i + 1 < n { path[i + 1] } else { path[i] };
+                let p3 = if i + 2 < n { path[i + 2] } else { p2 };
+                tangents.push(catmull_rom_tangent(p0, p1, p2, p3).normalize_or_zero());
             }
+            println!("  tangent calculation: {:?}", start_tangent.elapsed());
 
-            // 2. 统一的初始法线函数
+            // === 初始法线 + Parallel Transport Frame ===
+            let start_normal = Instant::now();
             fn initial_normal(t: Vec3) -> Vec3 {
-                // 优先选 Z，避免和切线几乎平行
                 if t.dot(Vec3::Z).abs() < 0.98 {
                     t.cross(Vec3::Z).normalize()
                 } else {
@@ -241,7 +265,6 @@ impl Protein {
                 }
             }
 
-            // === 普通情况：Bishop Frame / Parallel Transport Frame（最小扭转）===
             let mut current_normal = initial_normal(tangents[0]);
             normals.push(current_normal);
 
@@ -249,7 +272,6 @@ impl Protein {
                 let prev_t = tangents[i - 1];
                 let curr_t = tangents[i];
 
-                // 平行传输
                 let rotation_axis = prev_t.cross(curr_t);
                 if rotation_axis.length_squared() > 1e-6 {
                     let rotation_angle = prev_t.angle_between(curr_t);
@@ -259,7 +281,10 @@ impl Protein {
                 normals.push(current_normal);
             }
 
-            // sections 和之前一样
+            println!("  normal calculation: {:?}", start_normal.elapsed());
+
+            // === sections ===
+            let start_section = Instant::now();
             let sections: Vec<&RibbonXSection> = chain
                 .get_ss()
                 .iter()
@@ -269,20 +294,49 @@ impl Protein {
                     _ => &*COIL_SECTION,
                 })
                 .collect();
+            println!("  section lookup: {:?}", start_section.elapsed());
 
-            // extrusion（保持你最新的 extrude_ribbon_corrected）
-            self.extrude_ribbon_corrected(&centers, &tangents, &normals, &sections, 5, &mut mesh);
+            // === extrusion ===
+            let start_extrude = Instant::now();
+            self.extrude_ribbon_corrected(
+                &centers,
+                &tangents,
+                &normals,
+                &sections,
+                pts_per_res,
+                &mut mesh,
+            );
+            println!("  extrusion: {:?}", start_extrude.elapsed());
 
-            // 缩放 + 颜色
+            // === scale + colors ===
+            let start_post = Instant::now();
             for v in &mut mesh.vertices {
-                *v = *v * scale;
+                *v *= scale;
             }
-            mesh.colors = Some(vec![Vec4::new(1.0, 1.0, 1.0, 1.0); mesh.vertices.len()]);
+
+            let color = match self.style.color {
+                Some(color) => Vec4::new(color[0], color[1], color[2], self.style.opacity),
+                None => Vec4::new(1.0, 1.0, 1.0, 1.0),
+            };
+
+            mesh.colors = Some(vec![color; mesh.vertices.len()]);
+            println!("  postprocess: {:?}", start_post.elapsed());
 
             final_mesh.append(&mesh);
+            println!(
+                "chain {} processed in {:?}",
+                chain.id,
+                start_chain.elapsed()
+            );
         }
-        println!("to mesh finished!");
 
+        println!(
+            "actual length {} {}",
+            final_mesh.vertices.len(),
+            final_mesh.indices.len()
+        );
+
+        println!("to_mesh finished in {:?}", start_total.elapsed());
         final_mesh
     }
 
@@ -300,11 +354,10 @@ impl Protein {
 
         for (seg, xs) in sections.iter().enumerate() {
             let start = seg * pts_per_res;
-            // 注意：最后一个 segment 多取 pts_per_res 个点（共享下一个 segment 的起点）
             let end = if seg + 1 < sections.len() {
                 (seg + 1) * pts_per_res + 1
             } else {
-                centers.len() // 最后一个正好到结尾
+                centers.len()
             };
 
             let cap_front = seg == 0;
@@ -316,7 +369,7 @@ impl Protein {
                 (&xs.coords[..], None)
             };
 
-            self.extrude_one_segment(
+            self.extrude_one_segment_simd(
                 &centers[start..end],
                 &tangents[start..end],
                 &normals[start..end],
@@ -336,7 +389,7 @@ impl Protein {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn extrude_one_segment(
+    fn extrude_one_segment_simd(
         &self,
         centers: &[Vec3],
         tangents: &[Vec3],
@@ -350,25 +403,145 @@ impl Protein {
     ) {
         let n_ring = coords.len();
         let n_pts = centers.len();
+        if n_pts < 2 {
+            return;
+        }
+
         let base = mesh.vertices.len() as u32;
 
-        // binormal = T × N
-        let binormals: Vec<Vec3> = tangents
-            .iter()
-            .zip(normals)
-            .map(|(t, n)| t.cross(*n).normalize_or_zero())
-            .collect();
-
-        // 生成顶点
+        // 预计算所有 binormal (T × N)
+        let mut binormals = vec![Vec3::ZERO; n_pts];
         for i in 0..n_pts {
-            let c = centers[i];
-            let n = normals[i];
-            let b = binormals[i];
+            binormals[i] = tangents[i].cross(normals[i]).normalize_or_zero();
+        }
 
-            // === 正确的箭头渐变：只在后半段出现，且尖端在末端 ===
+        // === SIMD 批量生成顶点（8 点并行）===
+        let mut i = 0;
+        while i + 8 <= n_pts {
+            let frame = Frame8::load(centers, tangents, normals, i);
+            let (cx, cy, cz, tx, ty, tz, nx, ny, nz) = frame.to_simd();
+
+            // binormal = T × N (SIMD 叉积)
+            let bx = ty * nz - tz * ny;
+            let by = tz * nx - tx * nz;
+            let bz = tx * ny - ty * nx;
+            let b_sq = bx * bx + by * by + bz * bz;
+            let b_len = b_sq.sqrt();
+            let b_len_safe = b_len + f32x8::splat(1e-8); // 防除零
+            let bx = bx / b_len_safe;
+            let by = by / b_len_safe;
+            let bz = bz / b_len_safe;
+
+            // local_t: 手动构造数组（修复 Range 错误）
+            let denom = (n_pts.saturating_sub(1)) as f32;
+            let local_t_arr = if denom > 0.0 {
+                [
+                    (i as f32) / denom,
+                    (i as f32 + 1.0) / denom,
+                    (i as f32 + 2.0) / denom,
+                    (i as f32 + 3.0) / denom,
+                    (i as f32 + 4.0) / denom,
+                    (i as f32 + 5.0) / denom,
+                    (i as f32 + 6.0) / denom,
+                    (i as f32 + 7.0) / denom,
+                ]
+            } else {
+                [0.0; 8]
+            };
+            let local_t = f32x8::new(local_t_arr);
+
+            // has_arrow: 模拟 horizontal_max (用 to_array + 标量 max)
+            let has_arrow = if let Some(arrow_back) = arrow_back {
+                let local_t_arr = local_t.to_array(); // 修复：用 to_array() 提取
+                let max_t = local_t_arr.iter().copied().fold(0.0f32, f32::max); // 标量 max 模拟
+                max_t >= 0.5
+            } else {
+                false
+            };
+
+            for ring_idx in 0..n_ring {
+                let mut off_n = f32x8::splat(coords[ring_idx][0]); // 标量 → SIMD splat
+                let mut off_b = f32x8::splat(coords[ring_idx][1]);
+
+                if has_arrow {
+                    let back = arrow_back.unwrap()[ring_idx];
+                    let back_n = f32x8::splat(back[0]);
+                    let back_b = f32x8::splat(back[1]);
+
+                    // arrow_progress: 完整 SIMD 计算（修复类型不匹配）
+                    let arrow_progress = ((local_t - f32x8::splat(0.5)) * f32x8::splat(2.0))
+                        .max(f32x8::splat(0.0)) // 用 splat 确保类型一致
+                        .min(f32x8::splat(1.0));
+                    let t = arrow_progress;
+                    let one_t = f32x8::ONE - t; // ONE 是内置常量
+
+                    // 修复：全部 f32x8 操作（off_n * one_t 等）
+                    off_n = off_n * one_t + back_n * t;
+                    off_b = off_b * one_t + back_b * t;
+                }
+
+                // 顶点位置（SIMD）
+                let px = cx + nx * off_n + bx * off_b;
+                let py = cy + ny * off_n + by * off_b;
+                let pz = cz + nz * off_n + bz * off_b;
+
+                // 法线（根据 ss 类型，SIMD 化）
+                let (nx_out, ny_out, nz_out) = match ss {
+                    SecondaryStructure::Helix => {
+                        ellipse_normal_simd(
+                            (nx, ny, nz),
+                            (bx, by, bz),
+                            (off_n, off_b),
+                            1.0,  // width
+                            0.25, // height
+                        )
+                    }
+                    SecondaryStructure::Sheet => match ring_idx {
+                        0 | 1 => (bx, by, bz),
+                        2 | 3 => (-nx, -ny, -nz),
+                        4 | 5 => (-bx, -by, -bz),
+                        6 | 7 => (nx, ny, nz),
+                        _ => (nx, ny, nz),
+                    },
+                    _ => {
+                        // 通用 normalize
+                        let nn_x = nx * off_n + bx * off_b;
+                        let nn_y = ny * off_n + by * off_b;
+                        let nn_z = nz * off_n + bz * off_b;
+                        let nn_sq = nn_x * nn_x + nn_y * nn_y + nn_z * nn_z;
+                        let nn_len = nn_sq.sqrt() + f32x8::splat(1e-8);
+                        (nn_x / nn_len, nn_y / nn_len, nn_z / nn_len)
+                    }
+                };
+
+                // 写入：用 to_array() 提取（修复索引错误）
+                let px_arr = px.to_array(); // [f32; 8]
+                let py_arr = py.to_array();
+                let pz_arr = pz.to_array();
+                let nx_arr = nx_out.to_array();
+                let ny_arr = ny_out.to_array();
+                let nz_arr = nz_out.to_array();
+
+                for j in 0..8 {
+                    if i + j >= n_pts {
+                        break;
+                    }
+                    let pos = Vec3::new(px_arr[j], py_arr[j], pz_arr[j]); // 修复：数组索引
+                    let nor = Vec3::new(nx_arr[j], ny_arr[j], nz_arr[j]).normalize_or_zero();
+                    mesh.vertices.push(pos);
+                    mesh.normals.push(nor);
+                }
+            }
+            i += 8;
+        }
+
+        // 尾巴用标量处理（极少）
+        for ii in i..n_pts {
+            let c = centers[ii];
+            let n = normals[ii];
+            let b = binormals[ii];
+            let local_t = ii as f32 / (n_pts - 1) as f32;
             let arrow_progress = if arrow_back.is_some() {
-                let local_t = i as f32 / (n_pts.saturating_sub(1)) as f32;
-                // 前半段不变，后半段从 0 → 1
                 ((local_t - 0.5) * 2.0).max(0.0).min(1.0)
             } else {
                 0.0
@@ -376,68 +549,59 @@ impl Protein {
 
             for ring_idx in 0..n_ring {
                 let mut off = coords[ring_idx];
-
-                // 只有在 sheet 且 arrow_back 存在时才变形
                 if arrow_progress > 0.0 && arrow_back.is_some() {
                     let back = arrow_back.unwrap()[ring_idx];
-                    // 正确线性插值：正常 → 箭头尖
                     let t = arrow_progress;
                     off[0] = off[0] * (1.0 - t) + back[0] * t;
                     off[1] = off[1] * (1.0 - t) + back[1] * t;
                 }
-
                 let pos = c + n * off[0] + b * off[1];
                 let nor = match ss {
                     SecondaryStructure::Helix => ellipse_normal(n, b, off, 1.0, 0.25),
                     SecondaryStructure::Sheet => match ring_idx {
-                        0 | 1 => b,  // 上表面两个点（右上、左上）
-                        2 | 3 => -n, // 左侧边两个点（左上、左下） → 朝向 -N（向后）
-                        4 | 5 => -b, // 下表面两个点（左下、右下）
-                        6 | 7 => n,  // 右侧边两个点（右下、右上） → 朝向 +B（向前）
+                        0 | 1 => b,
+                        2 | 3 => -n,
+                        4 | 5 => -b,
+                        6 | 7 => n,
                         _ => n,
                     }
                     .normalize(),
-                    _ => (n * off[0] + b * off[1]).normalize(),
+                    _ => (n * off[0] + b * off[1]).normalize_or_zero(),
                 };
                 mesh.vertices.push(pos);
                 mesh.normals.push(nor);
             }
         }
 
-        // 四边形 → 三角形
+        // === 索引生成（保持原逻辑，完全无瓶颈）===
+        let verts_per_ring = n_ring as u32;
         for i in 0..n_pts - 1 {
             for r in 0..n_ring {
                 let r_next = (r + 1) % n_ring;
+                let i0 = i as u32 * verts_per_ring + r as u32;
+                let i1 = i as u32 * verts_per_ring + r_next as u32;
+                let j0 = (i + 1) as u32 * verts_per_ring + r as u32;
+                let j1 = (i + 1) as u32 * verts_per_ring + r_next as u32;
 
-                let i0 = i * n_ring + r;
-                let i1 = i * n_ring + r_next;
-                let j0 = (i + 1) * n_ring + r;
-                let j1 = (i + 1) * n_ring + r_next;
+                let a = base + i0;
+                let b = base + i1;
+                let c = base + j1;
+                let d = base + j0;
 
-                let a = base + i0 as u32;
-                let b = base + i1 as u32;
-                let c = base + j1 as u32;
-                let d = base + j0 as u32;
-
-                mesh.indices.extend_from_slice(&[a, b, d]);
-                mesh.indices.extend_from_slice(&[b, c, d]);
+                mesh.indices.extend_from_slice(&[a, b, d, b, c, d]);
             }
         }
 
-        // 端盖（扇形三角化）
+        // 端盖（保持不变，几乎不耗时）
         let mut cap = |start_pt: usize, tangent: Vec3, outward: bool| {
             let center = base + (start_pt * n_ring) as u32;
             let normal = if outward { tangent } else { -tangent };
-
-            // 简单星形三角化（足够光滑）
             for r in 1..n_ring - 1 {
                 let a = center;
                 let b = center + r as u32;
                 let c = center + (r + 1) as u32;
-
-                let v_ab: Vec3 = mesh.vertices[b as usize] - mesh.vertices[a as usize];
-                let v_ac: Vec3 = mesh.vertices[c as usize] - mesh.vertices[a as usize];
-
+                let v_ab = mesh.vertices[b as usize] - mesh.vertices[a as usize];
+                let v_ac = mesh.vertices[c as usize] - mesh.vertices[a as usize];
                 if normal.dot(v_ab.cross(v_ac)) > 0.0 {
                     mesh.indices.extend_from_slice(&[a, c, b]);
                 } else {
@@ -446,11 +610,24 @@ impl Protein {
             }
         };
 
+        // 删除你原来的 cap lambda，替换为：
         if cap_front {
-            cap(0, tangents[0], false);
+            // 链头：用第一个点的 normal 作为 hint，保证和前一段连续
+            let hint = normals[0];
+            add_cap(mesh, base, 0, n_ring, tangents[0], false, hint);
         }
         if cap_back {
-            cap(n_pts - 1, tangents[n_pts - 1], true);
+            // 链尾：用最后一个点的 normal 作为 hint
+            let hint = normals[n_pts - 1];
+            add_cap(
+                mesh,
+                base,
+                n_pts - 1,
+                n_ring,
+                tangents[n_pts - 1],
+                true,
+                hint,
+            );
         }
     }
 }
@@ -462,6 +639,15 @@ fn ellipse_normal(n: Vec3, b: Vec3, off: [f32; 2], width: f32, height: f32) -> V
     let ny = y / (height * height);
     let nor = n * nx + b * ny;
     nor.normalize_or_zero()
+}
+
+// 加这个函数
+#[inline(always)]
+fn catmull_rom_tangent(p0: Vec3, p1: Vec3, p2: Vec3, p3: Vec3) -> Vec3 {
+    // 标准公式：(p2 - p0) + 0.5 * (p3 - p1)
+    let a = p2 - p0;
+    let b = p3 - p1;
+    (a + b * 0.5).normalize_or_zero()
 }
 
 // 标准 Catmull-Rom 公式（ChimeraX、Mol*、PyMOL、VMD 全都用这个）
@@ -572,5 +758,137 @@ impl RibbonXSection {
     fn as_helix(mut self) -> Self {
         self.ss = SecondaryStructure::Helix;
         self
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Pod, Zeroable)]
+struct SimdVertex {
+    position: [f32; 3],
+    normal: [f32; 3],
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Pod, Zeroable)]
+struct Frame8 {
+    cx: [f32; 8],
+    cy: [f32; 8],
+    cz: [f32; 8],
+    tx: [f32; 8],
+    ty: [f32; 8],
+    tz: [f32; 8],
+    nx: [f32; 8],
+    ny: [f32; 8],
+    nz: [f32; 8],
+}
+
+impl Frame8 {
+    #[inline(always)]
+    fn load(centers: &[Vec3], tangents: &[Vec3], normals: &[Vec3], i: usize) -> Self {
+        let mut f = Frame8::zeroed(); // bytemuck::Zeroable
+        let end = (i + 8).min(centers.len());
+        for (j, idx) in (i..end).enumerate() {
+            f.cx[j] = centers[idx].x;
+            f.cy[j] = centers[idx].y;
+            f.cz[j] = centers[idx].z;
+            f.tx[j] = tangents[idx].x;
+            f.ty[j] = tangents[idx].y;
+            f.tz[j] = tangents[idx].z;
+            f.nx[j] = normals[idx].x;
+            f.ny[j] = normals[idx].y;
+            f.nz[j] = normals[idx].z;
+        }
+        f
+    }
+
+    #[inline(always)]
+    fn to_simd(
+        &self,
+    ) -> (
+        f32x8,
+        f32x8,
+        f32x8,
+        f32x8,
+        f32x8,
+        f32x8,
+        f32x8,
+        f32x8,
+        f32x8,
+    ) {
+        (
+            f32x8::new(self.cx), // 正确：new([f32; 8])
+            f32x8::new(self.cy),
+            f32x8::new(self.cz),
+            f32x8::new(self.tx),
+            f32x8::new(self.ty),
+            f32x8::new(self.tz),
+            f32x8::new(self.nx),
+            f32x8::new(self.ny),
+            f32x8::new(self.nz),
+        )
+    }
+}
+
+#[inline(always)]
+fn ellipse_normal_simd(
+    n: (f32x8, f32x8, f32x8), // normal: (nx, ny, nz)
+    b: (f32x8, f32x8, f32x8), // binormal
+    off: (f32x8, f32x8),      // off[0] = N方向偏移, off[1] = B方向偏移
+    width: f32,
+    height: f32,
+) -> (f32x8, f32x8, f32x8) {
+    let (nx, ny, nz) = n;
+    let (bx, by, bz) = b;
+    let (off_n, off_b) = off;
+
+    // 椭圆法线公式：(x/w², y/h²) → 归一化
+    let nx_ell = off_n / f32x8::splat(width * width);
+    let ny_ell = off_b / f32x8::splat(height * height);
+
+    // 合成法线：N * nx_ell + B * ny_ell
+    let nx_out = nx * nx_ell + bx * ny_ell;
+    let ny_out = ny * nx_ell + by * ny_ell;
+    let nz_out = nz * nx_ell + bz * ny_ell;
+
+    // 归一化
+    let len_sq = nx_out * nx_out + ny_out * ny_out + nz_out * nz_out;
+    let len = len_sq.sqrt() + f32x8::splat(1e-10);
+    (nx_out / len, ny_out / len, nz_out / len)
+}
+
+/// 完美闭合端盖：星形三角化 + 法线连续 + 防反面
+fn add_cap(
+    mesh: &mut MeshData,
+    base: u32,
+    start_pt: usize,
+    n_ring: usize,
+    tangent: Vec3,
+    outward: bool,     // true = 向外（链尾），false = 向内（链头）
+    normal_hint: Vec3, // 来自前一个/后一个点的法线，保证连续
+) {
+    let center_idx = base + (start_pt * n_ring) as u32;
+    let normal = if outward { tangent } else { -tangent };
+
+    // 用 normal_hint 修正初始法线方向（关键！避免法线翻转）
+    let mut fixed_normal = normal;
+    if normal.dot(normal_hint) < 0.0 {
+        fixed_normal = -normal;
+    }
+
+    // 星形三角化（带正确朝向判断）
+    for r in 0..n_ring {
+        let a = center_idx;
+        let b = center_idx + r as u32;
+        let c = center_idx + (r as u32 + 1) % n_ring as u32;
+
+        let v_ab = mesh.vertices[b as usize] - mesh.vertices[a as usize];
+        let v_ac = mesh.vertices[c as usize] - mesh.vertices[a as usize];
+        let face_normal = v_ab.cross(v_ac);
+
+        if fixed_normal.dot(face_normal) > 0.0 {
+            mesh.indices.extend_from_slice(&[a, b, c]);
+        } else {
+            mesh.indices.extend_from_slice(&[c, a, b]);
+        }
     }
 }

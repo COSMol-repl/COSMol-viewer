@@ -29,7 +29,7 @@ impl Logger for RustLogger {
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default, Copy)]
 pub struct VisualStyle {
-    pub color: Option<[f32; 3]>,
+    pub color: Option<Vec3>,
     pub opacity: f32,
     pub wireframe: bool,
     pub visible: bool,
@@ -167,7 +167,7 @@ pub trait VisualShape {
     where
         Self: Sized,
     {
-        self.style_mut().color = Some(color);
+        self.style_mut().color = Some(color.into());
         self
     }
 
@@ -175,7 +175,7 @@ pub trait VisualShape {
     where
         Self: Sized,
     {
-        self.style_mut().color = Some(color[0..3].try_into().unwrap());
+        self.style_mut().color = Some(Vec3::new(color[0], color[1], color[2]));
         self.style_mut().opacity = color[3];
 
         self

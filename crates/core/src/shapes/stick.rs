@@ -103,7 +103,7 @@ impl Stick {
         let axis = end - start;
         let height = axis.length();
 
-        let base_color = self.style.color.unwrap_or([1.0, 1.0, 1.0]);
+        let base_color = self.style.color.unwrap_or([1.0, 1.0, 1.0].into());
         let alpha = self.style.opacity.clamp(0.0, 1.0);
         let color_rgba = Vec4::new(base_color[0], base_color[1], base_color[2], alpha);
 
@@ -181,7 +181,7 @@ impl Stick {
     }
 
     pub fn to_instance(&self, scale: f32) -> StickInstance {
-        let base_color = self.style.color.unwrap_or([1.0, 1.0, 1.0]);
+        let base_color = self.style.color.unwrap_or([1.0, 1.0, 1.0].into());
         let alpha = self.style.opacity.clamp(0.0, 1.0);
         let color = [base_color[0], base_color[1], base_color[2], alpha];
 

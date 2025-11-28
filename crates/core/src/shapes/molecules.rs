@@ -17,21 +17,21 @@ use crate::{
 
 use std::collections::HashMap;
 
-pub fn my_color(x: &str) -> [f32; 3] {
+pub fn my_color(x: &str) -> Vec3 {
     let element = Element::from_letter(x).unwrap();
 
     // 优先使用自定义颜色
     match element {
-        Element::Hydrogen => [1.0, 1.0, 1.0],
-        Element::Carbon => [0.3, 0.3, 0.3],
-        Element::Nitrogen => [0.2, 0.4, 1.0],
-        Element::Oxygen => [1.0, 0.0, 0.0],
-        Element::Fluorine => [0.0, 0.8, 0.0],
-        Element::Phosphorus => [1.0, 0.5, 0.0],
-        Element::Sulfur => [1.0, 1.0, 0.0],
-        Element::Chlorine => [0.0, 0.8, 0.0],
-        Element::Bromine => [0.6, 0.2, 0.2],
-        Element::Iodine => [0.4, 0.0, 0.8],
+        Element::Hydrogen => Vec3::new(1.0, 1.0, 1.0),
+        Element::Carbon => Vec3::new(0.3, 0.3, 0.3),
+        Element::Nitrogen => Vec3::new(0.2, 0.4, 1.0),
+        Element::Oxygen => Vec3::new(1.0, 0.0, 0.0),
+        Element::Fluorine => Vec3::new(0.0, 0.8, 0.0),
+        Element::Phosphorus => Vec3::new(1.0, 0.5, 0.0),
+        Element::Sulfur => Vec3::new(1.0, 1.0, 0.0),
+        Element::Chlorine => Vec3::new(0.0, 0.8, 0.0),
+        Element::Bromine => Vec3::new(0.6, 0.2, 0.2),
+        Element::Iodine => Vec3::new(0.4, 0.0, 0.8),
         _ => element.color().into(), // 其他未定义的元素
     }
 }
@@ -369,7 +369,8 @@ impl IntoInstanceGroups for Molecules {
             .color(
                 self.style
                     .color
-                    .unwrap_or(self.atom_types.get(i).map(|x| my_color(x)).unwrap()),
+                    .unwrap_or(self.atom_types.get(i).map(|x| my_color(x)).unwrap())
+                    .into(),
             )
             .opacity(self.style.opacity);
 
@@ -484,7 +485,7 @@ impl IntoInstanceGroups for Molecules {
                 self.atom_types
                     .get(a as usize)
                     .map(|x| match x.as_str() {
-                        "C" => [0.75, 0.75, 0.75],
+                        "C" => Vec3::new(0.75, 0.75, 0.75),
                         _ => my_color(x),
                     })
                     .unwrap(),
@@ -493,7 +494,7 @@ impl IntoInstanceGroups for Molecules {
                 self.atom_types
                     .get(b as usize)
                     .map(|x| match x.as_str() {
-                        "C" => [0.75, 0.75, 0.75],
+                        "C" => Vec3::new(0.75, 0.75, 0.75),
                         _ => my_color(x),
                     })
                     .unwrap(),
@@ -531,7 +532,7 @@ impl IntoInstanceGroups for Molecules {
                     ],
                     radius,
                 )
-                .color(color_a)
+                .color(color_a.into())
                 .opacity(self.style.opacity);
 
                 groups.sticks.push(stick_a.to_instance(scale));
@@ -546,7 +547,7 @@ impl IntoInstanceGroups for Molecules {
                     ],
                     radius,
                 )
-                .color(color_b)
+                .color(color_b.into())
                 .opacity(self.style.opacity);
 
                 groups.sticks.push(stick_b.to_instance(scale));
