@@ -1,3 +1,4 @@
+use crate::parser::CompSS::SecondaryStructureCalculator;
 pub use crate::utils::{Logger, RustLogger};
 use glam::Vec3;
 use na_seq::{AminoAcid, AtomTypeInRes, Element};
@@ -598,19 +599,29 @@ pub struct Chain {
     pub residues: Vec<Residue>,
 }
 
+impl Chain {
+    pub fn get_ss(&self) -> Vec<SecondaryStructure> {
+        let calculator = SecondaryStructureCalculator::new();
+        calculator.compute_secondary_structure(&self.residues)
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Residue {
-    pub residue_type: ResidueType, // e.g. "ALA", "GLY"
-    pub index: usize,              // PDB numbering or sequential
+    #[serde(with = "aa_serde")]
+    pub residue_type: AminoAcid, // e.g. "ALA", "GLY"
+    // pub residue_type: ResidueType, // e.g. "ALA", "GLY"
+    pub sns: usize, // PDB numbering or sequential
 
     // Minimum for cartoon backbone
-    pub ca: Vec3, // C-alpha coordinates
-
-    // Optional but highly recommended (for proper frame construction)
-    pub cb: Option<Vec3>, // or pseudo-CB for glycine
+    pub c: Vec3,         // or pseudo-CB for glycine
+    pub n: Vec3,         // C-alpha coordinates
+    pub ca: Vec3,        // C-alpha coordinates
+    pub o: Vec3,         // C-alpha coordinates
+    pub h: Option<Vec3>, // C-alpha coordinates
 
     // Secondary structure tag
-    pub ss: SecondaryStructure,
+    pub ss: Option<SecondaryStructure>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
@@ -618,7 +629,7 @@ pub enum SecondaryStructure {
     Helix,
     Sheet,
     Coil,
-    Unknown,
+    Turn,
 }
 
 mod aa_serde {

@@ -1,11 +1,13 @@
 use crate::Shape;
+use crate::parser::CompSS::SecondaryStructureCalculator;
 use crate::parser::mmcif::Chain;
 use crate::parser::mmcif::MmCif;
 use crate::parser::mmcif::Residue;
 use crate::parser::mmcif::ResidueType;
 use crate::parser::mmcif::SecondaryStructure;
+use crate::shapes::protein::ResidueType::AminoAcid;
 use crate::utils::{MeshData, VisualShape, VisualStyle};
-use glam::Vec3;
+use glam::{Mat3, Quat, Vec3, Vec4};
 use na_seq::AtomTypeInRes;
 use serde::{Deserialize, Serialize};
 
@@ -15,26 +17,60 @@ pub struct Protein {
     pub center: Vec3,
 }
 
+fn torsion(a: Vec3, b: Vec3, c: Vec3, d: Vec3) -> f32 {
+    let b1 = b - a;
+    let b2 = c - b;
+    let b3 = d - c;
+
+    let n1 = b1.cross(b2);
+    let n2 = b2.cross(b3);
+
+    let y = b2.normalize().dot(n1.cross(n2));
+    let x = n1.dot(n2);
+
+    y.atan2(x) // 返回弧度
+}
+
+struct TmpBackbone {
+    ca: Vec3,
+    c: Vec3,
+    n: Vec3,
+}
+
 impl Protein {
     pub fn new(mmcif: MmCif) -> Self {
         let mut chains = Vec::new();
         let mut centers = Vec::new();
+        let mut residue_index = 0;
 
         for chain in mmcif.chains {
             let mut residues = Vec::new();
-            for residue_id in chain.residue_sns {
-                let residue = &mmcif.residues[centers.len()];
-                let res_type: ResidueType = residue.res_type.clone();
+
+            for residue_sns in chain.residue_sns {
+                let residue = &mmcif.residues[residue_index];
+                residue_index += 1;
+                let amino_acid = match residue.res_type.clone() {
+                    AminoAcid(aa) => aa,
+                    _ => continue,
+                };
                 let mut ca_opt = None;
-                let mut cb_opt = None;
-                for atom_id in &residue.atom_sns {
-                    let atom = &mmcif.atoms[*atom_id as usize - 1];
+                let mut c_opt = None;
+                let mut n_opt = None;
+                let mut o_opt = None;
+                for atom_sn in &residue.atom_sns {
+                    let atom = &mmcif.atoms[*atom_sn as usize - 1];
                     if let Some(atom_type_in_res) = &atom.type_in_res {
+                        if *atom_type_in_res == AtomTypeInRes::C {
+                            c_opt = Some(atom.posit);
+                        }
+                        if *atom_type_in_res == AtomTypeInRes::N {
+                            n_opt = Some(atom.posit);
+                        }
                         if *atom_type_in_res == AtomTypeInRes::CA {
                             ca_opt = Some(atom.posit);
                         }
-                        if *atom_type_in_res == AtomTypeInRes::CB {
-                            cb_opt = Some(atom.posit);
+                        if *atom_type_in_res == AtomTypeInRes::O {
+                            o_opt = Some(atom.posit);
                         }
                     }
                 }
@@ -42,43 +78,53 @@ impl Protein {
                 if ca_opt.is_none() {
                     println!(
                         "No CA atom found for chain {} residue {}",
-                        chain.id, residue_id
+                        chain.id, residue_sns
+                    );
+                    continue;
+                }
+                if c_opt.is_none() {
+                    println!(
+                        "No C atom found for chain {} residue {}",
+                        chain.id, residue_sns
+                    );
+                    continue;
+                }
+                if n_opt.is_none() {
+                    println!(
+                        "No N atom found for chain {} residue {}",
+                        chain.id, residue_sns
+                    );
+                    continue;
+                }
+                if o_opt.is_none() {
+                    println!(
+                        "No O atom found for chain {} residue {}",
+                        chain.id, residue_sns
                     );
                     continue;
                 }
 
-                let ca = ca_opt.expect("No CA atom found!");
+                let (ca, c, n, o) = (
+                    ca_opt.unwrap(),
+                    c_opt.unwrap(),
+                    n_opt.unwrap(),
+                    o_opt.unwrap(),
+                );
 
-                centers.push(Vec3 {
-                    x: ca.x as f32,
-                    y: ca.y as f32,
-                    z: ca.z as f32,
-                });
+                centers.push(Vec3::new(ca.x as f32, ca.y as f32, ca.z as f32));
 
                 residues.push(Residue {
-                    residue_type: res_type,
-                    ca: Vec3 {
-                        x: ca_opt.unwrap().x as f32
-                            + match chain.id.as_str() {
-                                "A" => 0.0,
-                                "B" => 1.0,
-                                _ => 2.0,
-                            },
-                        y: ca_opt.unwrap().y as f32,
-                        z: ca_opt.unwrap().z as f32,
-                    },
-                    cb: match cb_opt {
-                        Some(pos) => Some(Vec3 {
-                            x: pos.x as f32,
-                            y: pos.y as f32,
-                            z: pos.z as f32,
-                        }),
-                        None => None,
-                    },
-                    index: residue_id as usize,
-                    ss: SecondaryStructure::Unknown,
+                    residue_type: amino_acid,
+                    ca: ca,
+                    c: c,
+                    n: n,
+                    o: o,
+                    h: None,
+                    sns: residue_sns as usize,
+                    ss: None,
                 });
             }
+
             chains.push(Chain {
                 residues: residues,
                 id: chain.id,
@@ -118,8 +164,12 @@ impl Protein {
         for chain in &mut self.chains {
             for residue in &mut chain.residues {
                 residue.ca -= center;
-                if let Some(cb) = residue.cb {
-                    residue.cb = Some(cb - center);
+                residue.c -= center;
+                residue.n -= center;
+                residue.o -= center;
+                residue.o -= center;
+                if let Some(h) = residue.h {
+                    residue.h = Some(h - center);
                 }
             }
         }
@@ -128,21 +178,19 @@ impl Protein {
     }
 
     fn catmull_rom_chain(&self, positions: &[Vec3]) -> Vec<Vec3> {
-        if positions.len() < 2 {
+        let n = positions.len();
+        if n < 2 {
             return positions.to_vec();
         }
 
-        let n = positions.len();
-        let mut path = Vec::with_capacity(n * 5 + 1); // 每残基 5 个点
-
-        // ChimeraX 默认参数：tension = 0.5（其实就是标准 Catmull-Rom）
-        const SEGMENTS_PER_RESIDUE: usize = 5;
+        let mut path = Vec::with_capacity(n * 5 + 1);
+        path.push(positions[0]); // 第一个点
 
         for i in 0..n - 1 {
             let p0 = if i > 0 {
                 positions[i - 1]
             } else {
-                positions[i]
+                positions[0]
             };
             let p1 = positions[i];
             let p2 = positions[i + 1];
@@ -152,15 +200,13 @@ impl Protein {
                 positions[i + 1]
             };
 
-            for j in 0..=SEGMENTS_PER_RESIDUE {
-                let t = j as f32 / SEGMENTS_PER_RESIDUE as f32;
-                let pos = catmull_rom(p0, p1, p2, p3, t);
-                path.push(pos);
+            // 生成 5 个中间点 + 1终点（下一个起点）
+            for j in 1..=5 {
+                let t = j as f32 / 5.0;
+                path.push(catmull_rom(p0, p1, p2, p3, t));
             }
         }
 
-        // 最后一个残基的终点（避免重复）
-        path.push(positions[n - 1]);
         path
     }
 
@@ -185,16 +231,19 @@ impl Protein {
             // 直接生成平滑路径 + 切线（不再依赖 splines）
             let path = self.catmull_rom_chain(&ca_positions);
 
+            // 把这段完整替换你原来的 centers/tangents/normals 计算部分
             let mut centers = Vec::with_capacity(path.len());
             let mut tangents = Vec::with_capacity(path.len());
             let mut normals = Vec::with_capacity(path.len());
+            // let mut ss = Vec::with_capacity(path.len());
 
             let n = path.len();
+
+            // 1. 填充 centers 和 tangents（你原来的完全正确）
             for i in 0..n {
                 let pos = path[i];
                 centers.push(pos);
 
-                // 计算切线（中心差分 + 边界特殊处理）
                 let tan = if i == 0 {
                     (path[1] - path[0]).normalize()
                 } else if i == n - 1 {
@@ -203,54 +252,55 @@ impl Protein {
                     (path[i + 1] - path[i - 1]).normalize()
                 };
                 tangents.push(tan);
-
-                // 初始化 normal
-                let mut n = if tan.dot(Vec3::Z).abs() > 0.98 {
-                    Vec3::Y
-                } else {
-                    Vec3::Z
-                };
-                n = (n - n.dot(tan) * tan).normalize();
-                if n.length_squared() < 1e-6 {
-                    n = tan.any_orthonormal_vector();
-                }
-                normals.push(n);
             }
 
-            // Parallel transport（最小扭转）
-            for i in 1..n {
-                let t = tangents[i];
-                let prev_n = normals[i - 1];
-                let b = t.cross(prev_n).normalize_or_zero();
-                let new_n = b.cross(t).normalize();
-
-                if new_n.dot(prev_n) < 0.0 {
-                    normals[i] = -new_n;
+            // 2. 统一的初始法线函数
+            fn initial_normal(t: Vec3) -> Vec3 {
+                // 优先选 Z，避免和切线几乎平行
+                if t.dot(Vec3::Z).abs() < 0.98 {
+                    t.cross(Vec3::Z).normalize()
                 } else {
-                    normals[i] = new_n;
+                    t.cross(Vec3::X).normalize()
                 }
+            }
+
+            // === 普通情况：Bishop Frame / Parallel Transport Frame（最小扭转）===
+            let mut current_normal = initial_normal(tangents[0]);
+            normals.push(current_normal);
+
+            for i in 1..centers.len() {
+                let prev_t = tangents[i - 1];
+                let curr_t = tangents[i];
+
+                // 平行传输
+                let rotation_axis = prev_t.cross(curr_t);
+                if rotation_axis.length_squared() > 1e-6 {
+                    let rotation_angle = prev_t.angle_between(curr_t);
+                    let rotation = Quat::from_axis_angle(rotation_axis.normalize(), rotation_angle);
+                    current_normal = rotation * current_normal;
+                }
+                normals.push(current_normal);
             }
 
             // sections 和之前一样
-
-            let sections: Vec<RibbonXSection> = residues
+            let sections: Vec<RibbonXSection> = chain
+                .get_ss()
                 .iter()
-                .map(|r| match r.ss {
+                .map(|r| match r {
                     SecondaryStructure::Helix => helix_section(),
                     SecondaryStructure::Sheet => sheet_section(),
                     _ => coil_section(),
                 })
                 .collect();
-            // let sections: Vec<RibbonXSection> = residues.iter().map(|r| helix_section()).collect();
 
             // extrusion（保持你最新的 extrude_ribbon_corrected）
             self.extrude_ribbon_corrected(&centers, &tangents, &normals, &sections, 5, &mut mesh);
 
             // 缩放 + 颜色
             for v in &mut mesh.vertices {
-                *v = (Vec3::from_array(*v) * scale).to_array();
+                *v = *v * scale;
             }
-            mesh.colors = Some(vec![[1.0, 1.0, 1.0, 1.0]; mesh.vertices.len()]);
+            mesh.colors = Some(vec![Vec4::new(1.0, 1.0, 1.0, 1.0); mesh.vertices.len()]);
 
             final_mesh.append(&mesh);
         }
@@ -296,6 +346,7 @@ impl Protein {
                 cap_front,
                 cap_back,
                 mesh,
+                xs.ss,
             );
         }
 
@@ -316,6 +367,7 @@ impl Protein {
         cap_front: bool,
         cap_back: bool,
         mesh: &mut MeshData,
+        ss: SecondaryStructure,
     ) {
         let n_ring = coords.len();
         let n_pts = centers.len();
@@ -335,28 +387,48 @@ impl Protein {
             let b = binormals[i];
 
             // Sheet 箭头只在前半段渐变（ChimeraX 就是这么做的）
-            let arrow_t = if arrow_back.is_some() {
-                let local_t = i as f32 / (n_pts.saturating_sub(1)) as f32;
-                (local_t * 2.0).min(1.0) // 0~0.5 → 1.0~0.0
-            } else {
-                0.0
-            };
-            let arrow_factor = if arrow_t > 0.0 { 1.0 - arrow_t } else { 1.0 };
+            for i in 0..n_pts {
+                let c = centers[i];
+                let n = normals[i];
+                let b = binormals[i];
 
-            for ring_idx in 0..n_ring {
-                let mut off = coords[ring_idx];
+                // === 正确的箭头渐变：只在后半段出现，且尖端在末端 ===
+                let arrow_progress = if arrow_back.is_some() {
+                    let local_t = i as f32 / (n_pts.saturating_sub(1)) as f32;
+                    // 前半段不变，后半段从 0 → 1
+                    ((local_t - 0.5) * 2.0).max(0.0).min(1.0)
+                } else {
+                    0.0
+                };
 
-                if arrow_factor < 1.0 && arrow_back.is_some() {
-                    let back = arrow_back.unwrap()[ring_idx];
-                    off[0] = off[0] + (back[0] - off[0]) * (1.0 - arrow_factor);
-                    off[1] = off[1] + (back[1] - off[1]) * (1.0 - arrow_factor);
+                for ring_idx in 0..n_ring {
+                    let mut off = coords[ring_idx];
+
+                    // 只有在 sheet 且 arrow_back 存在时才变形
+                    if arrow_progress > 0.0 && arrow_back.is_some() {
+                        let back = arrow_back.unwrap()[ring_idx];
+                        // 正确线性插值：正常 → 箭头尖
+                        let t = arrow_progress;
+                        off[0] = off[0] * (1.0 - t) + back[0] * t;
+                        off[1] = off[1] * (1.0 - t) + back[1] * t;
+                    }
+
+                    let pos = c + n * off[0] + b * off[1];
+                    let nor = match ss {
+                        SecondaryStructure::Helix => ellipse_normal(n, b, off, 1.0, 0.25),
+                        SecondaryStructure::Sheet => match ring_idx {
+                            0 | 1 => b,  // 上表面两个点（右上、左上）
+                            2 | 3 => -n, // 左侧边两个点（左上、左下） → 朝向 -N（向后）
+                            4 | 5 => -b, // 下表面两个点（左下、右下）
+                            6 | 7 => n,  // 右侧边两个点（右下、右上） → 朝向 +B（向前）
+                            _ => n,
+                        }
+                        .normalize(),
+                        _ => (n * off[0] + b * off[1]).normalize_or_zero(),
+                    };
+                    mesh.vertices.push(pos);
+                    mesh.normals.push(nor);
                 }
-
-                let pos = c + n * off[0] + b * off[1];
-                let nor = (n * off[0] + b * off[1]).normalize();
-
-                mesh.vertices.push(pos.to_array());
-                mesh.normals.push(nor.to_array());
             }
         }
 
@@ -376,7 +448,6 @@ impl Protein {
                 let d = base + j0 as u32;
 
                 mesh.indices.extend_from_slice(&[a, b, d]);
-                // mesh.indices.extend_from_slice(&[a, d, b]);
                 mesh.indices.extend_from_slice(&[b, c, d]);
             }
         }
@@ -392,10 +463,8 @@ impl Protein {
                 let b = center + r as u32;
                 let c = center + (r + 1) as u32;
 
-                let v_ab: Vec3 = Vec3::from_array(mesh.vertices[b as usize])
-                    - Vec3::from_array(mesh.vertices[a as usize]);
-                let v_ac: Vec3 = Vec3::from_array(mesh.vertices[c as usize])
-                    - Vec3::from_array(mesh.vertices[a as usize]);
+                let v_ab: Vec3 = mesh.vertices[b as usize] - mesh.vertices[a as usize];
+                let v_ac: Vec3 = mesh.vertices[c as usize] - mesh.vertices[a as usize];
 
                 if normal.dot(v_ab.cross(v_ac)) > 0.0 {
                     mesh.indices.extend_from_slice(&[a, c, b]);
@@ -412,6 +481,15 @@ impl Protein {
             cap(n_pts - 1, tangents[n_pts - 1], true);
         }
     }
+}
+
+fn ellipse_normal(n: Vec3, b: Vec3, off: [f32; 2], width: f32, height: f32) -> Vec3 {
+    let x = off[0];
+    let y = off[1];
+    let nx = x / (width * width);
+    let ny = y / (height * height);
+    let nor = n * nx + b * ny;
+    nor.normalize_or_zero()
 }
 
 // 标准 Catmull-Rom 公式（ChimeraX、Mol*、PyMOL、VMD 全都用这个）
@@ -437,14 +515,8 @@ impl Into<Shape> for Protein {
 
 // ---------- 下面是 ChimeraX 完全一致的 cross-section 定义 ----------
 fn helix_section() -> RibbonXSection {
-    // 圆形（实际上是 32 边形近似）+ 箭头（Sheet 用）
-    let mut coords = Vec::new();
-    let n = 32;
-    for i in 0..n {
-        let a = (i as f32) / (n as f32) * std::f32::consts::TAU;
-        coords.push([a.cos(), a.sin()]);
-    }
-    RibbonXSection::smooth_circle(&coords)
+    // RibbonXSection::smooth_circle().scale(0.25, 1.0)
+    RibbonXSection::smooth_circle().scale(1.0, 0.25)
 }
 
 fn sheet_section() -> RibbonXSection {
@@ -455,20 +527,28 @@ fn sheet_section() -> RibbonXSection {
 
 fn coil_section() -> RibbonXSection {
     // Coil 用细一点的圆管
-    helix_section().scale(0.4, 0.4)
+    RibbonXSection::smooth_circle().scale(0.2, 0.2)
 }
 
 struct RibbonXSection {
     coords: Vec<[f32; 2]>,               // 基础 2D 轮廓
     arrow_coords: Option<Vec<[f32; 2]>>, // 为 Sheet 箭头准备的第二套轮廓
+    ss: SecondaryStructure,
     _smooth: bool,
 }
 
 impl RibbonXSection {
-    fn smooth_circle(coords: &[[f32; 2]]) -> Self {
+    fn smooth_circle() -> Self {
+        let mut coords = Vec::new();
+        let n = 32;
+        for i in 0..n {
+            let a = (i as f32) / (n as f32) * std::f32::consts::TAU;
+            coords.push([a.cos(), a.sin()]);
+        }
         Self {
             coords: coords.to_vec(),
             arrow_coords: None,
+            ss: SecondaryStructure::Coil,
             _smooth: true,
         }
     }
@@ -484,6 +564,7 @@ impl RibbonXSection {
                 c[1] *= sy;
             }
         }
+        self.ss = SecondaryStructure::Helix;
         self
     }
 
@@ -498,6 +579,21 @@ impl RibbonXSection {
             c[1] *= sy2;
         }
         self.arrow_coords = Some(back);
-        self
+        Self {
+            coords: [
+                [0.2, 1.0],
+                [-0.2, 1.0],
+                [-0.2, 1.0],
+                [-0.2, -1.0],
+                [-0.2, -1.0],
+                [0.2, -1.0],
+                [0.2, -1.0],
+                [0.2, 1.0],
+            ]
+            .into(),
+            arrow_coords: None,
+            ss: SecondaryStructure::Sheet,
+            _smooth: true,
+        }
     }
 }

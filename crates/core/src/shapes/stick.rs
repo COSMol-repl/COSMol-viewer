@@ -3,6 +3,8 @@ use std::{collections::HashMap, sync::Mutex};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
+use glam::{Vec3, Vec4};
+
 use crate::{
     Shape,
     scene::{Scene, StickInstance},
@@ -103,7 +105,7 @@ impl Stick {
 
         let base_color = self.style.color.unwrap_or([1.0, 1.0, 1.0]);
         let alpha = self.style.opacity.clamp(0.0, 1.0);
-        let color_rgba = [base_color[0], base_color[1], base_color[2], alpha];
+        let color_rgba = Vec4::new(base_color[0], base_color[1], base_color[2], alpha);
 
         // 构建单位 Z 轴方向的圆柱体
         for i in 0..=segments {
@@ -112,12 +114,12 @@ impl Stick {
             let x = cos * r;
             let y = sin * r;
 
-            vertices.push([x, y, 0.0]);
-            normals.push([cos, sin, 0.0]);
+            vertices.push(Vec3::new(x, y, 0.0));
+            normals.push(Vec3::new(cos, sin, 0.0));
             colors.push(color_rgba);
 
-            vertices.push([x, y, height]);
-            normals.push([cos, sin, 0.0]);
+            vertices.push(Vec3::new(x, y, height));
+            normals.push(Vec3::new(cos, sin, 0.0));
             colors.push(color_rgba);
         }
 
@@ -137,15 +139,15 @@ impl Stick {
         let rotation = glam::Quat::from_rotation_arc(up, axis.normalize());
 
         for v in &mut vertices {
-            let p = glam::Vec3::from_array(*v);
+            let p = *v;
             let rotated = rotation * p + start;
-            *v = rotated.to_array().map(|x| x * scale);
+            *v = rotated * scale;
         }
 
         for n in &mut normals {
-            let p = glam::Vec3::from_array(*n);
+            let p = *n;
             let rotated = rotation * p;
-            *n = rotated.to_array().map(|x| x * scale);
+            *n = rotated * scale;
         }
 
         MeshData {

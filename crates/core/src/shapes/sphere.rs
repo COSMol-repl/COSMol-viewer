@@ -1,3 +1,4 @@
+use glam::Vec3;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -12,8 +13,8 @@ use std::sync::Mutex;
 
 #[derive(Clone)]
 pub struct MeshTemplate {
-    pub vertices: Vec<[f32; 3]>,
-    pub normals: Vec<[f32; 3]>,
+    pub vertices: Vec<Vec3>,
+    pub normals: Vec<Vec3>,
     pub indices: Vec<u32>,
 }
 
@@ -147,8 +148,8 @@ impl Sphere {
                 let ny = cos_theta;
                 let nz = sin_theta * sin_phi;
 
-                vertices.push([nx, ny, nz]); // 单位球
-                normals.push([nx, ny, nz]);
+                vertices.push(Vec3::new(nx, ny, nz)); // 单位球
+                normals.push(Vec3::new(nx, ny, nz));
             }
         }
 

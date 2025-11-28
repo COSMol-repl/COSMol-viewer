@@ -1,6 +1,8 @@
 [package]
 name = "cosmol_viewer_wasm"
+version.workspace = true
 edition.workspace = true
+description.workspace = true
 publish = false
 
 [dependencies]

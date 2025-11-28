@@ -742,9 +742,8 @@ impl Shader {
                         color: mesh
                             .colors
                             .as_ref()
-                            .and_then(|colors| colors.get(i))
-                            .unwrap_or(&[1.0, 1.0, 1.0, 1.0])
-                            .clone(),
+                            .map(|x| x[i].into())
+                            .unwrap_or_default(),
                     }
                 }));
 
@@ -764,8 +763,8 @@ impl Shader {
         use glow::HasContext as _;
 
         let light = Light {
-            direction: Vec3::new(-1.0, 1.0, 2.0) * 1000.0,
-            color: [1.0, 0.9, 0.9],
+            direction: Vec3::new(-1.0, 1.0, 5.0) * 1000.0,
+            color: Vec3::new(1.0, 0.9, 0.9),
             intensity: 1.0,
         };
 
@@ -1078,13 +1077,13 @@ impl CameraState {
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable, Debug, Serialize, Deserialize)]
 pub struct Vertex3d {
-    pub position: [f32; 3],
-    pub normal: [f32; 3],
+    pub position: Vec3,
+    pub normal: Vec3,
     pub color: [f32; 4],
 }
 
 pub struct Light {
     pub direction: Vec3,
-    pub color: [f32; 3],
+    pub color: Vec3,
     pub intensity: f32,
 }

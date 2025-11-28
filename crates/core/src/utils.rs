@@ -1,4 +1,4 @@
-use glam::Mat4;
+use glam::{Mat4, Vec3, Vec4};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -127,10 +127,10 @@ impl ToMesh for Shape {
 
 #[derive(Debug, Clone, Default)]
 pub struct MeshData {
-    pub vertices: Vec<[f32; 3]>,
-    pub normals: Vec<[f32; 3]>,
+    pub vertices: Vec<Vec3>,
+    pub normals: Vec<Vec3>,
     pub indices: Vec<u32>,
-    pub colors: Option<Vec<[f32; 4]>>,
+    pub colors: Option<Vec<Vec4>>,
     pub transform: Option<Mat4>, // 可选位移旋转缩放
     pub is_wireframe: bool,
 }

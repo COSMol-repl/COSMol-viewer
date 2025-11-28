@@ -5,12 +5,12 @@ def parse_sdf(
     keep_h: bool = True,
     multimodel: bool = True,
     onemol: bool = False
-) -> "MoleculeData":
+) -> MoleculeData:
     """
-    Parse an SDF file or string into molecule data.
+    Parse an SDF string into molecule data.
 
     # Args
-      - sdf: Path to an SDF file or a string containing SDF content.
+      - sdf: Path to an SD string containing SDF content.
       - keep_h: Whether to keep explicit hydrogen atoms (default: True).
       - multimodel: Whether to allow multiple models in one file (default: True).
       - onemol: Whether to merge multiple models into one molecule (default: False).
@@ -21,11 +21,30 @@ def parse_sdf(
     # Example
     ```python
     from cosmol_viewer import parse_sdf
-    mol = parse_sdf("molecule.sdf")
+    mol = parse_sdf(open("./molecule.sdf", "r", encoding="utf-8").read())
     ```
     """
     ...
 
+def parse_mmcif(
+    mmcif: str
+) -> ProteinData:
+    """
+    Parse an MMCIF string into protein data.
+
+    # Args
+      - mmcif: Path to an MMCIF string containing MMCIF content.
+
+    # Returns
+      - ProteinData: Parsed protein data object.
+
+    # Example
+    ```python
+    from cosmol_viewer import parse_mmcif
+    prot = parse_mmcif(open("./protein.cif", "r", encoding="utf-8").read())
+    ```
+    """
+    ...
 
 class Scene:
     """
@@ -54,12 +73,12 @@ class Scene:
         """
         ...
 
-    def add_shape(self, shape: Union["Sphere", "Stick", "Molecules"], id: Optional[str] = None) -> None:
+    def add_shape(self, shape: Union["Sphere", "Stick", "Molecules", "Protein"], id: Optional[str] = None) -> None:
         """
         Add a shape to the scene.
 
         # Args
-          - shape: A shape instance (PySphere, PyStick, or PyMolecules).
+          - shape: A shape instance (Sphere, Stick, Molecules, or Protein).
           - id: Optional string ID to associate with the shape.
 
         If the `id` is provided and a shape with the same ID exists,
@@ -73,7 +92,7 @@ class Scene:
         """
         ...
 
-    def update_shape(self, id: str, shape: Union["Sphere", "Stick", "Molecules"]) -> None:
+    def update_shape(self, id: str, shape: Union["Sphere", "Stick", "Molecules", "Protein"]) -> None:
         """
         Update an existing shape in the scene by its ID.
 
