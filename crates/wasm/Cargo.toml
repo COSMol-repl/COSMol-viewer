@@ -59,7 +59,6 @@ wasm-opt = [
   "--zero-filled-memory",
   "--strip-producers",
   "--vacuum",
-  "--asyncify",
 ]
 
 [package.metadata.wasm-pack.profile.release.wasm-bindgen]
