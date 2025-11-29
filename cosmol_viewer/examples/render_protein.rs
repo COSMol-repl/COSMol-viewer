@@ -9,6 +9,16 @@ fn main() {
 
     let prot = Protein::new(mmcif_data).color([0.2, 0.45, 0.6]);
 
+    println!(
+        "{:?}",
+        &serde_json::to_string(&prot).expect("json serialize failed")
+    );
+    println!(
+        "{:?}",
+        &serde_json::to_string(&prot)
+            .expect("json serialize failed")
+            .len()
+    );
     let mut scene = Scene::new();
     // scene.use_black_background();
     scene.scale(0.2);

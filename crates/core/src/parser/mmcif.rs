@@ -630,14 +630,10 @@ pub struct Residue {
     pub sns: usize, // PDB numbering or sequential
 
     // Minimum for cartoon backbone
-    #[serde(with = "vec_f16_scaled")]
-    pub c: Vec3, // or pseudo-CB for glycine
-    #[serde(with = "vec_f16_scaled")]
-    pub n: Vec3, // C-alpha coordinates
-    #[serde(with = "vec_f16_scaled")]
-    pub ca: Vec3, // C-alpha coordinates
-    #[serde(with = "vec_f16_scaled")]
-    pub o: Vec3, // C-alpha coordinates
+    pub c: Vec3,         // or pseudo-CB for glycine
+    pub n: Vec3,         // C-alpha coordinates
+    pub ca: Vec3,        // C-alpha coordinates
+    pub o: Vec3,         // C-alpha coordinates
     pub h: Option<Vec3>, // C-alpha coordinates
 
     // Secondary structure tag

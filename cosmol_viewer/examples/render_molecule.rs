@@ -19,6 +19,12 @@ fn main() {
 
     println!(
         "{:?}",
+        &serde_json::to_string(&mol)
+            .expect("json serialize failed")
+            .len()
+    );
+    println!(
+        "{:?}",
         serde_json::from_str::<Molecules>(
             &serde_json::to_string(&mol).expect("json serialize failed")
         )
@@ -26,6 +32,11 @@ fn main() {
         .atoms[61]
             - a
     );
+
+    let mol = serde_json::from_str::<Molecules>(
+        &serde_json::to_string(&mol).expect("json serialize failed"),
+    )
+    .unwrap();
 
     let mut scene = Scene::new();
 

@@ -1,9 +1,11 @@
+use base64::Engine;
 #[cfg(feature = "wasm")]
 use cosmol_viewer_core::App;
 use cosmol_viewer_core::scene::Scene;
 use cosmol_viewer_core::utils::Logger;
 #[cfg(feature = "js_bridge")]
 use serde::Serialize;
+use std::io::Write;
 use std::sync::Arc;
 use std::sync::Mutex;
 
@@ -91,8 +93,7 @@ impl WasmViewer {
             height = height
         );
 
-        let scene_json = serde_json::to_string(scene).unwrap();
-        let escaped = serde_json::to_string(&scene_json).unwrap();
+        let escaped = serde_json::to_string(&compress_json(&scene)).unwrap();
 
         let combined_js = format!(
             r#"
@@ -167,14 +168,13 @@ impl WasmViewer {
             height = height
         );
 
-        let frames_json = serde_json::to_string(&Frames {
+        let frames = &Frames {
             frames,
             interval,
             loops,
             smooth,
-        })
-        .unwrap();
-        let escaped = serde_json::to_string(&frames_json).unwrap();
+        };
+        let escaped = serde_json::to_string(&compress_json(&frames)).unwrap();
 
         let combined_js = format!(
             r#"
@@ -228,8 +228,7 @@ impl WasmViewer {
     pub fn call<T: Serialize>(&self, py: Python, name: &str, input: T) -> () {
         use pyo3::types::PyAnyMethods;
 
-        let input_json = serde_json::to_string(&input).unwrap();
-        let escaped = serde_json::to_string(&input_json).unwrap();
+        let escaped = serde_json::to_string(&compress_json(&input)).unwrap();
         let combined_js = format!(
             r#"
 (async function() {{
@@ -345,8 +344,13 @@ impl WebHandle {
         _canvas: HtmlCanvasElement,
         scene_json: String,
     ) -> Result<(), JsValue> {
-        let _scene: Scene = serde_json::from_str(&scene_json)
-            .map_err(|e| JsValue::from_str(&format!("Scene parse error: {}", e)))?;
+        // let _scene: Scene = serde_json::from_str(&scene_json)
+        //     .map_err(|e| JsValue::from_str(&format!("Scene parse error: {}", e)))?;
+
+        let _scene: Scene =
+            decompress_json(&scene_json).map_err(|e| JsValue::from_str(&e.to_string()))?;
+
+        println!("{:?}", _scene);
 
         #[cfg(target_arch = "wasm32")]
         {
@@ -375,8 +379,8 @@ impl WebHandle {
 
     #[wasm_bindgen]
     pub async fn update_scene(&mut self, scene_json: String) -> Result<(), JsValue> {
-        let scene: Scene = serde_json::from_str(&scene_json)
-            .map_err(|e| JsValue::from_str(&format!("Scene parse error: {}", e)))?;
+        let scene: Scene =
+            decompress_json(&scene_json).map_err(|e| JsValue::from_str(&e.to_string()))?;
 
         let mut app_guard = self.app.lock().unwrap();
         if let Some(app) = &mut *app_guard {
@@ -399,8 +403,8 @@ impl WebHandle {
         {
             use cosmol_viewer_core::utils::Frames;
 
-            let frames: Frames = serde_json::from_str(&_frames_json)
-                .map_err(|e| JsValue::from_str(&format!("Frames parse error: {}", e)))?;
+            let frames: Frames =
+                decompress_json(&_frames_json).map_err(|e| JsValue::from_str(&e.to_string()))?;
 
             let app = Arc::clone(&self.app);
             let _ = self
@@ -425,4 +429,30 @@ impl WebHandle {
     pub async fn take_screenshot(&self) -> Option<String> {
         Some("The returned value is omitted!".to_string())
     }
+}
+
+use base64::engine::general_purpose::STANDARD as B64;
+use flate2::{Compression, read::GzDecoder, write::GzEncoder};
+use serde::ser::Error;
+use std::io::Read;
+/// 把 JSON 压缩成 base64 字符串（用于发送）
+pub fn compress_json<T: serde::Serialize>(value: &T) -> String {
+    let json = serde_json::to_string(value).unwrap();
+    let mut e = GzEncoder::new(Vec::new(), Compression::best());
+    e.write_all(json.as_bytes()).unwrap();
+    B64.encode(e.finish().unwrap())
+}
+
+// 把 base64 字符串解压成目标类型（用于接收）
+pub fn decompress_json<T: for<'de> serde::Deserialize<'de>>(
+    s: &str,
+) -> Result<T, serde_json::Error> {
+    let bytes = B64
+        .decode(s)
+        .map_err(|_| serde_json::Error::custom("base64 error"))?;
+    let mut d = GzDecoder::new(&bytes[..]);
+    let mut json = String::new();
+    d.read_to_string(&mut json)
+        .map_err(|_| serde_json::Error::custom("gzip error"))?;
+    serde_json::from_str(&json)
 }

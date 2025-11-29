@@ -67,7 +67,7 @@ impl InstanceGroups {
     }
 }
 
-#[derive(Deserialize, Serialize, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct Scene {
     pub background_color: [f32; 3],
     pub camera_state: CameraState,
