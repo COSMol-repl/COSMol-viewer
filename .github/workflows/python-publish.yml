@@ -26,7 +26,7 @@ jobs:
       - name: Build wasm module
         run: |
           cargo binstall -y wasm-pack --force
-          wasm-pack build ./crates/wasm --target web --out-dir ./pkg --release -- -C target-feature=+atomics,+bulk-memory,+simd128
+          wasm-pack build ./crates/wasm --target web --out-dir ./pkg --release
       - name: Upload wasm pkg
         uses: actions/upload-artifact@v4
         with:
