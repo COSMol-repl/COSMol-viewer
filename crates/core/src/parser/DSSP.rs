@@ -1,3 +1,15 @@
+// DSSP secondary structure assignment
+//
+// Ported and adapted from ChimeraX:
+// https://github.com/RBVI/ChimeraX/blob/develop/src/bundles/atomic_lib/atomic_cpp/atomstruct_cpp/CompSS.cpp
+//
+// Original ChimeraX code (c) 2004-2025 Regents of the University of California.
+// Licensed under a BSD-style license; see the original repository for details.
+//
+// Original DSSP algorithm:
+// Kabsch & Sander, Biopolymers 22:2577-2637 (1983)
+// https://doi.org/10.1002/bip.360221211
+
 use crate::parser::mmcif::Residue;
 use crate::parser::mmcif::SecondaryStructure;
 use glam::Vec3;

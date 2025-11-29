@@ -15,6 +15,18 @@ fn main() {
 
     let mol = Molecules::new(mol_data).centered();
 
+    let a = mol.atoms.clone()[61];
+
+    println!(
+        "{:?}",
+        serde_json::from_str::<Molecules>(
+            &serde_json::to_string(&mol).expect("json serialize failed")
+        )
+        .unwrap()
+        .atoms[61]
+            - a
+    );
+
     let mut scene = Scene::new();
 
     scene.add_shape(mol, Some("mol"));

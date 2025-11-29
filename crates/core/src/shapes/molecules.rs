@@ -54,11 +54,11 @@ pub enum BondType {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Molecules {
-    atom_types: Vec<String>,
+    pub atom_types: Vec<String>,
     #[serde(with = "vec_f16_scaled::vec")]
-    atoms: Vec<Vec3>,
-    bond_types: Vec<BondType>,
-    bonds: Vec<[usize; 2]>,
+    pub atoms: Vec<Vec3>,
+    pub bond_types: Vec<BondType>,
+    pub bonds: Vec<[usize; 2]>,
     pub quality: u32,
 
     pub style: VisualStyle,

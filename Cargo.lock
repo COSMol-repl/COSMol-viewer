@@ -879,6 +879,8 @@ name = "cosmol_viewer"
 version = "0.1.5-nightly.5"
 dependencies = [
  "cosmol_viewer_core",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

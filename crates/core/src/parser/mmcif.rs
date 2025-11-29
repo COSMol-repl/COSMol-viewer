@@ -1,4 +1,4 @@
-use crate::parser::compute_secondary_structure::SecondaryStructureCalculator;
+use crate::parser::DSSP::SecondaryStructureCalculator;
 use crate::utils::vec_f16_scaled;
 pub use crate::utils::{Logger, RustLogger};
 use glam::Vec3;

@@ -8,7 +8,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 
 #[cfg(not(target_arch = "wasm32"))]
-const VERSION: &str = env!("CARGO_PKG_VERSION"); // crate 当前版本号
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg(feature = "wasm")]
 use web_sys::HtmlCanvasElement;

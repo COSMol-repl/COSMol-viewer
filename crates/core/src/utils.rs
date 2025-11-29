@@ -200,7 +200,7 @@ pub struct Frames {
 
 use half::f16;
 use serde::{Deserializer, Serializer};
-pub mod vec_f16_scaled {
+pub mod vec_f16 {
     use super::*;
 
     pub fn serialize<S, T>(v: &T, s: S) -> Result<S::Ok, S::Error>
@@ -266,7 +266,7 @@ pub mod vec_f16_scaled {
     }
 }
 
-pub mod vec_f16_scaled_scaled {
+pub mod vec_f16_scaled {
     use super::*;
 
     // 你可以选择固定系数，或者运行时传
@@ -303,31 +303,41 @@ pub mod vec_f16_scaled_scaled {
     pub mod vec {
         use super::*;
 
-        // ---- Vec2 ----
-        pub fn serialize<S, T>(v: &T, s: S) -> Result<S::Ok, S::Error>
+        pub fn serialize<S, T>(v: &Vec<T>, s: S) -> Result<S::Ok, S::Error>
         where
             S: Serializer,
             T: IntoF32Slice,
         {
-            let bits: Vec<u16> = v
-                .as_f32_slice()
+            let bits: Vec<Vec<u16>> = v
                 .iter()
-                .map(|x| f16::from_f32(x * SCALE).to_bits())
+                .map(|v| {
+                    let floats: Vec<f32> = v.as_f32_slice().iter().map(|x| x * SCALE).collect();
+                    floats
+                        .into_iter()
+                        .map(|x| f16::from_f32(x).to_bits())
+                        .collect()
+                })
                 .collect();
             bits.serialize(s)
         }
 
-        pub fn deserialize<'de, D, T>(d: D) -> Result<T, D::Error>
+        pub fn deserialize<'de, D, T>(d: D) -> Result<Vec<T>, D::Error>
         where
             D: Deserializer<'de>,
             T: FromF32Slice,
         {
-            let bits: Vec<u16> = Vec::<u16>::deserialize(d)?;
-            let floats: Vec<f32> = bits
-                .iter()
-                .map(|b| f16::from_bits(*b).to_f32() / SCALE)
+            let bits: Vec<Vec<u16>> = Vec::<Vec<u16>>::deserialize(d)?;
+            let out = bits
+                .into_iter()
+                .map(|v| {
+                    let floats: Vec<f32> = v
+                        .iter()
+                        .map(|b| f16::from_bits(*b).to_f32() / SCALE)
+                        .collect();
+                    T::from_f32_slice(&floats)
+                })
                 .collect();
-            Ok(T::from_f32_slice(&floats))
+            Ok(out)
         }
     }
 }
