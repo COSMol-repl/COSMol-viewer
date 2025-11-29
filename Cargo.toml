@@ -1,6 +1,6 @@
 [workspace.package]
 edition = "2024"
-version = "0.1.5-nightly.5"
+version = "0.1.5-nightly.8"
 authors = ["9028 wjt@cosmol.org"]
 repository = "https://github.com/COSMol-repl/COSMol-viewer"
 homepage = "https://github.com/COSMol-repl/COSMol-viewer"
@@ -18,8 +18,8 @@ members = [
     ]
 
 [workspace.dependencies]
-cosmol_viewer = { version = "0.1.5-nightly.5", path = "cosmol_viewer"}
-cosmol_viewer_core = { version = "0.1.5-nightly.5", path = "crates/core" }
+cosmol_viewer = { version = "0.1.5-nightly.8", path = "cosmol_viewer"}
+cosmol_viewer_core = { version = "0.1.5-nightly.8", path = "crates/core" }
 
 pyo3 = { version = "0.27.1", features = ["extension-module", "abi3-py37"] }
 eframe = { version = "0.33.2", features = ["wayland","x11"] }

@@ -888,7 +888,7 @@ dependencies = [
 
 [[package]]
 name = "cosmol_viewer"
-version = "0.1.5-nightly.5"
+version = "0.1.5-nightly.8"
 dependencies = [
  "cosmol_viewer_core",
  "serde",
@@ -897,7 +897,7 @@ dependencies = [
 
 [[package]]
 name = "cosmol_viewer_core"
-version = "0.1.5-nightly.5"
+version = "0.1.5-nightly.8"
 dependencies = [
  "base64",
  "base64ct",
@@ -934,7 +934,7 @@ dependencies = [
 
 [[package]]
 name = "cosmol_viewer_wasm"
-version = "0.1.5-nightly.5"
+version = "0.1.5-nightly.8"
 dependencies = [
  "base64",
  "cosmol_viewer_core",
