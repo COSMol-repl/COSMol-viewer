@@ -2,6 +2,7 @@ use crate::parser::compute_secondary_structure::SecondaryStructureCalculator;
 use crate::utils::vec_f16;
 pub use crate::utils::{Logger, RustLogger};
 use glam::Vec3;
+use na_seq::AaIdent;
 use na_seq::{AminoAcid, AtomTypeInRes, Element};
 use once_cell::sync::OnceCell;
 use regex::Regex;
@@ -659,7 +660,7 @@ mod aa_serde {
     where
         S: Serializer,
     {
-        s.serialize_str(&aa.to_string())
+        s.serialize_str(&aa.to_str(AaIdent::OneLetter))
     }
 
     pub fn deserialize<'de, D>(d: D) -> Result<AminoAcid, D::Error>
@@ -667,7 +668,8 @@ mod aa_serde {
         D: Deserializer<'de>,
     {
         let name = String::deserialize(d)?;
-        name.parse::<AminoAcid>().map_err(serde::de::Error::custom)
+        AminoAcid::from_str(&name)
+            .map_err(|_| serde::de::Error::custom(format!("Invalid amino acid string: {}", name)))
     }
 }
 

@@ -9,9 +9,9 @@ publish = false
 cosmol_viewer_core.workspace = true
 serde_json.workspace = true
 serde.workspace = true
-log = "0.4.28"
 
 uuid = { version = "1.18.1", features = ["v4"], optional = true }
+log = { version = "0.4.28", optional = true }
 eframe = { workspace = true, optional = true }
 wasm-bindgen-futures = { version = "0.4.55", optional = true }
 web-sys = { version = "0.3.82", features = ["HtmlCanvasElement", "console","Window"], optional = true }
@@ -29,6 +29,7 @@ wasm = [
     "web-sys",
     "wasm-bindgen",
     "gloo-timers",
+    "log",
 ]
 
 js_bridge = [

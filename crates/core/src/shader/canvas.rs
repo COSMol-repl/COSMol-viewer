@@ -64,6 +64,7 @@ impl<L: Logger> Canvas<L> {
         );
 
         if let Some(frames) = &mut self.frames {
+            ui.ctx().request_repaint();
             let now = ui.input(|i| i.time);
 
             // 播放总时长（秒）
@@ -120,7 +121,6 @@ impl<L: Logger> Canvas<L> {
             };
 
             self.shader.lock().update_scene(Some(&interp_frame));
-            ui.ctx().request_repaint();
         }
         let scroll_delta = ui.input(|i| i.raw_scroll_delta.y);
 

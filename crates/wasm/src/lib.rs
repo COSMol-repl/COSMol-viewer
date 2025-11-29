@@ -1,12 +1,13 @@
 #[cfg(feature = "wasm")]
 use cosmol_viewer_core::App;
 use cosmol_viewer_core::scene::Scene;
-use cosmol_viewer_core::utils::{Frames, Logger};
+use cosmol_viewer_core::utils::Logger;
 #[cfg(feature = "js_bridge")]
 use serde::Serialize;
 use std::sync::Arc;
 use std::sync::Mutex;
 
+#[cfg(not(target_arch = "wasm32"))]
 const VERSION: &str = env!("CARGO_PKG_VERSION"); // crate 当前版本号
 
 #[cfg(feature = "wasm")]
@@ -282,18 +283,6 @@ pub trait JsBridge {
 use eframe::WebRunner;
 
 #[cfg(feature = "wasm")]
-#[cfg(not(target_arch = "wasm32"))]
-struct WebRunner;
-
-#[cfg(feature = "wasm")]
-#[cfg(not(target_arch = "wasm32"))]
-impl WebRunner {
-    pub fn new() -> Self {
-        Self
-    }
-}
-
-#[cfg(feature = "wasm")]
 #[derive(Clone, Copy)]
 pub struct WasmLogger;
 
@@ -323,6 +312,7 @@ impl Logger for WasmLogger {
 #[cfg(feature = "wasm")]
 #[wasm_bindgen]
 pub struct WebHandle {
+    #[cfg(target_arch = "wasm32")]
     runner: WebRunner,
     app: Arc<Mutex<Option<App<WasmLogger>>>>,
 }
@@ -334,42 +324,52 @@ impl WebHandle {
     #[expect(clippy::new_without_default)]
     pub fn new() -> Self {
         #[cfg(target_arch = "wasm32")]
-        eframe::WebLogger::init(log::LevelFilter::Debug).ok();
-        Self {
-            runner: WebRunner::new(),
-            app: Arc::new(Mutex::new(None)),
+        {
+            eframe::WebLogger::init(log::LevelFilter::Debug).ok();
+            Self {
+                runner: WebRunner::new(),
+                app: Arc::new(Mutex::new(None)),
+            }
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            Self {
+                app: Arc::new(Mutex::new(None)),
+            }
         }
     }
 
     #[wasm_bindgen]
     pub async fn start_with_scene(
         &mut self,
-        canvas: HtmlCanvasElement,
+        _canvas: HtmlCanvasElement,
         scene_json: String,
     ) -> Result<(), JsValue> {
-        let scene: Scene = serde_json::from_str(&scene_json)
+        let _scene: Scene = serde_json::from_str(&scene_json)
             .map_err(|e| JsValue::from_str(&format!("Scene parse error: {}", e)))?;
 
-        let app = Arc::clone(&self.app);
-
         #[cfg(target_arch = "wasm32")]
-        let _ = self
-            .runner
-            .start(
-                canvas,
-                eframe::WebOptions {
-                    // multisampling: 4, // Enable 4x MSAA
-                    ..Default::default()
-                },
-                Box::new(move |cc| {
-                    use cosmol_viewer_core::AppWrapper;
+        {
+            let app = Arc::clone(&self.app);
 
-                    let mut guard = app.lock().unwrap();
-                    *guard = Some(App::new(cc, scene, WasmLogger));
-                    Ok(Box::new(AppWrapper(app.clone())))
-                }),
-            )
-            .await;
+            let _ = self
+                .runner
+                .start(
+                    _canvas,
+                    eframe::WebOptions {
+                        // multisampling: 4, // Enable 4x MSAA
+                        ..Default::default()
+                    },
+                    Box::new(move |cc| {
+                        use cosmol_viewer_core::AppWrapper;
+
+                        let mut guard = app.lock().unwrap();
+                        *guard = Some(App::new(cc, _scene, WasmLogger));
+                        Ok(Box::new(AppWrapper(app.clone())))
+                    }),
+                )
+                .await;
+        }
         Ok(())
     }
 
@@ -392,29 +392,32 @@ impl WebHandle {
     #[wasm_bindgen]
     pub async fn initiate_viewer_and_play(
         &mut self,
-        canvas: HtmlCanvasElement,
-        frames_json: String,
+        _canvas: HtmlCanvasElement,
+        _frames_json: String,
     ) -> Result<(), JsValue> {
-        let frames: Frames = serde_json::from_str(&frames_json)
-            .map_err(|e| JsValue::from_str(&format!("Frames parse error: {}", e)))?;
-
-        let app = Arc::clone(&self.app);
-
         #[cfg(target_arch = "wasm32")]
-        let _ = self
-            .runner
-            .start(
-                canvas,
-                eframe::WebOptions::default(),
-                Box::new(move |cc| {
-                    use cosmol_viewer_core::AppWrapper;
+        {
+            use cosmol_viewer_core::utils::Frames;
 
-                    let mut guard = app.lock().unwrap();
-                    *guard = Some(App::new_play(cc, frames, WasmLogger));
-                    Ok(Box::new(AppWrapper(app.clone())))
-                }),
-            )
-            .await;
+            let frames: Frames = serde_json::from_str(&_frames_json)
+                .map_err(|e| JsValue::from_str(&format!("Frames parse error: {}", e)))?;
+
+            let app = Arc::clone(&self.app);
+            let _ = self
+                .runner
+                .start(
+                    _canvas,
+                    eframe::WebOptions::default(),
+                    Box::new(move |cc| {
+                        use cosmol_viewer_core::AppWrapper;
+
+                        let mut guard = app.lock().unwrap();
+                        *guard = Some(App::new_play(cc, frames, WasmLogger));
+                        Ok(Box::new(AppWrapper(app.clone())))
+                    }),
+                )
+                .await;
+        }
         Ok(())
     }
 

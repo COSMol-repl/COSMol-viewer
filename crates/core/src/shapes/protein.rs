@@ -200,11 +200,11 @@ impl Protein {
     }
 
     pub fn to_mesh(&self, scale: f32) -> MeshData {
-        use std::time::Instant;
-        let start_total = Instant::now();
+        // use std::time::Instant;
+        // let start_total = Instant::now();
         let pts_per_res = 5;
 
-        println!("to_mesh started");
+        // println!("to_mesh started");
 
         let mut final_mesh = MeshData::default();
 
@@ -217,7 +217,7 @@ impl Protein {
         // println!("reserve{} {}", estimated_verts, estimated_verts * 2);
 
         for chain in &self.chains {
-            let start_chain = Instant::now();
+            // let start_chain = Instant::now();
 
             let mut mesh = MeshData::default();
 
@@ -244,7 +244,7 @@ impl Protein {
             let mut normals = Vec::with_capacity(n);
 
             // === 计算 centers + tangents ===
-            let start_tangent = Instant::now();
+            // let start_tangent = Instant::now();
             for i in 0..n {
                 centers.push(path[i]);
                 let p0 = if i > 0 { path[i - 1] } else { path[0] };
@@ -253,10 +253,10 @@ impl Protein {
                 let p3 = if i + 2 < n { path[i + 2] } else { p2 };
                 tangents.push(catmull_rom_tangent(p0, p1, p2, p3).normalize_or_zero());
             }
-            println!("  tangent calculation: {:?}", start_tangent.elapsed());
+            // println!("  tangent calculation: {:?}", start_tangent.elapsed());
 
             // === 初始法线 + Parallel Transport Frame ===
-            let start_normal = Instant::now();
+            // let start_normal = Instant::now();
             fn initial_normal(t: Vec3) -> Vec3 {
                 if t.dot(Vec3::Z).abs() < 0.98 {
                     t.cross(Vec3::Z).normalize()
@@ -281,10 +281,10 @@ impl Protein {
                 normals.push(current_normal);
             }
 
-            println!("  normal calculation: {:?}", start_normal.elapsed());
+            // println!("  normal calculation: {:?}", start_normal.elapsed());
 
             // === sections ===
-            let start_section = Instant::now();
+            // let start_section = Instant::now();
             let sections: Vec<&RibbonXSection> = chain
                 .get_ss()
                 .iter()
@@ -294,10 +294,10 @@ impl Protein {
                     _ => &*COIL_SECTION,
                 })
                 .collect();
-            println!("  section lookup: {:?}", start_section.elapsed());
+            // println!("  section lookup: {:?}", start_section.elapsed());
 
             // === extrusion ===
-            let start_extrude = Instant::now();
+            // let start_extrude = Instant::now();
             self.extrude_ribbon_corrected(
                 &centers,
                 &tangents,
@@ -306,10 +306,10 @@ impl Protein {
                 pts_per_res,
                 &mut mesh,
             );
-            println!("  extrusion: {:?}", start_extrude.elapsed());
+            // println!("  extrusion: {:?}", start_extrude.elapsed());
 
             // === scale + colors ===
-            let start_post = Instant::now();
+            // let start_post = Instant::now();
             for v in &mut mesh.vertices {
                 *v *= scale;
             }
@@ -320,23 +320,23 @@ impl Protein {
             };
 
             mesh.colors = Some(vec![color; mesh.vertices.len()]);
-            println!("  postprocess: {:?}", start_post.elapsed());
+            // println!("  postprocess: {:?}", start_post.elapsed());
 
             final_mesh.append(&mesh);
-            println!(
-                "chain {} processed in {:?}",
-                chain.id,
-                start_chain.elapsed()
-            );
+            // println!(
+            //     "chain {} processed in {:?}",
+            //     chain.id,
+            //     start_chain.elapsed()
+            // );
         }
 
-        println!(
-            "actual length {} {}",
-            final_mesh.vertices.len(),
-            final_mesh.indices.len()
-        );
+        // println!(
+        //     "actual length {} {}",
+        //     final_mesh.vertices.len(),
+        //     final_mesh.indices.len()
+        // );
 
-        println!("to_mesh finished in {:?}", start_total.elapsed());
+        // println!("to_mesh finished in {:?}", start_total.elapsed());
         final_mesh
     }
 

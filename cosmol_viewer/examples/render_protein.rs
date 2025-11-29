@@ -7,7 +7,7 @@ fn main() {
     let mmcif_string = include_str!("../examples/2AMD.cif");
     let mmcif_data = parse_mmcif(mmcif_string, None);
 
-    let prot = Protein::new(mmcif_data).color([0.102, 0.565, 0.427]);
+    let prot = Protein::new(mmcif_data).color([0.2, 0.45, 0.6]);
 
     let mut scene = Scene::new();
     // scene.use_black_background();

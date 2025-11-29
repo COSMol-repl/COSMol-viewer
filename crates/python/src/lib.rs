@@ -162,13 +162,6 @@ impl Viewer {
         let env_type = detect_runtime_env(py).unwrap();
         match env_type {
             RuntimeEnv::Colab | RuntimeEnv::Jupyter => {
-                print_to_notebook(
-                    c_str!(
-                        r#"from IPython.display import display, HTML
-display(HTML("<div style='color:red;font-weight:bold;font-size:1rem;'>⚠️ Note: When running in Jupyter or Colab, animation updates may be limited by the notebook's output capacity, which can cause incomplete or delayed rendering.</div>"))"#
-                    ),
-                    py,
-                );
                 setup_wasm_if_needed(py);
                 let wasm_viewer = WasmViewer::initiate_viewer(py, &scene.inner, width, height);
 
@@ -237,6 +230,12 @@ display(HTML("<div style='color:red;font-weight:bold;font-size:1rem;'>⚠️ Not
         let env_type = self.environment;
         match env_type {
             RuntimeEnv::Colab | RuntimeEnv::Jupyter => {
+                print_to_notebook(
+                    c_str!(
+                        r###"print("\033[33m⚠️ Note: When running in Jupyter or Colab, animation updates may be limited by the notebook's output capacity, which can cause incomplete or delayed rendering.\033[0m")"###
+                    ),
+                    py,
+                );
                 if let Some(ref wasm_viewer) = self.wasm_viewer {
                     wasm_viewer.update(py, &scene.inner);
                 } else {
@@ -258,10 +257,9 @@ display(HTML("<div style='color:red;font-weight:bold;font-size:1rem;'>⚠️ Not
         let env_type = self.environment;
         match env_type {
             RuntimeEnv::Colab | RuntimeEnv::Jupyter => {
-                // let image = self.wasm_viewer.as_ref().unwrap().take_screenshot(py);
                 print_to_notebook(
                     c_str!(
-                        r#"<div style='color:red;font-weight:bold;font-size:1rem;'>⚠️ Image saving in Jupyter/Colab is not yet fully supported.</div>"))"#
+                        r###"print("\033[33m⚠️ Image saving in Jupyter/Colab is not yet fully supported.\033[0m")"###
                     ),
                     py,
                 );

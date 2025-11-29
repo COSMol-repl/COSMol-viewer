@@ -1,5 +1,4 @@
 use crate::utils::vec_f16;
-use glam::Vec2;
 use glam::Vec3;
 use na_seq::Element;
 use serde::{Deserialize, Serialize};
@@ -59,8 +58,7 @@ pub struct Molecules {
     #[serde(with = "vec_f16::vec")]
     atoms: Vec<Vec3>,
     bond_types: Vec<BondType>,
-    #[serde(with = "vec_f16::vec")]
-    bonds: Vec<Vec2>,
+    bonds: Vec<[usize; 2]>,
     pub quality: u32,
 
     pub style: VisualStyle,
@@ -143,20 +141,17 @@ impl Molecules {
 
             // 处理键（避免重复）
             for atom in &molecule {
-                let from = atom.index as u32;
+                let from = atom.index;
                 for (i, &to) in atom.bonds.iter().enumerate() {
-                    let to = to as u32;
+                    let to = to;
                     let key = if from < to { (from, to) } else { (to, from) };
 
                     if !bond_set.contains_key(&key) {
                         bond_set.insert(key, true);
-                        bonds.push(Vec2 {
-                            x: atom.x,
-                            y: atom.y,
-                        });
+                        bonds.push([key.0, key.1]);
 
                         let order = atom.bond_order[i];
-                        let bond_type = match order as u32 {
+                        let bond_type = match order {
                             1 => BondType::SINGLE,
                             2 => BondType::DOUBLE,
                             3 => BondType::TRIPLE,
@@ -378,9 +373,9 @@ impl IntoInstanceGroups for Molecules {
         }
 
         for (i, bond) in self.bonds.iter().enumerate() {
-            let [a, b] = bond.to_array();
-            let pos_a = self.atoms[a as usize];
-            let pos_b = self.atoms[b as usize];
+            let [a, b] = bond;
+            let pos_a = self.atoms[*a];
+            let pos_b = self.atoms[*b];
 
             let bond_type = self.bond_types.get(i).unwrap_or(&BondType::SINGLE);
 
@@ -398,17 +393,17 @@ impl IntoInstanceGroups for Molecules {
             // === Step 1: 先找 A 的邻居方向（排除 B）===
             let mut neighbor_dir_opt = None;
             for (_j, other_bond) in self.bonds.iter().enumerate() {
-                let [x, y] = other_bond.to_array();
-                if x as usize == a as usize && y != b {
-                    let pos_n = self.atoms[y as usize];
+                let [x, y] = other_bond;
+                if x == a && y != b {
+                    let pos_n = self.atoms[*y];
                     neighbor_dir_opt = Some([
                         pos_n[0] - pos_a[0],
                         pos_n[1] - pos_a[1],
                         pos_n[2] - pos_a[2],
                     ]);
                     break;
-                } else if y as usize == a as usize && x != b {
-                    let pos_n = self.atoms[x as usize];
+                } else if y == a && x != b {
+                    let pos_n = self.atoms[*x];
                     neighbor_dir_opt = Some([
                         pos_n[0] - pos_a[0],
                         pos_n[1] - pos_a[1],
@@ -421,17 +416,17 @@ impl IntoInstanceGroups for Molecules {
             // ✅ 若 A 没有邻居，则去找 B 的邻居
             if neighbor_dir_opt.is_none() {
                 for (_j, other_bond) in self.bonds.iter().enumerate() {
-                    let [x, y] = other_bond.to_array();
-                    if x as usize == b as usize && y != a {
-                        let pos_n = self.atoms[y as usize];
+                    let [x, y] = other_bond;
+                    if x == b && y != a {
+                        let pos_n = self.atoms[*y];
                         neighbor_dir_opt = Some([
                             pos_n[0] - pos_b[0],
                             pos_n[1] - pos_b[1],
                             pos_n[2] - pos_b[2],
                         ]);
                         break;
-                    } else if y as usize == b as usize && x != a {
-                        let pos_n = self.atoms[x as usize];
+                    } else if y == b && x != a {
+                        let pos_n = self.atoms[*x];
                         neighbor_dir_opt = Some([
                             pos_n[0] - pos_b[0],
                             pos_n[1] - pos_b[1],
@@ -483,7 +478,7 @@ impl IntoInstanceGroups for Molecules {
             // 颜色和半径与原来一致
             let color_a = self.style.color.unwrap_or(
                 self.atom_types
-                    .get(a as usize)
+                    .get(*a)
                     .map(|x| match x.as_str() {
                         "C" => Vec3::new(0.75, 0.75, 0.75),
                         _ => my_color(x),
@@ -492,7 +487,7 @@ impl IntoInstanceGroups for Molecules {
             );
             let color_b = self.style.color.unwrap_or(
                 self.atom_types
-                    .get(b as usize)
+                    .get(*b)
                     .map(|x| match x.as_str() {
                         "C" => Vec3::new(0.75, 0.75, 0.75),
                         _ => my_color(x),
