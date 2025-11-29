@@ -1,4 +1,4 @@
-use crate::utils::vec_f16;
+use crate::utils::vec_f16_scaled;
 use glam::Vec3;
 use na_seq::Element;
 use serde::{Deserialize, Serialize};
@@ -55,7 +55,7 @@ pub enum BondType {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Molecules {
     atom_types: Vec<String>,
-    #[serde(with = "vec_f16::vec")]
+    #[serde(with = "vec_f16_scaled::vec")]
     atoms: Vec<Vec3>,
     bond_types: Vec<BondType>,
     bonds: Vec<[usize; 2]>,

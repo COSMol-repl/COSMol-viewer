@@ -107,6 +107,7 @@ pub struct Viewer {
     environment: RuntimeEnv,
     wasm_viewer: Option<WasmViewer>,
     native_gui_viewer: Option<NativeGuiViewer>,
+    first_update: bool,
 }
 
 fn detect_runtime_env(py: Python) -> PyResult<RuntimeEnv> {
@@ -169,12 +170,14 @@ impl Viewer {
                     environment: env_type,
                     wasm_viewer: Some(wasm_viewer),
                     native_gui_viewer: None,
+                    first_update: true,
                 }
             }
             RuntimeEnv::PlainScript | RuntimeEnv::IPythonTerminal => Viewer {
                 environment: env_type,
                 wasm_viewer: None,
                 native_gui_viewer: Some(NativeGuiViewer::render(&scene.inner, width, height)),
+                first_update: true,
             },
             _ => panic!("Error: Invalid runtime environment"),
         }
@@ -210,6 +213,7 @@ impl Viewer {
                     environment: env_type,
                     wasm_viewer: Some(wasm_viewer),
                     native_gui_viewer: None,
+                    first_update: false,
                 }
             }
 
@@ -220,6 +224,7 @@ impl Viewer {
                     environment: env_type,
                     wasm_viewer: None,
                     native_gui_viewer: None,
+                    first_update: false,
                 }
             }
             _ => panic!("Error: Invalid runtime environment"),
@@ -230,12 +235,15 @@ impl Viewer {
         let env_type = self.environment;
         match env_type {
             RuntimeEnv::Colab | RuntimeEnv::Jupyter => {
-                print_to_notebook(
-                    c_str!(
-                        r###"print("\033[33m⚠️ Note: When running in Jupyter or Colab, animation updates may be limited by the notebook's output capacity, which can cause incomplete or delayed rendering.\033[0m")"###
-                    ),
-                    py,
-                );
+                if self.first_update {
+                    print_to_notebook(
+                        c_str!(
+                            r###"print("\033[33m⚠️ Note: When running in Jupyter or Colab, animation updates may be limited by the notebook's output capacity, which can cause incomplete or delayed rendering.\033[0m")"###
+                        ),
+                        py,
+                    );
+                    self.first_update = false;
+                }
                 if let Some(ref wasm_viewer) = self.wasm_viewer {
                     wasm_viewer.update(py, &scene.inner);
                 } else {

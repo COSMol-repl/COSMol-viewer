@@ -1,5 +1,5 @@
 use crate::parser::compute_secondary_structure::SecondaryStructureCalculator;
-use crate::utils::vec_f16;
+use crate::utils::vec_f16_scaled;
 pub use crate::utils::{Logger, RustLogger};
 use glam::Vec3;
 use na_seq::AaIdent;
@@ -630,13 +630,13 @@ pub struct Residue {
     pub sns: usize, // PDB numbering or sequential
 
     // Minimum for cartoon backbone
-    #[serde(with = "vec_f16")]
+    #[serde(with = "vec_f16_scaled")]
     pub c: Vec3, // or pseudo-CB for glycine
-    #[serde(with = "vec_f16")]
+    #[serde(with = "vec_f16_scaled")]
     pub n: Vec3, // C-alpha coordinates
-    #[serde(with = "vec_f16")]
+    #[serde(with = "vec_f16_scaled")]
     pub ca: Vec3, // C-alpha coordinates
-    #[serde(with = "vec_f16")]
+    #[serde(with = "vec_f16_scaled")]
     pub o: Vec3, // C-alpha coordinates
     pub h: Option<Vec3>, // C-alpha coordinates
 
