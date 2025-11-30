@@ -23,7 +23,6 @@ half = "2.7.1"
 wide = "0.8.3"
 kiddo = "5.2.2"
 image = "0.25.8"
-base64ct = { version = "1.8.0", features = ["alloc"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 egui-winit.workspace = true

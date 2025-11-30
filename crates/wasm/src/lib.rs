@@ -2,11 +2,14 @@ use base64::Engine;
 #[cfg(feature = "wasm")]
 use cosmol_viewer_core::App;
 use cosmol_viewer_core::scene::Scene;
+#[cfg(feature = "wasm")]
 use cosmol_viewer_core::utils::Logger;
 #[cfg(feature = "js_bridge")]
 use serde::Serialize;
 use std::io::Write;
+#[cfg(feature = "wasm")]
 use std::sync::Arc;
+#[cfg(feature = "wasm")]
 use std::sync::Mutex;
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -351,6 +354,8 @@ impl WebHandle {
             decompress_json(&scene_json).map_err(|e| JsValue::from_str(&e.to_string()))?;
 
         println!("{:?}", _scene);
+        web_sys::console::log_1(&JsValue::from_str(&scene_json.to_string()));
+        web_sys::console::log_1(&JsValue::from_str(format!("{:?}", _scene).as_str()));
 
         #[cfg(target_arch = "wasm32")]
         {
@@ -403,6 +408,8 @@ impl WebHandle {
         {
             use cosmol_viewer_core::utils::Frames;
 
+            web_sys::console::log_1(&JsValue::from_str(&_frames_json.to_string()));
+
             let frames: Frames =
                 decompress_json(&_frames_json).map_err(|e| JsValue::from_str(&e.to_string()))?;
 
@@ -433,26 +440,37 @@ impl WebHandle {
 
 use base64::engine::general_purpose::STANDARD as B64;
 use flate2::{Compression, read::GzDecoder, write::GzEncoder};
+use postcard::{from_bytes, to_allocvec};
 use serde::ser::Error;
 use std::io::Read;
 /// 把 JSON 压缩成 base64 字符串（用于发送）
 pub fn compress_json<T: serde::Serialize>(value: &T) -> String {
-    let json = serde_json::to_string(value).unwrap();
-    let mut e = GzEncoder::new(Vec::new(), Compression::best());
-    e.write_all(json.as_bytes()).unwrap();
-    B64.encode(e.finish().unwrap())
+    // let json = serde_json::to_string(value).unwrap();
+    // let mut e = GzEncoder::new(Vec::new(), Compression::best());
+    // e.write_all(json.as_bytes()).unwrap();
+    // B64.encode(e.finish().unwrap())
+    let bytes = postcard::to_allocvec(value).expect("postcard failed");
+    let mut e = GzEncoder::new(Vec::new(), Compression::fast()); // ← 推荐 fast，速度飞起
+    // 如果你不在乎那 1~2ms，想极致小，就改成 Compression::best()
+    e.write_all(&bytes).unwrap();
+    base64::engine::general_purpose::STANDARD.encode(e.finish().unwrap())
 }
 
 // 把 base64 字符串解压成目标类型（用于接收）
 pub fn decompress_json<T: for<'de> serde::Deserialize<'de>>(
     s: &str,
-) -> Result<T, serde_json::Error> {
-    let bytes = B64
-        .decode(s)
-        .map_err(|_| serde_json::Error::custom("base64 error"))?;
-    let mut d = GzDecoder::new(&bytes[..]);
-    let mut json = String::new();
-    d.read_to_string(&mut json)
-        .map_err(|_| serde_json::Error::custom("gzip error"))?;
-    serde_json::from_str(&json)
+) -> Result<T, Box<dyn std::error::Error>> {
+    // let bytes = B64
+    //     .decode(s)
+    //     .map_err(|_| serde_json::Error::custom("base64 error"))?;
+    // let mut d = GzDecoder::new(&bytes[..]);
+    // let mut json = String::new();
+    // d.read_to_string(&mut json)
+    //     .map_err(|_| serde_json::Error::custom("gzip error"))?;
+    // serde_json::from_str(&json)
+    let compressed = base64::engine::general_purpose::STANDARD.decode(s)?;
+    let mut d = GzDecoder::new(&compressed[..]);
+    let mut bytes = Vec::new();
+    d.read_to_end(&mut bytes)?;
+    Ok(postcard::from_bytes(&bytes)?)
 }

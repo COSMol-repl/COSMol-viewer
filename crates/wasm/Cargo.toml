@@ -11,6 +11,7 @@ serde_json.workspace = true
 serde.workspace = true
 
 uuid = { version = "1.18.1", features = ["v4"], optional = true }
+postcard = { workspace = true, features = ["alloc"] }
 log = { version = "0.4.28", optional = true }
 eframe = { workspace = true, optional = true }
 wasm-bindgen-futures = { version = "0.4.55", optional = true }

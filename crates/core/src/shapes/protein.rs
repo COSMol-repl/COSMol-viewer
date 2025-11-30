@@ -6,12 +6,10 @@ use crate::parser::mmcif::ResidueType;
 use crate::parser::mmcif::SecondaryStructure;
 use crate::shapes::protein::ResidueType::AminoAcid;
 use crate::utils::{MeshData, VisualShape, VisualStyle};
-use crate::utils::{deserialize_bits, serialize_bits};
 use bytemuck::{Pod, Zeroable};
 use glam::{Quat, Vec3, Vec4};
 use na_seq::AtomTypeInRes;
 use serde::{Deserialize, Serialize};
-use serde_with::{base64::Base64, serde_as};
 use wide::f32x8;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
