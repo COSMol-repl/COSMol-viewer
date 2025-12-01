@@ -49,13 +49,12 @@ Install with `pip install cosmol-viewer`
 
 ```python
 from cosmol_viewer import Scene, Viewer, parse_sdf, Molecules
+    
+mol_data  = parse_sdf(open("molecule.sdf", "r", encoding="utf-8").read())
 
-with open("molecule.sdf", "r") as f:
-    sdf = f.read()
-    mol = Molecules(parse_sdf(sdf)).centered()
+mol = Molecules(mol_data).centered()
 
 scene = Scene()
-scene.scale(0.1)
 scene.add_shape(mol, "mol")
 
 viewer = Viewer.render(scene, width=600, height=400)
@@ -80,7 +79,6 @@ for i in range(1, 10):
         mol = Molecules(parse_sdf(sdf)).centered()
 
     scene = Scene()
-    scene.scale(0.1)
     scene.add_shape(mol, "mol")
     frames.append(scene)
 
@@ -143,7 +141,6 @@ fn main() {
             .centered();
 
         let mut scene = Scene::new();
-        scene.scale(0.1);
         scene.add_shape(mol, Some("mol"));
 
         frames.push(scene);
@@ -154,6 +151,3 @@ fn main() {
 }
 
 ```
-
-
-

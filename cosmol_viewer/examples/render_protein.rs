@@ -3,22 +3,11 @@ use cosmol_viewer::utils::VisualShape;
 use cosmol_viewer::{Scene, Viewer, shapes::Protein};
 
 fn main() {
-    // let mmcif_string = &std::fs::read_to_string("./examples/2AMD.cif").unwrap();
     let mmcif_string = include_str!("../examples/2AMD.cif");
     let mmcif_data = parse_mmcif(mmcif_string, None);
 
     let prot = Protein::new(mmcif_data).color([0.2, 0.45, 0.6]);
 
-    println!(
-        "{:?}",
-        &serde_json::to_string(&prot).expect("json serialize failed")
-    );
-    println!(
-        "{:?}",
-        &serde_json::to_string(&prot)
-            .expect("json serialize failed")
-            .len()
-    );
     let mut scene = Scene::new();
     // scene.use_black_background();
     scene.scale(0.2);

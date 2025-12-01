@@ -44,7 +44,7 @@ js_bridge = [
 crate-type = ["rlib", "cdylib"]
 
 [package.metadata.wasm-pack.profile.dev]
-wasm-opt = false
+wasm-opt = ['-O']
 
 [package.metadata.wasm-pack.profile.dev.wasm-bindgen]
 debug-js-glue = true
@@ -57,13 +57,14 @@ wasm-opt = [
   "--enable-simd",
   "--enable-bulk-memory",
   "--enable-mutable-globals",
+ "--enable-nontrapping-float-to-int",
   "--zero-filled-memory",
   "--strip-producers",
   "--vacuum",
 ]
 
 [package.metadata.wasm-pack.profile.release.wasm-bindgen]
-debug-js-glue = false
+debug-js-glue = true
 demangle-name-section = false
 dwarf-debug-info = false
-split-linked-modules = true
+split-linked-modules = false

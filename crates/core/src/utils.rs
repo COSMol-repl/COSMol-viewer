@@ -1,4 +1,4 @@
-use glam::{Mat4, Vec2, Vec3, Vec4};
+use glam::{Mat4, Vec3, Vec4};
 use serde::{Deserialize, Serialize};
 
 use crate::{

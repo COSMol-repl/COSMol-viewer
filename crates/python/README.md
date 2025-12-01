@@ -54,13 +54,12 @@ See examples in [Google Colab](https://colab.research.google.com/drive/1Sw72QWjQ
 
 ```python
 from cosmol_viewer import Scene, Viewer, parse_sdf, Molecules
+    
+mol_data  = parse_sdf(open("molecule.sdf", "r", encoding="utf-8").read())
 
-with open("molecule.sdf", "r") as f:
-    sdf = f.read()
-    mol = Molecules(parse_sdf(sdf)).centered()
+mol = Molecules(mol_data).centered()
 
 scene = Scene()
-scene.scale(0.1)
 scene.add_shape(mol, "mol")
 
 viewer = Viewer.render(scene, width=600, height=400)
@@ -85,9 +84,7 @@ for i in range(1, 10):
         mol = Molecules(parse_sdf(sdf)).centered()
 
     scene = Scene()
-    scene.scale(0.1)
     scene.add_shape(mol, "mol")
-
     frames.append(scene)
 
 Viewer.play(frames, interval=interval, loops=1, width=600, height=400, smooth=True)
