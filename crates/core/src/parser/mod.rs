@@ -1,3 +1,3 @@
-pub mod DSSP;
+pub mod dssp;
 pub mod mmcif;
 pub mod sdf;

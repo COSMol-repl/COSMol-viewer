@@ -1,5 +1,4 @@
-use crate::parser::DSSP::SecondaryStructureCalculator;
-use crate::utils::vec_f16_scaled;
+use crate::parser::dssp::SecondaryStructureCalculator;
 pub use crate::utils::{Logger, RustLogger};
 use glam::Vec3;
 use na_seq::AaIdent;

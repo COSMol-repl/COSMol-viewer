@@ -1,4 +1,3 @@
-use crate::utils::vec_f16_scaled;
 use glam::Vec3;
 use na_seq::Element;
 use serde::{Deserialize, Serialize};

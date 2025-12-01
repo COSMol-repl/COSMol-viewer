@@ -20,11 +20,3 @@ crate-type = ["cdylib"]
 default = []
 wayland = ["cosmol_viewer_core/wayland"]
 x11 = ["cosmol_viewer_core/x11"]
-
-[profile.release]
-lto = "fat"              # 以前叫 "full"，现在推荐写 fat
-codegen-units = 1        # 必须和 fat LTO 一起开才有效
-panic = "abort"          # 二进制体积暴降，Python 侧反正会接管 panic
-strip = "symbols"        # 去掉 debug symbols
-opt-level = "z"          # 体积党终极选择，速度损失 <1%
-incremental = false
