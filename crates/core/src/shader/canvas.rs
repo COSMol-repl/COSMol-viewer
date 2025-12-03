@@ -17,31 +17,40 @@ use crate::scene::StickInstance;
 use crate::shapes::Sphere;
 use crate::shapes::Stick;
 use crate::utils::Frames;
-use crate::utils::Interpolatable;
+use crate::utils::{Interpolatable, Logger};
 
-pub struct Canvas {
+pub struct Canvas<L: Logger> {
     shader: Arc<Mutex<Shader>>,
     camera_state: CameraState,
     frames: Option<Frames>,
     interpolate_enabled: bool,
+    logger: L,
 }
 
-impl Canvas {
-    pub fn new<'a>(gl: Arc<eframe::glow::Context>, scene: Scene) -> Option<Self> {
+impl<L: Logger> Canvas<L> {
+    pub fn new<'a>(gl: Arc<eframe::glow::Context>, scene: Scene, logger: L) -> Option<Self> {
+        let camera_state = scene.camera_state.clone();
         Some(Self {
             shader: Arc::new(Mutex::new(Shader::new(&gl, scene)?)),
-            camera_state: CameraState::new(1.0),
+            camera_state: camera_state,
             frames: None,
             interpolate_enabled: false,
+            logger,
         })
     }
 
-    pub fn new_play<'a>(gl: Arc<eframe::glow::Context>, frames: Frames) -> Option<Self> {
+    pub fn new_play<'a>(gl: Arc<eframe::glow::Context>, frames: Frames, logger: L) -> Option<Self> {
+        if frames.frames.is_empty() {
+            logger.error("No frames provided");
+            return None;
+        }
+        let camera_state = frames.frames[0].camera_state.clone();
         Some(Self {
             shader: Arc::new(Mutex::new(Shader::new(&gl, frames.frames[0].clone())?)),
-            camera_state: CameraState::new(1.0),
+            camera_state: camera_state,
             interpolate_enabled: frames.smooth,
             frames: Some(frames),
+            logger,
         })
     }
 
@@ -55,6 +64,7 @@ impl Canvas {
         );
 
         if let Some(frames) = &mut self.frames {
+            ui.ctx().request_repaint();
             let now = ui.input(|i| i.time);
 
             // 播放总时长（秒）
@@ -100,24 +110,34 @@ impl Canvas {
             } else {
                 // 这里是原先的插值 / 非插值逻辑
                 if self.interpolate_enabled {
-                    frames.frames[frame_a_index].interpolate(&frames.frames[frame_b_index], t)
+                    frames.frames[frame_a_index].interpolate(
+                        &frames.frames[frame_b_index],
+                        t,
+                        self.logger,
+                    )
                 } else {
                     frames.frames[frame_a_index].clone()
                 }
             };
 
-            self.shader.lock().update_scene(interp_frame);
-            ui.ctx().request_repaint();
+            self.shader.lock().update_scene(Some(&interp_frame));
         }
         let scroll_delta = ui.input(|i| i.raw_scroll_delta.y);
 
         // 正值表示向上滚动，通常是“缩小”，负值是放大
         if scroll_delta != 0.0 {
-            self.camera_state.scale *= (1.0 + scroll_delta * 0.001).clamp(0.1, 10.0);
+            // zoom factor: same logic as before
+            let zoom_factor = 1.0 + scroll_delta * 0.001;
+
+            // new distance
+            self.camera_state.distance *= zoom_factor;
+
+            // clamp to safe range
+            self.camera_state.distance = self.camera_state.distance.clamp(0.1, 500.0);
         }
 
         if response.dragged() {
-            self.camera_state = rotate_camera(self.camera_state, response.drag_motion());
+            self.camera_state.rotate(response.drag_motion());
         }
 
         // Clone locals so we can move them into the paint callback:
@@ -129,7 +149,7 @@ impl Canvas {
         let cb = egui_glow::CallbackFn::new(move |_info, painter| {
             shader
                 .lock()
-                .paint(painter.gl(), aspect_ratio, camera_state);
+                .paint(painter.gl(), aspect_ratio, &camera_state);
         });
 
         let callback = egui::PaintCallback {
@@ -140,7 +160,7 @@ impl Canvas {
     }
 
     pub fn update_scene(&mut self, scene: Scene) {
-        self.shader.lock().update_scene(scene);
+        self.shader.lock().update_scene(Some(&scene));
     }
 }
 
@@ -162,6 +182,7 @@ struct Shader {
     sphere_instance_buffer: glow::Buffer,
     stick_instance_buffer: glow::Buffer,
     instance_groups: Option<InstanceGroups>,
+    current_scene: Scene,
 }
 
 #[expect(unsafe_code)] // we need unsafe code to use glow
@@ -171,7 +192,7 @@ impl Shader {
 
         let shader_version = egui_glow::ShaderVersion::get(gl);
         let background_color = scene.background_color;
-        let default_color = [1.0, 1.0, 1.0, 1.0];
+        let default_color = Vec4::new(1.0, 1.0, 1.0, 1.0);
 
         unsafe {
             // =========================
@@ -403,7 +424,7 @@ impl Shader {
                 .map(|(i, pos)| Vertex3d {
                     position: *pos,
                     normal: template_sphere.normals[i],
-                    color: default_color,
+                    color: default_color.into(),
                 })
                 .collect();
 
@@ -420,7 +441,7 @@ impl Shader {
                 .map(|(i, pos)| Vertex3d {
                     position: *pos,
                     normal: template_stick.normals[i],
-                    color: default_color,
+                    color: default_color.into(),
                 })
                 .collect();
 
@@ -687,25 +708,32 @@ impl Shader {
                 vertex_buffer,
                 ebo,
                 instance_groups: None,
+                current_scene: scene,
             };
 
             // =========================
             // 9. Update scene data
             // =========================
-            shader_instance.update_scene(scene);
+            shader_instance.update_scene(None);
 
             Some(shader_instance)
         }
     }
 
-    fn update_scene(&mut self, scene_data: Scene) {
-        self.background_color = scene_data.background_color;
+    fn update_scene(&mut self, scene_opt: Option<&Scene>) {
+        let scene = if let Some(scene_data) = scene_opt {
+            scene_data
+        } else {
+            &self.current_scene
+        };
+
+        self.background_color = scene.background_color;
         self.vertex3d.clear();
         self.indices.clear();
 
         let mut vertex_offset = 0u32;
 
-        for mesh in scene_data._get_meshes() {
+        for mesh in scene._get_meshes() {
             self.vertex3d
                 .extend(mesh.vertices.iter().enumerate().map(|(i, pos)| {
                     Vertex3d {
@@ -714,9 +742,8 @@ impl Shader {
                         color: mesh
                             .colors
                             .as_ref()
-                            .and_then(|colors| colors.get(i))
-                            .unwrap_or(&[1.0, 1.0, 1.0, 1.0])
-                            .clone(),
+                            .map(|x| x[i].into())
+                            .unwrap_or_default(),
                     }
                 }));
 
@@ -725,28 +752,25 @@ impl Shader {
             vertex_offset += mesh.vertices.len() as u32;
         }
 
-        self.instance_groups = Some(scene_data.get_instances_grouped());
+        self.instance_groups = Some(scene.get_instances_grouped());
     }
 
-    fn paint(&mut self, gl: &glow::Context, aspect_ratio: f32, camera_state: CameraState) {
+    fn paint(&mut self, gl: &glow::Context, aspect_ratio: f32, camera_state: &CameraState) {
+        let u_model = self.current_scene.model_matrix();
+        let (u_view, u_projection, u_view_pos) = camera_state.matrices(aspect_ratio);
+        let u_normal_matrix = self.current_scene.normal_matrix();
+
         use glow::HasContext as _;
 
-        let camera_position = -camera_state.direction * camera_state.distance;
-        let camera_direction = camera_state.direction;
-        let camera_up = camera_state.up;
-        let camera = Camera::new(
-            [camera_position.x, camera_position.y, camera_position.z],
-            [camera_direction.x, camera_direction.y, camera_direction.z],
-            [camera_up.x, camera_up.y, camera_up.z],
-            45.0,
-            camera_state.scale,
-        );
-
         let light = Light {
-            direction: [1.0, -1.0, -2.0],
-            color: [1.0, 0.9, 0.9],
+            direction: Vec3::new(-1.0, 1.0, 5.0) * 1000.0,
+            color: Vec3::new(1.0, 0.9, 0.9),
             intensity: 1.0,
         };
+
+        let light_dir_cam_space = light.direction;
+        let rot = Mat3::from_mat4(u_view); // 取上3x3
+        let light_dir_world = rot.transpose() * light_dir_cam_space; // 注意是逆旋转
 
         unsafe {
             // 背面剔除 + 深度测试
@@ -783,70 +807,40 @@ impl Shader {
             //     glow::ONE_MINUS_SRC_ALPHA, // alpha：按透明度混合
             // );
 
-            // 将光源位置转换为齐次坐标 (x,y,z,1.0)
-            let light_pos_homogeneous = Vec4::new(
-                -light.direction[0],
-                -light.direction[1],
-                -light.direction[2],
-                1.0, // 关键：第4个分量为1.0表示点
-            );
-
-            // 应用模型变换
-            let transformed_light_pos = light_pos_homogeneous;
-
-            // 提取前三个分量 (xyz)
-            let transformed_light_pos_xyz = [
-                transformed_light_pos.x,
-                transformed_light_pos.y,
-                transformed_light_pos.z,
-            ];
-
-            // 将摄像机位置转换为齐次坐标 (x,y,z,1.0)
-            let camera_pos_homogeneous = Vec4::new(
-                camera.position[0],
-                camera.position[1],
-                camera.position[2],
-                1.0, // 关键：第4个分量为1.0表示点
-            );
-
-            // 应用模型变换
-            let transformed_camera_pos = camera.view_matrix() * camera_pos_homogeneous;
-
-            // 提取前三个分量 (xyz)
-            let transformed_camera_pos_xyz = [
-                transformed_camera_pos.x,
-                transformed_camera_pos.y,
-                transformed_camera_pos.z,
-            ];
-
             gl.use_program(Some(self.program));
 
             gl.uniform_matrix_4_f32_slice(
-                gl.get_uniform_location(self.program, "u_mvp").as_ref(),
-                false,
-                (camera.view_proj(aspect_ratio)).as_ref(),
-            );
-            gl.uniform_matrix_4_f32_slice(
                 gl.get_uniform_location(self.program, "u_model").as_ref(),
                 false,
-                (camera.view_matrix()).as_ref(),
+                (u_model).as_ref(),
+            );
+            gl.uniform_matrix_4_f32_slice(
+                gl.get_uniform_location(self.program, "u_view").as_ref(),
+                false,
+                (u_view).as_ref(),
+            );
+            gl.uniform_matrix_4_f32_slice(
+                gl.get_uniform_location(self.program, "u_projection")
+                    .as_ref(),
+                false,
+                (u_projection).as_ref(),
             );
             gl.uniform_matrix_3_f32_slice(
                 gl.get_uniform_location(self.program, "u_normal_matrix")
                     .as_ref(),
                 false,
-                (camera.normal_matrix()).as_ref(),
+                (u_normal_matrix).as_ref(),
             );
 
             gl.uniform_3_f32_slice(
                 gl.get_uniform_location(self.program, "u_light_pos")
                     .as_ref(),
-                (transformed_light_pos_xyz).as_ref(),
+                (light_dir_world).as_ref(),
             );
 
             gl.uniform_3_f32_slice(
                 gl.get_uniform_location(self.program, "u_view_pos").as_ref(),
-                (transformed_camera_pos_xyz).as_ref(),
+                (u_view_pos).as_ref(),
             );
 
             gl.uniform_3_f32_slice(
@@ -887,34 +881,40 @@ impl Shader {
             if let Some(instance_groups) = &self.instance_groups {
                 gl.use_program(Some(self.program_sphere));
                 gl.uniform_matrix_4_f32_slice(
-                    gl.get_uniform_location(self.program_sphere, "u_mvp")
-                        .as_ref(),
-                    false,
-                    (camera.view_proj(aspect_ratio)).as_ref(),
-                );
-                gl.uniform_matrix_4_f32_slice(
                     gl.get_uniform_location(self.program_sphere, "u_model")
                         .as_ref(),
                     false,
-                    (camera.view_matrix()).as_ref(),
+                    (u_model).as_ref(),
+                );
+                gl.uniform_matrix_4_f32_slice(
+                    gl.get_uniform_location(self.program_sphere, "u_view")
+                        .as_ref(),
+                    false,
+                    (u_view).as_ref(),
+                );
+                gl.uniform_matrix_4_f32_slice(
+                    gl.get_uniform_location(self.program_sphere, "u_projection")
+                        .as_ref(),
+                    false,
+                    (u_projection).as_ref(),
                 );
                 gl.uniform_matrix_3_f32_slice(
                     gl.get_uniform_location(self.program_sphere, "u_normal_matrix")
                         .as_ref(),
                     false,
-                    (camera.normal_matrix()).as_ref(),
+                    (u_normal_matrix).as_ref(),
                 );
 
                 gl.uniform_3_f32_slice(
                     gl.get_uniform_location(self.program_sphere, "u_light_pos")
                         .as_ref(),
-                    (transformed_light_pos_xyz).as_ref(),
+                    (light_dir_world).as_ref(),
                 );
 
                 gl.uniform_3_f32_slice(
                     gl.get_uniform_location(self.program_sphere, "u_view_pos")
                         .as_ref(),
-                    (transformed_camera_pos_xyz).as_ref(),
+                    (u_view_pos).as_ref(),
                 );
 
                 gl.uniform_3_f32_slice(
@@ -947,32 +947,38 @@ impl Shader {
 
                 gl.use_program(Some(self.program_stick));
                 gl.uniform_matrix_4_f32_slice(
-                    gl.get_uniform_location(self.program_stick, "u_mvp")
-                        .as_ref(),
-                    false,
-                    (camera.view_proj(aspect_ratio)).as_ref(),
-                );
-                gl.uniform_matrix_4_f32_slice(
                     gl.get_uniform_location(self.program_stick, "u_model")
                         .as_ref(),
                     false,
-                    (camera.view_matrix()).as_ref(),
+                    (u_model).as_ref(),
+                );
+                gl.uniform_matrix_4_f32_slice(
+                    gl.get_uniform_location(self.program_stick, "u_view")
+                        .as_ref(),
+                    false,
+                    (u_view).as_ref(),
+                );
+                gl.uniform_matrix_4_f32_slice(
+                    gl.get_uniform_location(self.program_stick, "u_projection")
+                        .as_ref(),
+                    false,
+                    (u_projection).as_ref(),
                 );
                 gl.uniform_matrix_3_f32_slice(
                     gl.get_uniform_location(self.program_stick, "u_normal_matrix")
                         .as_ref(),
                     false,
-                    (camera.normal_matrix()).as_ref(),
+                    (u_normal_matrix).as_ref(),
                 );
                 gl.uniform_3_f32_slice(
                     gl.get_uniform_location(self.program_stick, "u_light_pos")
                         .as_ref(),
-                    (transformed_light_pos_xyz).as_ref(),
+                    (light_dir_world).as_ref(),
                 );
                 gl.uniform_3_f32_slice(
                     gl.get_uniform_location(self.program_stick, "u_view_pos")
                         .as_ref(),
-                    (transformed_camera_pos_xyz).as_ref(),
+                    (u_view_pos).as_ref(),
                 );
                 gl.uniform_3_f32_slice(
                     gl.get_uniform_location(self.program_stick, "u_light_color")
@@ -1006,124 +1012,78 @@ impl Shader {
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize)]
 pub struct CameraState {
-    pub distance: f32,   // 距离原点的距离（保持固定）
-    pub direction: Vec3, // 观察方向（通常是 unit vector）
-    pub up: Vec3,        // 向上的方向
-    pub scale: f32,      // 缩放比例（保持固定）
+    pub target: Vec3,
+    pub distance: f32,
+    pub rotation: Quat,
+    pub fov: f32,
 }
 
 impl CameraState {
     pub fn new(distance: f32) -> Self {
         Self {
+            target: Vec3::ZERO,
             distance,
-            direction: Vec3::Z,
-            up: Vec3::Y,
-            scale: 0.5,
+            rotation: Quat::IDENTITY, // no rotation
+            fov: 15.0,
         }
     }
-}
 
-pub fn rotate_camera(mut camera_state: CameraState, drag_motion: Vec2) -> CameraState {
-    let sensitivity = 0.005;
-    let yaw = -drag_motion.x * sensitivity; // 水平拖动 → 绕 up 旋转
-    let pitch = -drag_motion.y * sensitivity; // 垂直拖动 → 绕 right 旋转
+    /// 根据 yaw / pitch / distance / target 生成摄像机位置和方向
+    pub fn matrices(&self, aspect: f32) -> (Mat4, Mat4, Vec3) {
+        // Camera looks down -Z in local space
+        let local_forward = Vec3::new(0.0, 0.0, -1.0);
 
-    // 当前方向
-    let dir = camera_state.direction;
+        // Rotate the forward vector into world space
+        let dir = self.rotation * local_forward;
 
-    // right = 当前方向 × 当前 up
-    let right = dir.cross(camera_state.up).normalize();
+        // Compute camera position
+        let view_pos = self.target - dir * self.distance;
 
-    // 1. pitch：绕当前 right 轴旋转（垂直）
-    let pitch_quat = Quat::from_axis_angle(right, pitch);
-    let rotated_dir = pitch_quat * dir;
-    let rotated_up = pitch_quat * camera_state.up;
+        // Up vector also comes from quaternion
+        let up = self.rotation * Vec3::Y;
 
-    // 2. yaw：绕当前“视角 up”旋转（水平）
-    let yaw_quat = Quat::from_axis_angle(rotated_up, yaw);
-    let final_dir = yaw_quat * rotated_dir;
+        let view = Mat4::look_at_rh(view_pos, view_pos + dir, up);
+        let projection = Mat4::perspective_rh(self.fov.to_radians(), aspect, 0.1, 2000.0);
 
-    camera_state.direction = final_dir.normalize();
-    camera_state.up = (yaw_quat * rotated_up).normalize();
+        (view, projection, view_pos)
+    }
 
-    camera_state
+    pub fn rotate(&mut self, drag: Vec2) {
+        // 灵敏度，可按需调整
+        let sensitivity = 0.005;
+
+        // 把屏幕拖动转换为两个角度
+        let angle_x = -drag.x * sensitivity; // 水平：左右拖动
+        let angle_y = -drag.y * sensitivity; // 垂直：上下拖动
+
+        // 计算相机在世界空间的局部轴（world-space）
+        // camera_right_world = rotation * X
+        // camera_up_world    = rotation * Y
+        let camera_right = self.rotation * Vec3::X;
+        let camera_up = self.rotation * Vec3::Y;
+
+        // 以相机的本地轴作为旋转轴，构造增量四元数（注意顺序）
+        // 先绕相机的 up（左右拖动），再绕相机的 right（上下拖动）
+        let q_yaw = Quat::from_axis_angle(camera_up, angle_x);
+        let q_pitch = Quat::from_axis_angle(camera_right, angle_y);
+
+        // 把“这次拖动产生的旋转” 先作用于现有旋转：）
+        self.rotation = (q_yaw * q_pitch) * self.rotation;
+
+        self.rotation = self.rotation.normalize();
+    }
 }
 
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable, Debug, Serialize, Deserialize)]
 pub struct Vertex3d {
-    pub position: [f32; 3],
-    pub normal: [f32; 3],
+    pub position: Vec3,
+    pub normal: Vec3,
     pub color: [f32; 4],
 }
 
-#[repr(C)]
-#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct Camera {
-    pub position: [f32; 3],
-    pub z: [f32; 3],
-    pub x: [f32; 3],
-    pub y: [f32; 3],
-    pub fov: f32,
-    pub scale: f32,
-}
-
-impl Camera {
-    /// 假定模型空间 == 世界空间
-    pub fn new(position: [f32; 3], forward: [f32; 3], up: [f32; 3], fov: f32, scale: f32) -> Self {
-        let z = Vec3::from(forward).normalize();
-        let up = Vec3::from(up);
-        let x = up.cross(z).normalize();
-        let y = z.cross(x);
-
-        Self {
-            position,
-            z: z.into(),
-            x: x.into(),
-            y: y.into(),
-            fov,
-            scale,
-        }
-    }
-
-    /// 从世界空间变换到相机空间
-    pub fn view_matrix(&self) -> Mat4 {
-        let pos = Vec3::from(self.position);
-        let center = pos + Vec3::from(self.z);
-        let up = Vec3::from(self.y);
-
-        Mat4::look_at_rh(pos, center, up)
-    }
-
-    /// 把 3D 场景投影成 2D 的视图
-    pub fn projection_matrix(&self, aspect: f32) -> Mat4 {
-        // 如果用 scale 控制的是放大倍率，可以解释为正交投影的比例因子
-        let s = self.scale;
-
-        // 你可以换成 perspective_rh(self.fov, aspect, near, far)
-        Mat4::orthographic_rh(
-            -s * aspect,
-            s * aspect, // left, right
-            -s,
-            s, // bottom, top
-            -1000.0,
-            1000.0, // near, far
-        )
-    }
-
-    /// 相机变换矩阵 = 投影 × 视图变换
-    pub fn view_proj(&self, aspect: f32) -> Mat4 {
-        self.projection_matrix(aspect) * self.view_matrix()
-    }
-
-    /// 法线矩阵：模型矩阵的 3x3 的逆转置
-    pub fn normal_matrix(&self) -> Mat3 {
-        Mat3::from_mat4(self.view_matrix()).inverse().transpose()
-    }
-}
-
 pub struct Light {
-    pub direction: [f32; 3],
-    pub color: [f32; 3],
+    pub direction: Vec3,
+    pub color: Vec3,
     pub intensity: f32,
 }

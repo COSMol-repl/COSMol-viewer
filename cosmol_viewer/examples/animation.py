@@ -11,7 +11,7 @@ frames = []
 for frame_idx in range(num_frames):
     t = frame_idx * interval  # 时间直接用 interval 累积
     scene = Scene()
-    scene.scale(0.2)
+    scene.scale(2.0)
 
     for i, id in enumerate(ids):
         phase = i * math.pi / 3.0

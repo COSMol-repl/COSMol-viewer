@@ -1,12 +1,19 @@
+use base64::Engine;
+#[cfg(feature = "wasm")]
 use cosmol_viewer_core::App;
 use cosmol_viewer_core::scene::Scene;
-use cosmol_viewer_core::utils::Frames;
+#[cfg(feature = "wasm")]
+use cosmol_viewer_core::utils::Logger;
 #[cfg(feature = "js_bridge")]
 use serde::Serialize;
+use std::io::Write;
+#[cfg(feature = "wasm")]
 use std::sync::Arc;
+#[cfg(feature = "wasm")]
 use std::sync::Mutex;
 
-const VERSION: &str = env!("CARGO_PKG_VERSION"); // crate 当前版本号
+#[cfg(not(target_arch = "wasm32"))]
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg(feature = "wasm")]
 use web_sys::HtmlCanvasElement;
@@ -89,8 +96,7 @@ impl WasmViewer {
             height = height
         );
 
-        let scene_json = serde_json::to_string(scene).unwrap();
-        let escaped = serde_json::to_string(&scene_json).unwrap();
+        let escaped = serde_json::to_string(&compress_json(&scene)).unwrap();
 
         let combined_js = format!(
             r#"
@@ -165,14 +171,13 @@ impl WasmViewer {
             height = height
         );
 
-        let frames_json = serde_json::to_string(&Frames {
+        let frames = &Frames {
             frames,
             interval,
             loops,
             smooth,
-        })
-        .unwrap();
-        let escaped = serde_json::to_string(&frames_json).unwrap();
+        };
+        let escaped = serde_json::to_string(&compress_json(&frames)).unwrap();
 
         let combined_js = format!(
             r#"
@@ -226,8 +231,7 @@ impl WasmViewer {
     pub fn call<T: Serialize>(&self, py: Python, name: &str, input: T) -> () {
         use pyo3::types::PyAnyMethods;
 
-        let input_json = serde_json::to_string(&input).unwrap();
-        let escaped = serde_json::to_string(&input_json).unwrap();
+        let escaped = serde_json::to_string(&compress_json(&input)).unwrap();
         let combined_js = format!(
             r#"
 (async function() {{
@@ -281,22 +285,38 @@ pub trait JsBridge {
 use eframe::WebRunner;
 
 #[cfg(feature = "wasm")]
-#[cfg(not(target_arch = "wasm32"))]
-struct WebRunner;
+#[derive(Clone, Copy)]
+pub struct WasmLogger;
 
 #[cfg(feature = "wasm")]
-#[cfg(not(target_arch = "wasm32"))]
-impl WebRunner {
-    pub fn new() -> Self {
-        Self
+impl Logger for WasmLogger {
+    fn log(&self, message: impl std::fmt::Display) {
+        web_sys::console::log_1(&JsValue::from_str(&message.to_string()));
+    }
+
+    fn warn(&self, message: impl std::fmt::Display) {
+        web_sys::console::warn_1(&JsValue::from_str(&message.to_string()));
+    }
+
+    fn error(&self, message: impl std::fmt::Display) {
+        let msg = message.to_string();
+
+        // Send to console
+        web_sys::console::error_1(&JsValue::from_str(&msg));
+
+        // Show browser alert
+        if let Some(window) = web_sys::window() {
+            window.alert_with_message(&msg).ok();
+        }
     }
 }
 
 #[cfg(feature = "wasm")]
 #[wasm_bindgen]
 pub struct WebHandle {
+    #[cfg(target_arch = "wasm32")]
     runner: WebRunner,
-    app: Arc<Mutex<Option<App>>>,
+    app: Arc<Mutex<Option<App<WasmLogger>>>>,
 }
 
 #[cfg(feature = "wasm")]
@@ -306,53 +326,69 @@ impl WebHandle {
     #[expect(clippy::new_without_default)]
     pub fn new() -> Self {
         #[cfg(target_arch = "wasm32")]
-        eframe::WebLogger::init(log::LevelFilter::Debug).ok();
-        Self {
-            runner: WebRunner::new(),
-            app: Arc::new(Mutex::new(None)),
+        {
+            eframe::WebLogger::init(log::LevelFilter::Debug).ok();
+            Self {
+                runner: WebRunner::new(),
+                app: Arc::new(Mutex::new(None)),
+            }
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            Self {
+                app: Arc::new(Mutex::new(None)),
+            }
         }
     }
 
     #[wasm_bindgen]
     pub async fn start_with_scene(
         &mut self,
-        canvas: HtmlCanvasElement,
+        _canvas: HtmlCanvasElement,
         scene_json: String,
     ) -> Result<(), JsValue> {
-        let scene: Scene = serde_json::from_str(&scene_json)
-            .map_err(|e| JsValue::from_str(&format!("Scene parse error: {}", e)))?;
+        // let _scene: Scene = serde_json::from_str(&scene_json)
+        //     .map_err(|e| JsValue::from_str(&format!("Scene parse error: {}", e)))?;
 
-        let app = Arc::clone(&self.app);
+        let _scene: Scene =
+            decompress_json(&scene_json).map_err(|e| JsValue::from_str(&e.to_string()))?;
+
+        println!("{:?}", _scene);
+        web_sys::console::log_1(&JsValue::from_str(&scene_json.to_string()));
+        web_sys::console::log_1(&JsValue::from_str(format!("{:?}", _scene).as_str()));
 
         #[cfg(target_arch = "wasm32")]
-        let _ = self
-            .runner
-            .start(
-                canvas,
-                eframe::WebOptions {
-                    // multisampling: 4, // Enable 4x MSAA
-                    ..Default::default()
-                },
-                Box::new(move |cc| {
-                    use cosmol_viewer_core::AppWrapper;
+        {
+            let app = Arc::clone(&self.app);
 
-                    let mut guard = app.lock().unwrap();
-                    *guard = Some(App::new(cc, scene));
-                    Ok(Box::new(AppWrapper(app.clone())))
-                }),
-            )
-            .await;
+            let _ = self
+                .runner
+                .start(
+                    _canvas,
+                    eframe::WebOptions {
+                        // multisampling: 4, // Enable 4x MSAA
+                        ..Default::default()
+                    },
+                    Box::new(move |cc| {
+                        use cosmol_viewer_core::AppWrapper;
+
+                        let mut guard = app.lock().unwrap();
+                        *guard = Some(App::new(cc, _scene, WasmLogger));
+                        Ok(Box::new(AppWrapper(app.clone())))
+                    }),
+                )
+                .await;
+        }
         Ok(())
     }
 
     #[wasm_bindgen]
     pub async fn update_scene(&mut self, scene_json: String) -> Result<(), JsValue> {
-        let scene: Scene = serde_json::from_str(&scene_json)
-            .map_err(|e| JsValue::from_str(&format!("Scene parse error: {}", e)))?;
+        let scene: Scene =
+            decompress_json(&scene_json).map_err(|e| JsValue::from_str(&e.to_string()))?;
 
         let mut app_guard = self.app.lock().unwrap();
         if let Some(app) = &mut *app_guard {
-            println!("Received scene update");
             app.update_scene(scene);
             app.ctx.request_repaint();
         } else {
@@ -364,31 +400,36 @@ impl WebHandle {
     #[wasm_bindgen]
     pub async fn initiate_viewer_and_play(
         &mut self,
-        canvas: HtmlCanvasElement,
-        frames_json: String,
+        _canvas: HtmlCanvasElement,
+        _frames_json: String,
     ) -> Result<(), JsValue> {
-        let frames: Frames = serde_json::from_str(&frames_json)
-            .map_err(|e| JsValue::from_str(&format!("Frames parse error: {}", e)))?;
-
-        let app = Arc::clone(&self.app);
-
-        let scene = frames.frames[0].clone();
-
         #[cfg(target_arch = "wasm32")]
-        let _ = self
-            .runner
-            .start(
-                canvas,
-                eframe::WebOptions::default(),
-                Box::new(move |cc| {
-                    use cosmol_viewer_core::AppWrapper;
+        {
+            use cosmol_viewer_core::utils::Frames;
 
-                    let mut guard = app.lock().unwrap();
-                    *guard = Some(App::new_play(cc, frames));
-                    Ok(Box::new(AppWrapper(app.clone())))
-                }),
-            )
-            .await;
+            let payload = _frames_json.to_string();
+            let kb = payload.as_bytes().len() as f64 / 1024.0;
+            web_sys::console::log_1(&format!("Transmission size: {kb:.2} KB").into());
+
+            let frames: Frames =
+                decompress_json(&_frames_json).map_err(|e| JsValue::from_str(&e.to_string()))?;
+
+            let app = Arc::clone(&self.app);
+            let _ = self
+                .runner
+                .start(
+                    _canvas,
+                    eframe::WebOptions::default(),
+                    Box::new(move |cc| {
+                        use cosmol_viewer_core::AppWrapper;
+
+                        let mut guard = app.lock().unwrap();
+                        *guard = Some(App::new_play(cc, frames, WasmLogger));
+                        Ok(Box::new(AppWrapper(app.clone())))
+                    }),
+                )
+                .await;
+        }
         Ok(())
     }
 
@@ -396,4 +437,25 @@ impl WebHandle {
     pub async fn take_screenshot(&self) -> Option<String> {
         Some("The returned value is omitted!".to_string())
     }
+}
+
+use flate2::{Compression, read::GzDecoder, write::GzEncoder};
+use std::io::Read;
+/// 把 JSON 压缩成 base64 字符串（用于发送）
+pub fn compress_json<T: serde::Serialize>(value: &T) -> String {
+    let bytes = postcard::to_allocvec(value).expect("postcard failed");
+    let mut e = GzEncoder::new(Vec::new(), Compression::fast());
+    e.write_all(&bytes).unwrap();
+    base64::engine::general_purpose::STANDARD.encode(e.finish().unwrap())
+}
+
+// 把 base64 字符串解压成目标类型（用于接收）
+pub fn decompress_json<T: for<'de> serde::Deserialize<'de>>(
+    s: &str,
+) -> Result<T, Box<dyn std::error::Error>> {
+    let compressed = base64::engine::general_purpose::STANDARD.decode(s)?;
+    let mut d = GzDecoder::new(&compressed[..]);
+    let mut bytes = Vec::new();
+    d.read_to_end(&mut bytes)?;
+    Ok(postcard::from_bytes(&bytes)?)
 }

@@ -1,11 +1,11 @@
 use std::path::Path;
 
 use cosmol_viewer::parser::sdf::{ParserOptions, parse_sdf};
-use cosmol_viewer::utils::VisualShape;
 use cosmol_viewer::{Scene, Viewer, shapes::Molecules};
 
 fn main() {
     let sdf_string = std::fs::read_to_string("./examples/example.sdf").unwrap();
+    // let sdf_string = include_str!("../examples/example.sdf");
     let opts = ParserOptions {
         keep_h: true,
         multimodel: true,
@@ -15,9 +15,12 @@ fn main() {
 
     let mol = Molecules::new(mol_data).centered();
 
-    let mut scene = Scene::new();
+    let mol = serde_json::from_str::<Molecules>(
+        &serde_json::to_string(&mol).expect("json serialize failed"),
+    )
+    .unwrap();
 
-    scene.scale(0.1);
+    let mut scene = Scene::new();
 
     scene.add_shape(mol, Some("mol"));
 
@@ -27,8 +30,8 @@ fn main() {
 
     img.save(Path::new("screenshot.png")).unwrap();
 
-    use std::io::{self, Write};
     println!("Press Enter to exit...");
+    use std::io::{self, Write};
     let _ = io::stdout().flush();
     let _ = io::stdin().read_line(&mut String::new());
 }

@@ -3,11 +3,13 @@ use std::{collections::HashMap, sync::Mutex};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
+use glam::{Vec3, Vec4};
+
 use crate::{
     Shape,
     scene::{Scene, StickInstance},
     shapes::sphere::MeshTemplate,
-    utils::{Interaction, Interpolatable, MeshData, VisualShape, VisualStyle},
+    utils::{Interaction, Interpolatable, Logger, MeshData, VisualShape, VisualStyle},
 };
 
 static STICK_TEMPLATE_CACHE: Lazy<Mutex<HashMap<u32, MeshTemplate>>> =
@@ -25,7 +27,7 @@ pub struct Stick {
 }
 
 impl Interpolatable for Stick {
-    fn interpolate(&self, other: &Self, t: f32) -> Self {
+    fn interpolate(&self, other: &Self, t: f32, _logger: impl Logger) -> Self {
         Self {
             start: [
                 self.start[0] * (1.0 - t) + other.start[0] * t,
@@ -101,9 +103,9 @@ impl Stick {
         let axis = end - start;
         let height = axis.length();
 
-        let base_color = self.style.color.unwrap_or([1.0, 1.0, 1.0]);
+        let base_color = self.style.color.unwrap_or([1.0, 1.0, 1.0].into());
         let alpha = self.style.opacity.clamp(0.0, 1.0);
-        let color_rgba = [base_color[0], base_color[1], base_color[2], alpha];
+        let color_rgba = Vec4::new(base_color[0], base_color[1], base_color[2], alpha);
 
         // 构建单位 Z 轴方向的圆柱体
         for i in 0..=segments {
@@ -112,12 +114,12 @@ impl Stick {
             let x = cos * r;
             let y = sin * r;
 
-            vertices.push([x, y, 0.0]);
-            normals.push([cos, sin, 0.0]);
+            vertices.push(Vec3::new(x, y, 0.0));
+            normals.push(Vec3::new(cos, sin, 0.0));
             colors.push(color_rgba);
 
-            vertices.push([x, y, height]);
-            normals.push([cos, sin, 0.0]);
+            vertices.push(Vec3::new(x, y, height));
+            normals.push(Vec3::new(cos, sin, 0.0));
             colors.push(color_rgba);
         }
 
@@ -137,15 +139,15 @@ impl Stick {
         let rotation = glam::Quat::from_rotation_arc(up, axis.normalize());
 
         for v in &mut vertices {
-            let p = glam::Vec3::from_array(*v);
+            let p = *v;
             let rotated = rotation * p + start;
-            *v = rotated.to_array().map(|x| x * scale);
+            *v = rotated * scale;
         }
 
         for n in &mut normals {
-            let p = glam::Vec3::from_array(*n);
+            let p = *n;
             let rotated = rotation * p;
-            *n = rotated.to_array().map(|x| x * scale);
+            *n = rotated * scale;
         }
 
         MeshData {
@@ -179,7 +181,7 @@ impl Stick {
     }
 
     pub fn to_instance(&self, scale: f32) -> StickInstance {
-        let base_color = self.style.color.unwrap_or([1.0, 1.0, 1.0]);
+        let base_color = self.style.color.unwrap_or([1.0, 1.0, 1.0].into());
         let alpha = self.style.opacity.clamp(0.0, 1.0);
         let color = [base_color[0], base_color[1], base_color[2], alpha];
 
@@ -198,11 +200,11 @@ impl VisualShape for Stick {
     }
 }
 
-pub trait UpdateStick {
+pub trait _UpdateStick {
     fn update_stick(&mut self, id: &str, f: impl FnOnce(&mut Stick));
 }
 
-impl UpdateStick for Scene {
+impl _UpdateStick for Scene {
     fn update_stick(&mut self, id: &str, f: impl FnOnce(&mut Stick)) {
         if let Some(Shape::Stick(stick)) = self.named_shapes.get_mut(id) {
             f(stick);

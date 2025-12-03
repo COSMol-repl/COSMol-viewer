@@ -1,22 +1,27 @@
 [package]
 name = "cosmol_viewer_wasm"
+version.workspace = true
 edition.workspace = true
+description.workspace = true
 publish = false
 
 [dependencies]
 cosmol_viewer_core.workspace = true
 serde_json.workspace = true
 serde.workspace = true
-log = "0.4.28"
 
 uuid = { version = "1.18.1", features = ["v4"], optional = true }
+postcard = { workspace = true, features = ["alloc"] }
+log = { version = "0.4.28", optional = true }
 eframe = { workspace = true, optional = true }
-wasm-bindgen-futures = { version = "0.4.54", optional = true }
-web-sys = { version = "0.3.81", features = ["HtmlCanvasElement"], optional = true }
-wasm-bindgen = { version = "0.2.104", optional = true }
+wasm-bindgen-futures = { version = "0.4.55", optional = true }
+web-sys = { version = "0.3.82", features = ["HtmlCanvasElement", "console","Window"], optional = true }
+wasm-bindgen = { version = "0.2.105", optional = true }
 gloo-timers = { version = "0.3.0", features = ["futures-core", "futures"], optional = true }
 pyo3 = { workspace = true, optional = true }
-base64 = { workspace = true, optional = true }
+base64 = { workspace = true }
+flate2 = "1.1.5"
+
 
 [features]
 default = ["wasm"]
@@ -27,16 +32,39 @@ wasm = [
     "web-sys",
     "wasm-bindgen",
     "gloo-timers",
+    "log",
 ]
 
 js_bridge = [
     "pyo3",
-    "base64",
     "uuid",
 ]
 
 [lib]
 crate-type = ["rlib", "cdylib"]
 
+[package.metadata.wasm-pack.profile.dev]
+wasm-opt = ['-O']
+
+[package.metadata.wasm-pack.profile.dev.wasm-bindgen]
+debug-js-glue = true
+demangle-name-section = true
+dwarf-debug-info = true
+
 [package.metadata.wasm-pack.profile.release]
-# wasm-opt = false
+wasm-opt = [
+  "-O4",
+  "--enable-simd",
+  "--enable-bulk-memory",
+  "--enable-mutable-globals",
+ "--enable-nontrapping-float-to-int",
+  "--zero-filled-memory",
+  "--strip-producers",
+  "--vacuum",
+]
+
+[package.metadata.wasm-pack.profile.release.wasm-bindgen]
+debug-js-glue = true
+demangle-name-section = false
+dwarf-debug-info = false
+split-linked-modules = false

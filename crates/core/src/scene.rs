@@ -1,20 +1,16 @@
+use crate::utils::Logger;
+use glam::Mat3;
+use glam::Mat4;
 use std::collections::HashMap;
 
+use glam::Vec3;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    shader::CameraState, utils::{self, InstanceData, Interpolatable, IntoInstanceGroups, ShapeKind, ToMesh}, Shape
+    Shape,
+    shader::CameraState,
+    utils::{self, Interpolatable, IntoInstanceGroups, ToMesh},
 };
-
-#[derive(Deserialize, Serialize, Clone)]
-pub struct Scene {
-    pub background_color: [f32; 3],
-    pub camera_state: CameraState,
-    pub named_shapes: HashMap<String, Shape>,
-    pub unnamed_shapes: Vec<Shape>,
-    pub scale: f32,
-    pub viewport: Option<[usize; 2]>,
-}
 
 pub enum Instance {
     Sphere(SphereInstance),
@@ -71,6 +67,16 @@ impl InstanceGroups {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Scene {
+    pub background_color: [f32; 3],
+    pub camera_state: CameraState,
+    pub named_shapes: HashMap<String, Shape>,
+    pub unnamed_shapes: Vec<Shape>,
+    pub scale: f32,
+    pub viewport: Option<[usize; 2]>,
+    pub scene_center: [f32; 3],
+}
 
 impl Scene {
     pub fn _get_meshes(&self) -> Vec<utils::MeshData> {
@@ -94,12 +100,17 @@ impl Scene {
     pub fn new() -> Self {
         Scene {
             background_color: [1.0, 1.0, 1.0],
-            camera_state: CameraState::new(1.0),
+            camera_state: CameraState::new(35.0),
             named_shapes: HashMap::new(),
             unnamed_shapes: Vec::new(),
             scale: 1.0,
             viewport: None,
+            scene_center: [0.0, 0.0, 0.0],
         }
+    }
+
+    pub fn recenter(&mut self, center: [f32; 3]) {
+        self.scene_center = center;
     }
 
     pub fn scale(&mut self, scale: f32) {
@@ -133,16 +144,32 @@ impl Scene {
     pub fn set_background_color(&mut self, background_color: [f32; 3]) {
         self.background_color = background_color;
     }
+
+    pub fn use_black_background(&mut self) {
+        self.background_color = [0.0, 0.0, 0.0];
+    }
+
+    /// === u_model ===
+    /// 把整个模型平移，使得 scene_center 成为原点
+    pub fn model_matrix(&self) -> Mat4 {
+        Mat4::from_translation(-Vec3::from(self.scene_center) * self.scale)
+    }
+
+    /// === u_normal_matrix ===
+    /// 模型矩阵逆转置（仅对 3x3）
+    pub fn normal_matrix(&self) -> Mat3 {
+        Mat3::from_mat4(self.model_matrix()).inverse().transpose()
+    }
 }
 
 impl Interpolatable for Scene {
-    fn interpolate(&self, other: &Self, t: f32) -> Self {
+    fn interpolate(&self, other: &Self, t: f32, logger: impl Logger) -> Self {
         let named_shapes = self
             .named_shapes
             .iter()
             .map(|(k, v)| {
                 let other_shape = &other.named_shapes[k];
-                (k.clone(), v.interpolate(other_shape, t))
+                (k.clone(), v.interpolate(other_shape, t, logger))
             })
             .collect();
 
@@ -150,8 +177,11 @@ impl Interpolatable for Scene {
             .unnamed_shapes
             .iter()
             .zip(&other.unnamed_shapes)
-            .map(|(a, b)| a.interpolate(b, t))
+            .map(|(a, b)| a.interpolate(b, t, logger))
             .collect();
+
+        let scene_center =
+            Vec3::from(self.scene_center) * (1.0 - t) + Vec3::from(other.scene_center) * t;
 
         Self {
             background_color: self.background_color,
@@ -160,6 +190,7 @@ impl Interpolatable for Scene {
             unnamed_shapes,
             scale: self.scale * (1.0 - t) + other.scale * t,
             viewport: self.viewport,
+            scene_center: [scene_center.x, scene_center.y, scene_center.z],
         }
     }
 }

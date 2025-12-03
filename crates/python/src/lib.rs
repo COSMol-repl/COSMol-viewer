@@ -3,8 +3,8 @@ use std::ffi::CStr;
 use pyo3::{ffi::c_str, prelude::*};
 
 use crate::{
-    parser::parse_sdf,
-    shapes::{PyMolecules, PySphere, PyStick},
+    parser::{parse_mmcif, parse_sdf},
+    shapes::{PyMolecules, PyProtein, PySphere, PyStick},
 };
 use cosmol_viewer_core::{NativeGuiViewer, scene::Scene as _Scene};
 use cosmol_viewer_wasm::{WasmViewer, setup_wasm_if_needed};
@@ -35,8 +35,11 @@ impl Scene {
             self.inner.add_shape(stick.inner.clone(), id);
         } else if let Ok(molecules) = shape.extract::<PyRef<PyMolecules>>() {
             self.inner.add_shape(molecules.inner.clone(), id);
+        } else if let Ok(protein) = shape.extract::<PyRef<PyProtein>>() {
+            self.inner.add_shape(protein.inner.clone(), id);
+        } else {
+            panic!("Unsupported shape type");
         }
-        ()
     }
 
     pub fn update_shape(&mut self, id: &str, shape: &Bound<'_, PyAny>) {
@@ -46,6 +49,8 @@ impl Scene {
             self.inner.update_shape(id, stick.inner.clone());
         } else if let Ok(molecules) = shape.extract::<PyRef<PyMolecules>>() {
             self.inner.update_shape(id, molecules.inner.clone());
+        } else if let Ok(protein) = shape.extract::<PyRef<PyProtein>>() {
+            self.inner.update_shape(id, protein.inner.clone());
         } else {
             panic!("Unsupported shape type");
         }
@@ -55,12 +60,20 @@ impl Scene {
         self.inner.delete_shape(id);
     }
 
+    pub fn recenter(&mut self, center: [f32; 3]) {
+        self.inner.recenter(center);
+    }
+
     pub fn scale(&mut self, scale: f32) {
         self.inner.scale(scale);
     }
 
     pub fn set_background_color(&mut self, background_color: [f32; 3]) {
         self.inner.set_background_color(background_color);
+    }
+
+    pub fn use_black_background(&mut self) {
+        self.inner.use_black_background();
     }
 }
 
@@ -94,6 +107,7 @@ pub struct Viewer {
     environment: RuntimeEnv,
     wasm_viewer: Option<WasmViewer>,
     native_gui_viewer: Option<NativeGuiViewer>,
+    first_update: bool,
 }
 
 fn detect_runtime_env(py: Python) -> PyResult<RuntimeEnv> {
@@ -149,13 +163,6 @@ impl Viewer {
         let env_type = detect_runtime_env(py).unwrap();
         match env_type {
             RuntimeEnv::Colab | RuntimeEnv::Jupyter => {
-                print_to_notebook(
-                    c_str!(
-                        r#"from IPython.display import display, HTML
-display(HTML("<div style='color:red;font-weight:bold;font-size:1rem;'>⚠️ Note: When running in Jupyter or Colab, animation updates may be limited by the notebook's output capacity, which can cause incomplete or delayed rendering.</div>"))"#
-                    ),
-                    py,
-                );
                 setup_wasm_if_needed(py);
                 let wasm_viewer = WasmViewer::initiate_viewer(py, &scene.inner, width, height);
 
@@ -163,12 +170,14 @@ display(HTML("<div style='color:red;font-weight:bold;font-size:1rem;'>⚠️ Not
                     environment: env_type,
                     wasm_viewer: Some(wasm_viewer),
                     native_gui_viewer: None,
+                    first_update: true,
                 }
             }
             RuntimeEnv::PlainScript | RuntimeEnv::IPythonTerminal => Viewer {
                 environment: env_type,
                 wasm_viewer: None,
                 native_gui_viewer: Some(NativeGuiViewer::render(&scene.inner, width, height)),
+                first_update: true,
             },
             _ => panic!("Error: Invalid runtime environment"),
         }
@@ -190,12 +199,21 @@ display(HTML("<div style='color:red;font-weight:bold;font-size:1rem;'>⚠️ Not
         match env_type {
             RuntimeEnv::Colab | RuntimeEnv::Jupyter => {
                 setup_wasm_if_needed(py);
-                let wasm_viewer = WasmViewer::initiate_viewer_and_play(py, rust_frames, (interval * 1000.0) as u64, loops, width, height, smooth);
+                let wasm_viewer = WasmViewer::initiate_viewer_and_play(
+                    py,
+                    rust_frames,
+                    (interval * 1000.0) as u64,
+                    loops,
+                    width,
+                    height,
+                    smooth,
+                );
 
                 Viewer {
                     environment: env_type,
                     wasm_viewer: Some(wasm_viewer),
                     native_gui_viewer: None,
+                    first_update: false,
                 }
             }
 
@@ -206,6 +224,7 @@ display(HTML("<div style='color:red;font-weight:bold;font-size:1rem;'>⚠️ Not
                     environment: env_type,
                     wasm_viewer: None,
                     native_gui_viewer: None,
+                    first_update: false,
                 }
             }
             _ => panic!("Error: Invalid runtime environment"),
@@ -216,6 +235,15 @@ display(HTML("<div style='color:red;font-weight:bold;font-size:1rem;'>⚠️ Not
         let env_type = self.environment;
         match env_type {
             RuntimeEnv::Colab | RuntimeEnv::Jupyter => {
+                if self.first_update {
+                    print_to_notebook(
+                        c_str!(
+                            r###"print("\033[33m⚠️ Note: When running in Jupyter or Colab, animation updates may be limited by the notebook's output capacity, which can cause incomplete or delayed rendering.\033[0m")"###
+                        ),
+                        py,
+                    );
+                    self.first_update = false;
+                }
                 if let Some(ref wasm_viewer) = self.wasm_viewer {
                     wasm_viewer.update(py, &scene.inner);
                 } else {
@@ -237,16 +265,13 @@ display(HTML("<div style='color:red;font-weight:bold;font-size:1rem;'>⚠️ Not
         let env_type = self.environment;
         match env_type {
             RuntimeEnv::Colab | RuntimeEnv::Jupyter => {
-                // let image = self.wasm_viewer.as_ref().unwrap().take_screenshot(py);
                 print_to_notebook(
                     c_str!(
-                        r#"<div style='color:red;font-weight:bold;font-size:1rem;'>⚠️ Image saving in Jupyter/Colab is not yet fully supported.</div>"))"#
+                        r###"print("\033[33m⚠️ Image saving in Jupyter/Colab is not yet fully supported.\033[0m")"###
                     ),
                     py,
                 );
-                panic!(
-                    "Error saving image. Saving images from Jupyter/Colab is not yet supported."
-                )
+                panic!("Error saving image. Saving images from Jupyter/Colab is not yet supported.")
             }
             RuntimeEnv::PlainScript | RuntimeEnv::IPythonTerminal => {
                 let native_gui_viewer = &self.native_gui_viewer.as_ref().unwrap();
@@ -271,6 +296,8 @@ fn cosmol_viewer(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PySphere>()?;
     m.add_class::<PyStick>()?;
     m.add_class::<PyMolecules>()?;
+    m.add_class::<PyProtein>()?;
     m.add_function(wrap_pyfunction!(parse_sdf, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_mmcif, m)?)?;
     Ok(())
 }

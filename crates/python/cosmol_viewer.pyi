@@ -7,10 +7,10 @@ def parse_sdf(
     onemol: bool = False
 ) -> "MoleculeData":
     """
-    Parse an SDF file or string into molecule data.
+    Parse an SDF string into molecule data.
 
     # Args
-      - sdf: Path to an SDF file or a string containing SDF content.
+      - sdf: Path to an SD string containing SDF content.
       - keep_h: Whether to keep explicit hydrogen atoms (default: True).
       - multimodel: Whether to allow multiple models in one file (default: True).
       - onemol: Whether to merge multiple models into one molecule (default: False).
@@ -21,11 +21,30 @@ def parse_sdf(
     # Example
     ```python
     from cosmol_viewer import parse_sdf
-    mol = parse_sdf("molecule.sdf")
+    mol = parse_sdf(open("./molecule.sdf", "r", encoding="utf-8").read())
     ```
     """
     ...
 
+def parse_mmcif(
+    mmcif: str
+) -> "ProteinData":
+    """
+    Parse an MMCIF string into protein data.
+
+    # Args
+      - mmcif: Path to an MMCIF string containing MMCIF content.
+
+    # Returns
+      - ProteinData: Parsed protein data object.
+
+    # Example
+    ```python
+    from cosmol_viewer import parse_mmcif
+    prot = parse_mmcif(open("./protein.cif", "r", encoding="utf-8").read())
+    ```
+    """
+    ...
 
 class Scene:
     """
@@ -54,12 +73,12 @@ class Scene:
         """
         ...
 
-    def add_shape(self, shape: Union["Sphere", "Stick", "Molecules"], id: Optional[str] = None) -> None:
+    def add_shape(self, shape: Union["Sphere", "Stick", "Molecules", "Protein"], id: Optional[str] = None) -> None:
         """
         Add a shape to the scene.
 
         # Args
-          - shape: A shape instance (PySphere, PyStick, or PyMolecules).
+          - shape: A shape instance (Sphere, Stick, Molecules, or Protein).
           - id: Optional string ID to associate with the shape.
 
         If the `id` is provided and a shape with the same ID exists,
@@ -73,7 +92,7 @@ class Scene:
         """
         ...
 
-    def update_shape(self, id: str, shape: Union["Sphere", "Stick", "Molecules"]) -> None:
+    def update_shape(self, id: str, shape: Union["Sphere", "Stick", "Molecules", "Protein"]) -> None:
         """
         Update an existing shape in the scene by its ID.
 
@@ -98,6 +117,20 @@ class Scene:
         # Example
         ```python
         scene.delete_shape("bond1")
+        ```
+        """
+        ...
+
+    def recenter(self, center: List[float]) -> None:
+        """
+        Recenter the scene at a given point.
+
+        # Args
+          - center: An XYZ array of 3 float values representing the new center.
+
+        # Example
+        ```python
+        scene.recenter([0.0, 0.0, 0.0])
         ```
         """
         ...
@@ -128,6 +161,17 @@ class Scene:
         # Example
         ```python
         scene.set_background_color([1.0, 1.0, 1.0])  # white background
+        ```
+        """
+        ...
+
+    def use_black_background(self) -> None:
+        """
+        Set the background color of the scene to black.
+
+        # Example
+        ```python
+        scene.use_black_background()
         ```
         """
         ...
@@ -296,11 +340,11 @@ class Stick:
 
 class Molecules:
     """
-    A molecular shape object parsed from SDF data.
+    A molecular shape object.
 
     # Example
     ```python
-    mol = parse_sdf("molecule.sdf")
+    mol = parse_sdf(open("molecule.sdf", "r", encoding="utf-8").read())
     molecules = Molecules(mol).centered().color([0,1,0])
     ```
     """
@@ -311,9 +355,35 @@ class Molecules:
     def color(self, color: List[float]) -> "Molecules": ...
     def color_rgba(self, color: List[float]) -> "Molecules": ...
     def opacity(self, opacity: float) -> "Molecules": ...
+    def reset_color(self) -> "Molecules": ...
 
 class MoleculeData:
     """
     Internal representation of molecule data returned by `parse_sdf`.
+    """
+    ...
+
+class Protein:
+    """
+    A protein shape object.
+
+    # Example
+    ```python
+    mmcif_data  = parse_mmcif(open("2AMD.cif", "r", encoding="utf-8").read())
+    prot = Protein(mmcif_data).centered().color([0,1,0])
+    ```
+    """
+
+    def __init__(self, mmcif_data: "ProteinData") -> None: ...
+    def get_center(self) -> List[float]: ...
+    def centered(self) -> "Protein": ...
+    def color(self, color: List[float]) -> "Protein": ...
+    def color_rgba(self, color: List[float]) -> "Protein": ...
+    def opacity(self, opacity: float) -> "Protein": ...
+    def reset_color(self) -> "Protein": ...
+
+class ProteinData:
+    """
+    Internal representation of protein data returned by `parse_mmcif`.
     """
     ...

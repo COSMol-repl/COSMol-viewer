@@ -1,14 +1,35 @@
-use glam::Mat4;
+use glam::{Mat4, Vec3, Vec4};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    scene::{Instance, InstanceGroups, Scene, SphereInstance},
-    shapes::{Molecules, Sphere, Stick},
+    scene::{InstanceGroups, Scene},
+    shapes::{Molecules, Protein, Sphere, Stick},
 };
+
+pub trait Logger: Send + Sync + Copy {
+    fn log(&self, message: impl std::fmt::Display);
+    fn error(&self, message: impl std::fmt::Display);
+    fn warn(&self, message: impl std::fmt::Display);
+}
+
+#[derive(Clone, Copy)]
+pub struct RustLogger;
+
+impl Logger for RustLogger {
+    fn log(&self, message: impl std::fmt::Display) {
+        println!("[LOG] {}", message);
+    }
+    fn warn(&self, message: impl std::fmt::Display) {
+        eprintln!("[WARN] {}", message);
+    }
+    fn error(&self, message: impl std::fmt::Display) {
+        eprintln!("[ERROR] {}", message);
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default, Copy)]
 pub struct VisualStyle {
-    pub color: Option<[f32; 3]>,
+    pub color: Option<Vec3>,
     pub opacity: f32,
     pub wireframe: bool,
     pub visible: bool,
@@ -25,7 +46,7 @@ pub struct Interaction {
 
 pub trait Interpolatable {
     /// t ∈ [0.0, 1.0]，返回两个实例之间的插值
-    fn interpolate(&self, other: &Self, t: f32) -> Self;
+    fn interpolate(&self, other: &Self, t: f32, logger: impl Logger) -> Self;
 }
 
 // -------------------- 图元结构体 --------------------------
@@ -35,6 +56,7 @@ pub enum Shape {
     Sphere(Sphere),
     Stick(Stick),
     Molecules(Molecules),
+    Protein(Protein),
     Qudrate, // Custom(CustomShape),
              // ...
 }
@@ -53,11 +75,13 @@ pub struct InstanceData {
 }
 
 impl Interpolatable for Shape {
-    fn interpolate(&self, other: &Self, t: f32) -> Self {
+    fn interpolate(&self, other: &Self, t: f32, logger: impl Logger) -> Self {
         match (self, other) {
-            (Shape::Sphere(a), Shape::Sphere(b)) => Shape::Sphere(a.interpolate(b, t)),
-            (Shape::Stick(a), Shape::Stick(b)) => Shape::Stick(a.interpolate(b, t)),
-            (Shape::Molecules(a), Shape::Molecules(b)) => Shape::Molecules(a.interpolate(b, t)),
+            (Shape::Sphere(a), Shape::Sphere(b)) => Shape::Sphere(a.interpolate(b, t, logger)),
+            (Shape::Stick(a), Shape::Stick(b)) => Shape::Stick(a.interpolate(b, t, logger)),
+            (Shape::Molecules(a), Shape::Molecules(b)) => {
+                Shape::Molecules(a.interpolate(b, t, logger))
+            }
             _ => self.clone(), // 如果类型不匹配，可以选择不插值或做默认处理
         }
     }
@@ -75,7 +99,7 @@ impl IntoInstanceGroups for Shape {
                 let m_groups = m.to_instance_group(scale);
                 groups.merge(m_groups);
             }
-            _ => {},
+            _ => {}
         }
         groups
     }
@@ -95,6 +119,7 @@ impl ToMesh for Shape {
             Shape::Sphere(s) => s.to_mesh(scale),
             Shape::Stick(s) => s.to_mesh(scale),
             Shape::Molecules(s) => s.to_mesh(scale),
+            Shape::Protein(s) => s.to_mesh(scale),
             Shape::Qudrate => todo!(),
         }
     }
@@ -102,12 +127,37 @@ impl ToMesh for Shape {
 
 #[derive(Debug, Clone, Default)]
 pub struct MeshData {
-    pub vertices: Vec<[f32; 3]>,
-    pub normals: Vec<[f32; 3]>,
+    pub vertices: Vec<Vec3>,
+    pub normals: Vec<Vec3>,
     pub indices: Vec<u32>,
-    pub colors: Option<Vec<[f32; 4]>>,
+    pub colors: Option<Vec<Vec4>>,
     pub transform: Option<Mat4>, // 可选位移旋转缩放
     pub is_wireframe: bool,
+}
+
+impl MeshData {
+    /// Append another MeshData into this one.
+    pub fn append(&mut self, other: &MeshData) {
+        let base = self.vertices.len() as u32;
+
+        // append vertices
+        self.vertices.extend(&other.vertices);
+
+        // append normals
+        self.normals.extend(&other.normals);
+
+        // append colors
+        if let Some(ref mut my_colors) = self.colors {
+            if let Some(ref other_colors) = other.colors {
+                my_colors.extend(other_colors);
+            }
+        } else if let Some(ref other_colors) = other.colors {
+            self.colors = Some(other_colors.clone());
+        }
+
+        // append indices with offset
+        self.indices.extend(other.indices.iter().map(|i| i + base));
+    }
 }
 
 pub trait VisualShape {
@@ -117,7 +167,7 @@ pub trait VisualShape {
     where
         Self: Sized,
     {
-        self.style_mut().color = Some(color);
+        self.style_mut().color = Some(color.into());
         self
     }
 
@@ -125,7 +175,7 @@ pub trait VisualShape {
     where
         Self: Sized,
     {
-        self.style_mut().color = Some(color[0..3].try_into().unwrap());
+        self.style_mut().color = Some(Vec3::new(color[0], color[1], color[2]));
         self.style_mut().opacity = color[3];
 
         self

@@ -3,7 +3,7 @@ name: py-docs
 on:
   push:
     tags:
-      - '*'
+      - "*"
   pull_request:
   workflow_dispatch:
 
@@ -25,7 +25,7 @@ jobs:
       - name: Install python dependencies
         run: |
           uv venv .venv
-          uv pip install maturin pdoc cosmol-viewer
+          uv pip install maturin pdoc
           echo "$GITHUB_WORKSPACE/.venv/bin" >> $GITHUB_PATH
 
       - uses: Swatinem/rust-cache@v2

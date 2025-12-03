@@ -1,6 +1,6 @@
 /target
 *.ipynb
 .vscode
-example.sdf
+.zed
 frames/
 cosmol_viewer/screenshot.png

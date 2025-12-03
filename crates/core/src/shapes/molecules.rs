@@ -1,82 +1,44 @@
+use glam::Vec3;
+use na_seq::Element;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
 use crate::{
     Shape,
     parser::sdf::MoleculeData,
-    scene::{InstanceGroups, SphereInstance},
+    scene::InstanceGroups,
     shapes::{sphere::Sphere, stick::Stick},
-    utils::{Interaction, Interpolatable, IntoInstanceGroups, MeshData, VisualShape, VisualStyle},
+    utils::{
+        Interaction, Interpolatable, IntoInstanceGroups, Logger, MeshData, VisualShape, VisualStyle,
+    },
 };
 
-use std::{collections::HashMap, str::FromStr};
+use std::collections::HashMap;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum AtomType {
-    H,
-    C,
-    N,
-    O,
-    F,
-    P,
-    S,
-    Cl,
-    Br,
-    I,
-    Unknown,
-}
+pub fn my_color(x: &str) -> Vec3 {
+    let element = Element::from_letter(x).unwrap();
 
-impl FromStr for AtomType {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_ascii_lowercase().as_str() {
-            "h" => Ok(AtomType::H),
-            "c" => Ok(AtomType::C),
-            "n" => Ok(AtomType::N),
-            "o" => Ok(AtomType::O),
-            "f" => Ok(AtomType::F),
-            "p" => Ok(AtomType::P),
-            "s" => Ok(AtomType::S),
-            "cl" => Ok(AtomType::Cl),
-            "br" => Ok(AtomType::Br),
-            "i" => Ok(AtomType::I),
-            _ => Ok(AtomType::Unknown),
-        }
+    // 优先使用自定义颜色
+    match element {
+        Element::Hydrogen => Vec3::new(1.0, 1.0, 1.0),
+        Element::Carbon => Vec3::new(0.3, 0.3, 0.3),
+        Element::Nitrogen => Vec3::new(0.2, 0.4, 1.0),
+        Element::Oxygen => Vec3::new(1.0, 0.0, 0.0),
+        Element::Fluorine => Vec3::new(0.0, 0.8, 0.0),
+        Element::Phosphorus => Vec3::new(1.0, 0.5, 0.0),
+        Element::Sulfur => Vec3::new(1.0, 1.0, 0.0),
+        Element::Chlorine => Vec3::new(0.0, 0.8, 0.0),
+        Element::Bromine => Vec3::new(0.6, 0.2, 0.2),
+        Element::Iodine => Vec3::new(0.4, 0.0, 0.8),
+        _ => element.color().into(), // 其他未定义的元素
     }
 }
 
-impl AtomType {
-    pub fn color(&self) -> [f32; 3] {
-        match self {
-            AtomType::H => [1.0, 1.0, 1.0],       // 白色
-            AtomType::C => [0.3, 0.3, 0.3],       // 深灰
-            AtomType::N => [0.2, 0.4, 1.0],       // 蓝色
-            AtomType::O => [1.0, 0.0, 0.0],       // 红色
-            AtomType::F => [0.0, 0.8, 0.0],       // 绿
-            AtomType::P => [1.0, 0.5, 0.0],       // 橙
-            AtomType::S => [1.0, 1.0, 0.0],       // 黄
-            AtomType::Cl => [0.0, 0.8, 0.0],      // 绿
-            AtomType::Br => [0.6, 0.2, 0.2],      // 棕
-            AtomType::I => [0.4, 0.0, 0.8],       // 紫
-            AtomType::Unknown => [0.5, 0.5, 0.5], // 灰
-        }
-    }
-
-    pub fn radius(&self) -> f32 {
-        match self {
-            AtomType::H => 1.20,
-            AtomType::C => 1.70,
-            AtomType::N => 1.55,
-            AtomType::O => 1.52,
-            AtomType::F => 1.47,
-            AtomType::P => 1.80,
-            AtomType::S => 1.80,
-            AtomType::Cl => 1.75,
-            AtomType::Br => 1.85,
-            AtomType::I => 1.98,
-            AtomType::Unknown => 1.5,
-        }
+pub fn my_radius(x: &str) -> f32 {
+    let element = Element::from_letter(x).unwrap();
+    match element {
+        Element::Hydrogen => 1.20,
+        _ => element.vdw_radius(), // 默认半径
     }
 }
 
@@ -91,10 +53,10 @@ pub enum BondType {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Molecules {
-    atom_types: Vec<AtomType>,
-    atoms: Vec<[f32; 3]>,
-    bond_types: Vec<BondType>,
-    bonds: Vec<[u32; 2]>,
+    pub atom_types: Vec<String>,
+    pub atoms: Vec<Vec3>,
+    pub bond_types: Vec<BondType>,
+    pub bonds: Vec<[usize; 2]>,
     pub quality: u32,
 
     pub style: VisualStyle,
@@ -102,18 +64,40 @@ pub struct Molecules {
 }
 
 impl Interpolatable for Molecules {
-    fn interpolate(&self, other: &Self, t: f32) -> Self {
+    fn interpolate(&self, other: &Self, t: f32, logger: impl Logger) -> Self {
+        // 检查原子数量是否匹配
+        if self.atoms.len() != other.atoms.len() {
+            logger.error(format!(
+                "Interpolation aborted: atom count differs (self: {}, other: {}). \
+                Smooth interpolation requires scenes with identical atom structures.",
+                self.atoms.len(),
+                other.atoms.len()
+            ));
+            panic!("Smooth interpolation requires matching atom structures.");
+        }
+
+        // 检查键数量是否匹配（可选，根据需要）
+        if self.bonds.len() != other.bonds.len() {
+            logger.error(format!(
+                "Interpolation aborted: bond topology differs (self: {}, other: {}). \
+                Smooth interpolation cannot proceed with different bonding graphs.",
+                self.bonds.len(),
+                other.bonds.len()
+            ));
+            panic!("Smooth interpolation requires matching bond topology.");
+        }
+
         // 原子坐标插值
-        let atoms: Vec<[f32; 3]> = self
+        let atoms: Vec<Vec3> = self
             .atoms
             .iter()
             .zip(&other.atoms)
             .map(|(a, b)| {
-                [
+                Vec3::new(
                     a[0] * (1.0 - t) + b[0] * t,
                     a[1] * (1.0 - t) + b[1] * t,
                     a[2] * (1.0 - t) + b[2] * t,
-                ]
+                )
             })
             .collect();
 
@@ -146,18 +130,18 @@ impl Molecules {
         for molecule in molecule_data {
             for atom in &molecule {
                 // 原子类型
-                let atom_type = atom.elem.parse().unwrap_or(AtomType::Unknown);
+                let atom_type: Element = Element::from_letter(&atom.elem).unwrap();
                 atom_types.push(atom_type);
 
                 // 原子坐标
-                atoms.push([atom.x, atom.y, atom.z]);
+                atoms.push(Vec3::new(atom.x, atom.y, atom.z));
             }
 
             // 处理键（避免重复）
             for atom in &molecule {
-                let from = atom.index as u32;
+                let from = atom.index;
                 for (i, &to) in atom.bonds.iter().enumerate() {
-                    let to = to as u32;
+                    let to = to;
                     let key = if from < to { (from, to) } else { (to, from) };
 
                     if !bond_set.contains_key(&key) {
@@ -165,7 +149,7 @@ impl Molecules {
                         bonds.push([key.0, key.1]);
 
                         let order = atom.bond_order[i];
-                        let bond_type = match order as u32 {
+                        let bond_type = match order {
                             1 => BondType::SINGLE,
                             2 => BondType::DOUBLE,
                             3 => BondType::TRIPLE,
@@ -178,7 +162,10 @@ impl Molecules {
         }
 
         Self {
-            atom_types,
+            atom_types: atom_types
+                .iter()
+                .map(|&element| element.to_letter())
+                .collect(),
             atoms,
             bond_types,
             bonds,
@@ -227,133 +214,139 @@ impl Molecules {
         self
     }
 
-    pub fn to_mesh(&self, scale: f32) -> MeshData {
-        return MeshData::default();
+    pub fn reset_color(mut self) -> Self {
+        self.style_mut().color = None;
+        self
+    }
 
-        let mut vertices = Vec::new();
-        let mut normals = Vec::new();
-        let mut indices = Vec::new();
-        let mut colors = Vec::new();
+    pub fn to_mesh(&self, _scale: f32) -> MeshData {
+        MeshData::default()
+        // return MeshData::default();
 
-        let mut index_offset = 0;
+        // let mut vertices = Vec::new();
+        // let mut normals = Vec::new();
+        // let mut indices = Vec::new();
+        // let mut colors = Vec::new();
 
-        // 1. 原子 -> Sphere
-        for (i, pos) in self.atoms.iter().enumerate() {
-            let radius = self
-                .atom_types
-                .get(i)
-                .unwrap_or(&AtomType::Unknown)
-                .radius()
-                * 0.2;
-            let color = self
-                .style
-                .color
-                .unwrap_or(self.atom_types.get(i).unwrap_or(&AtomType::Unknown).color());
+        // let mut index_offset = 0;
 
-            let mut sphere = Sphere::new(*pos, radius);
-            sphere.interaction = self.interaction;
-            sphere = sphere.color(color).opacity(self.style.opacity);
+        // // 1. 原子 -> Sphere
+        // for (i, pos) in self.atoms.iter().enumerate() {
+        //     let radius = self
+        //         .atom_types
+        //         .get(i)
+        //         .unwrap_or(&AtomType::Unknown)
+        //         .radius()
+        //         * 0.2;
+        //     let color = self
+        //         .style
+        //         .color
+        //         .unwrap_or(self.atom_types.get(i).unwrap_or(&AtomType::Unknown).color());
 
-            let mesh = sphere.to_mesh(1.0);
+        //     let mut sphere = Sphere::new(*pos, radius);
+        //     sphere.interaction = self.interaction;
+        //     sphere = sphere.color(color).opacity(self.style.opacity);
 
-            // 合并 mesh
-            for v in mesh.vertices {
-                vertices.push(v.map(|x| x * scale));
-            }
-            for n in mesh.normals {
-                normals.push(n.map(|x| x * scale));
-            }
-            for c in mesh.colors.unwrap() {
-                colors.push(c);
-            }
-            for idx in mesh.indices {
-                indices.push(idx + index_offset as u32);
-            }
+        //     let mesh = sphere.to_mesh(1.0);
 
-            index_offset = vertices.len() as u32;
-        }
+        //     // 合并 mesh
+        //     for v in mesh.vertices {
+        //         vertices.push(v.map(|x| x * scale));
+        //     }
+        //     for n in mesh.normals {
+        //         normals.push(n.map(|x| x * scale));
+        //     }
+        //     for c in mesh.colors.unwrap() {
+        //         colors.push(c);
+        //     }
+        //     for idx in mesh.indices {
+        //         indices.push(idx + index_offset as u32);
+        //     }
 
-        // 2. 键 -> Stick
-        for (_i, bond) in self.bonds.iter().enumerate() {
-            for (_i, bond) in self.bonds.iter().enumerate() {
-                let [a, b] = *bond;
-                let pos_a = self.atoms[a as usize];
-                let pos_b = self.atoms[b as usize];
+        //     index_offset = vertices.len() as u32;
+        // }
 
-                // 获取原子颜色
-                let color_a = match self
-                    .atom_types
-                    .get(a as usize)
-                    .unwrap_or(&AtomType::Unknown)
-                {
-                    AtomType::C => [0.75, 0.75, 0.75],
-                    other => other.color(),
-                };
+        // // 2. 键 -> Stick
+        // for (_i, bond) in self.bonds.iter().enumerate() {
+        //     for (_i, bond) in self.bonds.iter().enumerate() {
+        //         let [a, b] = *bond;
+        //         let pos_a = self.atoms[a as usize];
+        //         let pos_b = self.atoms[b as usize];
 
-                let color_b = match self
-                    .atom_types
-                    .get(b as usize)
-                    .unwrap_or(&AtomType::Unknown)
-                {
-                    AtomType::C => [0.75, 0.75, 0.75],
-                    other => other.color(),
-                };
+        //         // 获取原子颜色
+        //         let color_a = match self
+        //             .atom_types
+        //             .get(a as usize)
+        //             .unwrap_or(&AtomType::Unknown)
+        //         {
+        //             AtomType::C => [0.75, 0.75, 0.75],
+        //             other => other.color(),
+        //         };
 
-                // 计算中点
-                let mid = [
-                    0.5 * (pos_a[0] + pos_b[0]),
-                    0.5 * (pos_a[1] + pos_b[1]),
-                    0.5 * (pos_a[2] + pos_b[2]),
-                ];
+        //         let color_b = match self
+        //             .atom_types
+        //             .get(b as usize)
+        //             .unwrap_or(&AtomType::Unknown)
+        //         {
+        //             AtomType::C => [0.75, 0.75, 0.75],
+        //             other => other.color(),
+        //         };
 
-                // bond 一：A -> 中点，颜色 A
-                let stick_a = Stick::new(pos_a, mid, 0.15)
-                    .color(color_a)
-                    .opacity(self.style.opacity);
-                let mesh_a = stick_a.to_mesh(1.0);
-                for v in mesh_a.vertices {
-                    vertices.push(v.map(|x| x * scale));
-                }
-                for n in mesh_a.normals {
-                    normals.push(n.map(|x| x * scale));
-                }
-                for c in mesh_a.colors.unwrap() {
-                    colors.push(c);
-                }
-                for idx in mesh_a.indices {
-                    indices.push(idx + index_offset as u32);
-                }
-                index_offset = vertices.len() as u32;
+        //         // 计算中点
+        //         let mid = [
+        //             0.5 * (pos_a[0] + pos_b[0]),
+        //             0.5 * (pos_a[1] + pos_b[1]),
+        //             0.5 * (pos_a[2] + pos_b[2]),
+        //         ];
 
-                // bond 二：B -> 中点，颜色 B
-                let stick_b = Stick::new(pos_b, mid, 0.15)
-                    .color(color_b)
-                    .opacity(self.style.opacity);
-                let mesh_b = stick_b.to_mesh(1.0);
-                for v in mesh_b.vertices {
-                    vertices.push(v.map(|x| x * scale));
-                }
-                for n in mesh_b.normals {
-                    normals.push(n.map(|x| x * scale));
-                }
-                for c in mesh_b.colors.unwrap() {
-                    colors.push(c);
-                }
-                for idx in mesh_b.indices {
-                    indices.push(idx + index_offset as u32);
-                }
-                index_offset = vertices.len() as u32;
-            }
-        }
+        //         // bond 一：A -> 中点，颜色 A
+        //         let stick_a = Stick::new(pos_a, mid, 0.15)
+        //             .color(color_a)
+        //             .opacity(self.style.opacity);
+        //         let mesh_a = stick_a.to_mesh(1.0);
+        //         for v in mesh_a.vertices {
+        //             vertices.push(v.map(|x| x * scale));
+        //         }
+        //         for n in mesh_a.normals {
+        //             normals.push(n.map(|x| x * scale));
+        //         }
+        //         for c in mesh_a.colors.unwrap() {
+        //             colors.push(c);
+        //         }
+        //         for idx in mesh_a.indices {
+        //             indices.push(idx + index_offset as u32);
+        //         }
+        //         index_offset = vertices.len() as u32;
 
-        MeshData {
-            vertices,
-            normals,
-            indices,
-            colors: Some(colors),
-            transform: None,
-            is_wireframe: self.style.wireframe,
-        }
+        //         // bond 二：B -> 中点，颜色 B
+        //         let stick_b = Stick::new(pos_b, mid, 0.15)
+        //             .color(color_b)
+        //             .opacity(self.style.opacity);
+        //         let mesh_b = stick_b.to_mesh(1.0);
+        //         for v in mesh_b.vertices {
+        //             vertices.push(v.map(|x| x * scale));
+        //         }
+        //         for n in mesh_b.normals {
+        //             normals.push(n.map(|x| x * scale));
+        //         }
+        //         for c in mesh_b.colors.unwrap() {
+        //             colors.push(c);
+        //         }
+        //         for idx in mesh_b.indices {
+        //             indices.push(idx + index_offset as u32);
+        //         }
+        //         index_offset = vertices.len() as u32;
+        //     }
+        // }
+
+        // MeshData {
+        //     vertices,
+        //     normals,
+        //     indices,
+        //     colors: Some(colors),
+        //     transform: None,
+        //     is_wireframe: self.style.wireframe,
+        // }
     }
 }
 
@@ -363,17 +356,14 @@ impl IntoInstanceGroups for Molecules {
 
         for (i, pos) in self.atoms.iter().enumerate() {
             let sphere_instance = Sphere::new(
-                *pos,
-                self.atom_types
-                    .get(i)
-                    .unwrap_or(&AtomType::Unknown)
-                    .radius()
-                    * 0.2,
+                pos.to_array(),
+                self.atom_types.get(i).map(|x| my_radius(x) * 0.2).unwrap(),
             )
             .color(
                 self.style
                     .color
-                    .unwrap_or(self.atom_types.get(i).unwrap_or(&AtomType::Unknown).color()),
+                    .unwrap_or(self.atom_types.get(i).map(|x| my_color(x)).unwrap())
+                    .into(),
             )
             .opacity(self.style.opacity);
 
@@ -381,9 +371,9 @@ impl IntoInstanceGroups for Molecules {
         }
 
         for (i, bond) in self.bonds.iter().enumerate() {
-            let [a, b] = *bond;
-            let pos_a = self.atoms[a as usize];
-            let pos_b = self.atoms[b as usize];
+            let [a, b] = bond;
+            let pos_a = self.atoms[*a];
+            let pos_b = self.atoms[*b];
 
             let bond_type = self.bond_types.get(i).unwrap_or(&BondType::SINGLE);
 
@@ -400,18 +390,18 @@ impl IntoInstanceGroups for Molecules {
 
             // === Step 1: 先找 A 的邻居方向（排除 B）===
             let mut neighbor_dir_opt = None;
-            for (j, other_bond) in self.bonds.iter().enumerate() {
-                let [x, y] = *other_bond;
-                if x as usize == a as usize && y != b {
-                    let pos_n = self.atoms[y as usize];
+            for (_j, other_bond) in self.bonds.iter().enumerate() {
+                let [x, y] = other_bond;
+                if x == a && y != b {
+                    let pos_n = self.atoms[*y];
                     neighbor_dir_opt = Some([
                         pos_n[0] - pos_a[0],
                         pos_n[1] - pos_a[1],
                         pos_n[2] - pos_a[2],
                     ]);
                     break;
-                } else if y as usize == a as usize && x != b {
-                    let pos_n = self.atoms[x as usize];
+                } else if y == a && x != b {
+                    let pos_n = self.atoms[*x];
                     neighbor_dir_opt = Some([
                         pos_n[0] - pos_a[0],
                         pos_n[1] - pos_a[1],
@@ -423,18 +413,18 @@ impl IntoInstanceGroups for Molecules {
 
             // ✅ 若 A 没有邻居，则去找 B 的邻居
             if neighbor_dir_opt.is_none() {
-                for (j, other_bond) in self.bonds.iter().enumerate() {
-                    let [x, y] = *other_bond;
-                    if x as usize == b as usize && y != a {
-                        let pos_n = self.atoms[y as usize];
+                for (_j, other_bond) in self.bonds.iter().enumerate() {
+                    let [x, y] = other_bond;
+                    if x == b && y != a {
+                        let pos_n = self.atoms[*y];
                         neighbor_dir_opt = Some([
                             pos_n[0] - pos_b[0],
                             pos_n[1] - pos_b[1],
                             pos_n[2] - pos_b[2],
                         ]);
                         break;
-                    } else if y as usize == b as usize && x != a {
-                        let pos_n = self.atoms[x as usize];
+                    } else if y == b && x != a {
+                        let pos_n = self.atoms[*x];
                         neighbor_dir_opt = Some([
                             pos_n[0] - pos_b[0],
                             pos_n[1] - pos_b[1],
@@ -484,22 +474,24 @@ impl IntoInstanceGroups for Molecules {
             let d = 0.22;
 
             // 颜色和半径与原来一致
-            let color_a = match self
-                .atom_types
-                .get(a as usize)
-                .unwrap_or(&AtomType::Unknown)
-            {
-                AtomType::C => [0.75, 0.75, 0.75],
-                other => other.color(),
-            };
-            let color_b = match self
-                .atom_types
-                .get(b as usize)
-                .unwrap_or(&AtomType::Unknown)
-            {
-                AtomType::C => [0.75, 0.75, 0.75],
-                other => other.color(),
-            };
+            let color_a = self.style.color.unwrap_or(
+                self.atom_types
+                    .get(*a)
+                    .map(|x| match x.as_str() {
+                        "C" => Vec3::new(0.75, 0.75, 0.75),
+                        _ => my_color(x),
+                    })
+                    .unwrap(),
+            );
+            let color_b = self.style.color.unwrap_or(
+                self.atom_types
+                    .get(*b)
+                    .map(|x| match x.as_str() {
+                        "C" => Vec3::new(0.75, 0.75, 0.75),
+                        _ => my_color(x),
+                    })
+                    .unwrap(),
+            );
 
             // 根据键类型生成多个 stick
             let (num_sticks, radius) = match bond_type {
@@ -533,7 +525,7 @@ impl IntoInstanceGroups for Molecules {
                     ],
                     radius,
                 )
-                .color(color_a)
+                .color(color_a.into())
                 .opacity(self.style.opacity);
 
                 groups.sticks.push(stick_a.to_instance(scale));
@@ -548,7 +540,7 @@ impl IntoInstanceGroups for Molecules {
                     ],
                     radius,
                 )
-                .color(color_b)
+                .color(color_b.into())
                 .opacity(self.style.opacity);
 
                 groups.sticks.push(stick_b.to_instance(scale));

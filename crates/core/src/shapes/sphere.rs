@@ -1,9 +1,10 @@
+use glam::Vec3;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     Shape,
-    scene::{Instance, InstanceGroups, Scene, SphereInstance},
-    utils::{Interaction, Interpolatable, IntoInstanceGroups, MeshData, VisualShape, VisualStyle},
+    scene::SphereInstance,
+    utils::{Interaction, Interpolatable, Logger, MeshData, VisualShape, VisualStyle},
 };
 
 use once_cell::sync::Lazy;
@@ -12,8 +13,8 @@ use std::sync::Mutex;
 
 #[derive(Clone)]
 pub struct MeshTemplate {
-    pub vertices: Vec<[f32; 3]>,
-    pub normals: Vec<[f32; 3]>,
+    pub vertices: Vec<Vec3>,
+    pub normals: Vec<Vec3>,
     pub indices: Vec<u32>,
 }
 
@@ -31,7 +32,7 @@ pub struct Sphere {
 }
 
 impl Interpolatable for Sphere {
-    fn interpolate(&self, other: &Self, t: f32) -> Self {
+    fn interpolate(&self, other: &Self, t: f32, _logger: impl Logger) -> Self {
         Self {
             center: [
                 self.center[0] * (1.0 - t) + other.center[0] * t,
@@ -77,7 +78,7 @@ impl Sphere {
         self
     }
 
-    pub fn to_mesh(&self, scale: f32) -> MeshData {
+    pub fn to_mesh(&self, _scale: f32) -> MeshData {
         return MeshData::default();
 
         // let template = Self::get_or_generate_sphere_mesh_template(self.quality);
@@ -147,8 +148,8 @@ impl Sphere {
                 let ny = cos_theta;
                 let nz = sin_theta * sin_phi;
 
-                vertices.push([nx, ny, nz]); // 单位球
-                normals.push([nx, ny, nz]);
+                vertices.push(Vec3::new(nx, ny, nz)); // 单位球
+                normals.push(Vec3::new(nx, ny, nz));
             }
         }
 
@@ -179,7 +180,7 @@ impl Sphere {
     }
 
     pub fn to_instance(&self, scale: f32) -> SphereInstance {
-        let base_color = self.style.color.unwrap_or([1.0, 1.0, 1.0]);
+        let base_color = self.style.color.unwrap_or([1.0, 1.0, 1.0].into());
         let alpha = self.style.opacity.clamp(0.0, 1.0);
         let color = [base_color[0], base_color[1], base_color[2], alpha];
 
