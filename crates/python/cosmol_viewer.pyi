@@ -5,7 +5,7 @@ def parse_sdf(
     keep_h: bool = True,
     multimodel: bool = True,
     onemol: bool = False
-) -> MoleculeData:
+) -> "MoleculeData":
     """
     Parse an SDF string into molecule data.
 
@@ -28,7 +28,7 @@ def parse_sdf(
 
 def parse_mmcif(
     mmcif: str
-) -> ProteinData:
+) -> "ProteinData":
     """
     Parse an MMCIF string into protein data.
 
