@@ -1,3 +1,5 @@
+use pyo3::exceptions::PyRuntimeError;
+use pyo3::exceptions::PyValueError;
 use std::ffi::CStr;
 
 use pyo3::{ffi::c_str, prelude::*};
@@ -28,32 +30,52 @@ impl Scene {
     }
 
     #[pyo3(signature = (shape, id=None))]
-    pub fn add_shape(&mut self, shape: &Bound<'_, PyAny>, id: Option<&str>) {
-        if let Ok(sphere) = shape.extract::<PyRef<PySphere>>() {
-            self.inner.add_shape(sphere.inner.clone(), id);
-        } else if let Ok(stick) = shape.extract::<PyRef<PyStick>>() {
-            self.inner.add_shape(stick.inner.clone(), id);
-        } else if let Ok(molecules) = shape.extract::<PyRef<PyMolecules>>() {
-            self.inner.add_shape(molecules.inner.clone(), id);
-        } else if let Ok(protein) = shape.extract::<PyRef<PyProtein>>() {
-            self.inner.add_shape(protein.inner.clone(), id);
-        } else {
-            panic!("Unsupported shape type");
+    pub fn add_shape(&mut self, shape: &Bound<'_, PyAny>, id: Option<&str>) -> PyResult<()> {
+        macro_rules! try_add {
+            ($py_type:ty) => {{
+                if let Ok(py_obj) = shape.extract::<PyRef<$py_type>>() {
+                    self.inner.add_shape(py_obj.inner.clone(), id);
+                    return Ok(());
+                }
+            }};
         }
+
+        try_add!(PySphere);
+        try_add!(PyStick);
+        try_add!(PyMolecules);
+        try_add!(PyProtein);
+
+        let type_name = shape
+            .get_type()
+            .name()
+            .map(|name| name.to_string())
+            .unwrap_or("<unknown type>".to_string());
+
+        Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(format!(
+            "add_shape(): unsupported shape type '{type_name}'. \
+             Expected one of: Sphere, Stick, Molecules, Protein"
+        )))
     }
 
-    pub fn update_shape(&mut self, id: &str, shape: &Bound<'_, PyAny>) {
-        if let Ok(sphere) = shape.extract::<PyRef<PySphere>>() {
-            self.inner.update_shape(id, sphere.inner.clone());
-        } else if let Ok(stick) = shape.extract::<PyRef<PyStick>>() {
-            self.inner.update_shape(id, stick.inner.clone());
-        } else if let Ok(molecules) = shape.extract::<PyRef<PyMolecules>>() {
-            self.inner.update_shape(id, molecules.inner.clone());
-        } else if let Ok(protein) = shape.extract::<PyRef<PyProtein>>() {
-            self.inner.update_shape(id, protein.inner.clone());
-        } else {
-            panic!("Unsupported shape type");
+    pub fn update_shape(&mut self, id: &str, shape: &Bound<'_, PyAny>) -> PyResult<()> {
+        macro_rules! update_with {
+            ($py_type:ty) => {{
+                if let Ok(py_obj) = shape.extract::<PyRef<$py_type>>() {
+                    self.inner.update_shape(id, py_obj.inner.clone());
+                    return Ok(());
+                }
+            }};
         }
+
+        update_with!(PySphere);
+        update_with!(PyStick);
+        update_with!(PyMolecules);
+        update_with!(PyProtein);
+
+        Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(format!(
+            "update_shape(): unsupported type {}",
+            shape.get_type().name()?
+        )))
     }
 
     pub fn delete_shape(&mut self, id: &str) {
@@ -159,27 +181,40 @@ impl Viewer {
     }
 
     #[staticmethod]
-    pub fn render(scene: &Scene, width: f32, height: f32, py: Python) -> Self {
-        let env_type = detect_runtime_env(py).unwrap();
+    pub fn render(scene: &Scene, width: f32, height: f32, py: Python) -> PyResult<Self> {
+        let env_type = detect_runtime_env(py)?;
         match env_type {
             RuntimeEnv::Colab | RuntimeEnv::Jupyter => {
                 setup_wasm_if_needed(py);
                 let wasm_viewer = WasmViewer::initiate_viewer(py, &scene.inner, width, height);
 
-                Viewer {
+                Ok(Viewer {
                     environment: env_type,
                     wasm_viewer: Some(wasm_viewer),
                     native_gui_viewer: None,
                     first_update: true,
-                }
+                })
             }
-            RuntimeEnv::PlainScript | RuntimeEnv::IPythonTerminal => Viewer {
-                environment: env_type,
-                wasm_viewer: None,
-                native_gui_viewer: Some(NativeGuiViewer::render(&scene.inner, width, height)),
-                first_update: true,
-            },
-            _ => panic!("Error: Invalid runtime environment"),
+            RuntimeEnv::PlainScript | RuntimeEnv::IPythonTerminal => {
+                let native_gui_viewer = std::panic::catch_unwind(|| {
+                    NativeGuiViewer::render(&scene.inner, width, height)
+                });
+
+                if let Err(err) = native_gui_viewer {
+                    return Err(PyRuntimeError::new_err(format!(
+                        "Error: Failed to initialize native GUI viewer: {:?}",
+                        err
+                    )));
+                }
+
+                Ok(Viewer {
+                    environment: env_type,
+                    wasm_viewer: None,
+                    native_gui_viewer: Some(native_gui_viewer.unwrap()),
+                    first_update: true,
+                })
+            }
+            _ => Err(PyValueError::new_err("Error: Invalid runtime environment")),
         }
     }
 
@@ -192,7 +227,7 @@ impl Viewer {
         height: f32,
         smooth: bool,
         py: Python,
-    ) -> Self {
+    ) -> PyResult<Self> {
         let env_type = detect_runtime_env(py).unwrap();
         let rust_frames: Vec<_Scene> = frames.iter().map(|frame| frame.inner.clone()).collect();
 
@@ -209,25 +244,27 @@ impl Viewer {
                     smooth,
                 );
 
-                Viewer {
+                Ok(Viewer {
                     environment: env_type,
                     wasm_viewer: Some(wasm_viewer),
                     native_gui_viewer: None,
                     first_update: false,
-                }
+                })
             }
 
             RuntimeEnv::PlainScript | RuntimeEnv::IPythonTerminal => {
                 NativeGuiViewer::play(rust_frames, interval, loops, width, height, smooth);
 
-                Viewer {
+                Ok(Viewer {
                     environment: env_type,
                     wasm_viewer: None,
                     native_gui_viewer: None,
                     first_update: false,
-                }
+                })
             }
-            _ => panic!("Error: Invalid runtime environment"),
+            _ => Err(PyErr::new::<PyRuntimeError, _>(
+                "Error: Invalid runtime environment",
+            )),
         }
     }
 
@@ -291,6 +328,12 @@ fn print_to_notebook(msg: &CStr, py: Python) {
 
 #[pymodule]
 fn cosmol_viewer(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
+    Python::initialize();
+
+    std::panic::set_hook(Box::new(|info| {
+        eprintln!("Rust panic occurred: {:?}", info);
+    }));
+
     m.add_class::<Scene>()?;
     m.add_class::<Viewer>()?;
     m.add_class::<PySphere>()?;

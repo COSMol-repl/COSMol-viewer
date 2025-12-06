@@ -1,24 +1,16 @@
-use std::path::Path;
-
 use cosmol_viewer::parser::sdf::{ParserOptions, parse_sdf};
 use cosmol_viewer::{Scene, Viewer, shapes::Molecules};
+use std::path::Path;
 
 fn main() {
     let sdf_string = std::fs::read_to_string("./examples/example.sdf").unwrap();
-    // let sdf_string = include_str!("../examples/example.sdf");
     let opts = ParserOptions {
         keep_h: true,
         multimodel: true,
         onemol: false,
     };
     let mol_data = parse_sdf(&sdf_string, &opts);
-
     let mol = Molecules::new(mol_data).centered();
-
-    let mol = serde_json::from_str::<Molecules>(
-        &serde_json::to_string(&mol).expect("json serialize failed"),
-    )
-    .unwrap();
 
     let mut scene = Scene::new();
 

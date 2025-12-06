@@ -1,6 +1,7 @@
-from cosmol_viewer import Scene, Sphere, Viewer
-import time
 import math
+import time
+
+from cosmol_viewer import Scene, Sphere, Viewer
 
 # 初始化场景
 scene = Scene()
@@ -12,7 +13,7 @@ for id in ids:
     scene.add_shape(sphere, id)
 
 scene.scale(2.0)
-viewer = Viewer.render(scene, width=800.0 ,height=500.0)
+viewer = Viewer.render(scene, width=800.0, height=500.0)
 
 # 动画主循环
 t = 0.0

@@ -12,8 +12,6 @@ license.workspace = true
 
 [dependencies]
 cosmol_viewer_core.workspace = true
-serde.workspace = true
-serde_json.workspace = true
 
 [features]
 default = []

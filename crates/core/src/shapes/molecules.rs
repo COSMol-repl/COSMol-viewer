@@ -1,3 +1,4 @@
+// use anyhow::Result;
 use glam::Vec3;
 use na_seq::Element;
 use serde::{Deserialize, Serialize};
@@ -15,9 +16,7 @@ use crate::{
 
 use std::collections::HashMap;
 
-pub fn my_color(x: &str) -> Vec3 {
-    let element = Element::from_letter(x).unwrap();
-
+pub fn my_color(element: &Element) -> Vec3 {
     // 优先使用自定义颜色
     match element {
         Element::Hydrogen => Vec3::new(1.0, 1.0, 1.0),
@@ -34,11 +33,10 @@ pub fn my_color(x: &str) -> Vec3 {
     }
 }
 
-pub fn my_radius(x: &str) -> f32 {
-    let element = Element::from_letter(x).unwrap();
-    match element {
+pub fn my_radius(e: &Element) -> f32 {
+    match e {
         Element::Hydrogen => 1.20,
-        _ => element.vdw_radius(), // 默认半径
+        _ => e.vdw_radius(), // 默认半径
     }
 }
 
@@ -51,9 +49,57 @@ pub enum BondType {
     AROMATIC = 0,
 }
 
+mod element_serde {
+    use super::*;
+    use serde::{Deserializer, Serializer, de::SeqAccess, ser::SerializeSeq};
+
+    pub fn serialize<S>(elements: &Vec<Element>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut seq = serializer.serialize_seq(Some(elements.len()))?;
+        for elem in elements {
+            let atomic_num: u8 = elem.atomic_number();
+            seq.serialize_element(&atomic_num)?;
+        }
+        seq.end()
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<Element>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct Visitor;
+        impl<'de> serde::de::Visitor<'de> for Visitor {
+            type Value = Vec<Element>;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("a sequence of atomic numbers")
+            }
+
+            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+            where
+                A: SeqAccess<'de>,
+            {
+                let mut elements = Vec::new();
+                while let Some(num) = seq.next_element::<u8>()? {
+                    let elem = Element::from_atomic_number(num).map_err(|_| {
+                        serde::de::Error::custom(format!("Invalid atomic number: {}", num))
+                    })?;
+                    elements.push(elem);
+                }
+                Ok(elements)
+            }
+        }
+
+        deserializer.deserialize_seq(Visitor)
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Molecules {
-    pub atom_types: Vec<String>,
+    #[serde(with = "element_serde")]
+    pub atom_types: Vec<Element>,
     pub atoms: Vec<Vec3>,
     pub bond_types: Vec<BondType>,
     pub bonds: Vec<[usize; 2]>,
@@ -162,10 +208,7 @@ impl Molecules {
         }
 
         Self {
-            atom_types: atom_types
-                .iter()
-                .map(|&element| element.to_letter())
-                .collect(),
+            atom_types: atom_types,
             atoms,
             bond_types,
             bonds,
@@ -477,8 +520,8 @@ impl IntoInstanceGroups for Molecules {
             let color_a = self.style.color.unwrap_or(
                 self.atom_types
                     .get(*a)
-                    .map(|x| match x.as_str() {
-                        "C" => Vec3::new(0.75, 0.75, 0.75),
+                    .map(|x| match x {
+                        Element::Carbon => Vec3::new(0.75, 0.75, 0.75),
                         _ => my_color(x),
                     })
                     .unwrap(),
@@ -486,8 +529,8 @@ impl IntoInstanceGroups for Molecules {
             let color_b = self.style.color.unwrap_or(
                 self.atom_types
                     .get(*b)
-                    .map(|x| match x.as_str() {
-                        "C" => Vec3::new(0.75, 0.75, 0.75),
+                    .map(|x| match x {
+                        Element::Carbon => Vec3::new(0.75, 0.75, 0.75),
                         _ => my_color(x),
                     })
                     .unwrap(),
