@@ -328,12 +328,6 @@ fn print_to_notebook(msg: &CStr, py: Python) {
 
 #[pymodule]
 fn cosmol_viewer(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
-    Python::initialize();
-
-    std::panic::set_hook(Box::new(|info| {
-        eprintln!("Rust panic occurred: {:?}", info);
-    }));
-
     m.add_class::<Scene>()?;
     m.add_class::<Viewer>()?;
     m.add_class::<PySphere>()?;
