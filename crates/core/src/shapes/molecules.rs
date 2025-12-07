@@ -83,9 +83,7 @@ mod element_serde {
             {
                 let mut elements = Vec::new();
                 while let Some(num) = seq.next_element::<u8>()? {
-                    let elem = Element::from_atomic_number(num).map_err(|_| {
-                        serde::de::Error::custom(format!("Invalid atomic number: {}", num))
-                    })?;
+                    let elem = Element::from_atomic_number(num).unwrap_or(Element::Other);
                     elements.push(elem);
                 }
                 Ok(elements)
@@ -176,7 +174,7 @@ impl Molecules {
         for molecule in molecule_data {
             for atom in &molecule {
                 // 原子类型
-                let atom_type: Element = Element::from_letter(&atom.elem).unwrap();
+                let atom_type: Element = Element::from_letter(&atom.elem).unwrap_or(Element::Other);
                 atom_types.push(atom_type);
 
                 // 原子坐标
