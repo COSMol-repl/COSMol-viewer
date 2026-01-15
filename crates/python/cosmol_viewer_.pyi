@@ -1,46 +1,5 @@
 from typing import List, Optional, Union
 
-def parse_sdf(
-    sdf: str, keep_h: bool = True, multimodel: bool = True, onemol: bool = False
-) -> "MoleculeData":
-    """
-    Parse an SDF string into molecule data.
-
-    # Args
-      - sdf: Path to an SD string containing SDF content.
-      - keep_h: Whether to keep explicit hydrogen atoms (default: True).
-      - multimodel: Whether to allow multiple models in one file (default: True).
-      - onemol: Whether to merge multiple models into one molecule (default: False).
-
-    # Returns
-      - MoleculeData: Parsed molecule data object.
-
-    # Example
-    ```python
-    from cosmol_viewer import parse_sdf
-    mol = parse_sdf(open("./molecule.sdf", "r", encoding="utf-8").read())
-    ```
-    """
-    ...
-
-def parse_mmcif(mmcif: str) -> "ProteinData":
-    """
-    Parse an MMCIF string into protein data.
-
-    # Args
-      - mmcif: Path to an MMCIF string containing MMCIF content.
-
-    # Returns
-      - ProteinData: Parsed protein data object.
-
-    # Example
-    ```python
-    from cosmol_viewer import parse_mmcif
-    prot = parse_mmcif(open("./protein.cif", "r", encoding="utf-8").read())
-    ```
-    """
-    ...
-
 class Scene:
     """
     A 3D scene container for visualizing molecular or geometric shapes.

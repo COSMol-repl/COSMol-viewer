@@ -394,5 +394,4 @@ fn cosmol_viewer(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
 
 use pyo3_stub_gen::define_stub_info_gatherer;
 
-// At the end of your lib.rs
 define_stub_info_gatherer!(stub_info);

@@ -4,3 +4,4 @@
 .zed
 frames/
 cosmol_viewer/screenshot.png
+crates/python/cosmol_viewer.pyi

@@ -44,6 +44,7 @@ jobs:
       - name: Build Python module (develop)
         working-directory: crates/python
         run: |
+          cargo run --bin stub_gen
           maturin develop --uv
       - name: Build documentation
         run: |
