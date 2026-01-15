@@ -1,4 +1,5 @@
 use cosmol_viewer_core::scene::Animation as _Animation;
+use pyo3::exceptions::PyIndexError;
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::exceptions::PyValueError;
 use std::ffi::CStr;
@@ -8,7 +9,6 @@ use pyo3::{ffi::c_str, prelude::*};
 use crate::shapes::{PyMolecule, PyProtein, PySphere, PyStick};
 use cosmol_viewer_core::{NativeGuiViewer, scene::Scene as _Scene};
 use cosmol_viewer_wasm::{WasmViewer, setup_wasm_if_needed};
-use pyo3_stub_gen::PyStubType;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
 mod shapes;
@@ -71,6 +71,46 @@ impl Animation {
     "#]
     pub fn set_static_scene(&mut self, scene: Scene) {
         self.inner.static_scene = Some(scene.inner);
+    }
+
+    #[gen_stub(skip)]
+    fn __len__(&self) -> usize {
+        self.inner.frames.len()
+    }
+
+    #[gen_stub(skip)]
+    fn __repr__(&self) -> String {
+        let interval_sec = self.inner.interval as f32 / 1000.0;
+        let frames = self.inner.frames.len();
+
+        format!(
+            "Animation(frames={}, interval={:.3}s, loops={}, smooth={})",
+            frames, interval_sec, self.inner.loops, self.inner.smooth
+        )
+    }
+
+    #[gen_stub(skip)]
+    fn __getitem__(&self, index: isize, py: Python) -> PyResult<Py<Scene>> {
+        let frames = &self.inner.frames;
+
+        let idx = if index >= 0 {
+            index as usize
+        } else {
+            let abs = (-index) as usize;
+            if abs > frames.len() {
+                return Err(PyIndexError::new_err("Animation frame index out of range"));
+            }
+            frames.len() - abs
+        };
+
+        if idx >= frames.len() {
+            return Err(PyIndexError::new_err("Animation frame index out of range"));
+        }
+
+        let scene_inner = frames[idx].clone();
+        let py_scene = Scene { inner: scene_inner };
+
+        Ok(Py::new(py, py_scene)?)
     }
 }
 
@@ -307,6 +347,11 @@ impl Scene {
     "#]
     pub fn use_black_background(&mut self) {
         self.inner.use_black_background();
+    }
+
+    #[gen_stub(skip)]
+    fn __repr__(&self) -> String {
+        format!("RustScene({:?})", self.inner)
     }
 }
 

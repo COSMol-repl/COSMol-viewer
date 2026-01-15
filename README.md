@@ -30,7 +30,8 @@ All implementations share the same Rust rendering engine, ensuring consistent pe
 - **Scene**: container for shapes (molecules, proteins, spheres, etc.).
 - **Viewer.render(scene, ...)**: create a static viewer bound to a canvas (native or notebook). Good for static visualization.
 - **viewer.update(scene)**: push incremental changes after `Viewer.render()` (real-time / streaming use-cases).
-- **Viewer.play(frames, interval, loops, width, height, smooth)**: *recommended* for precomputed animations and demonstrations. The viewer takes care of playback timing and looping.
+- **Animation**: An Animation object containing frames and settings.
+- **Viewer.play(animation, interval, loops, width, height, smooth)**: *recommended* for precomputed animations and demonstrations. The viewer takes care of playback timing and looping.
 
 **Why prefer `play` for demos?**
 - Single call API (hand off responsibility to the viewer).
@@ -52,16 +53,21 @@ Install with `pip install cosmol-viewer`
 ### 1. Static molecular rendering
 
 ```python
-from cosmol_viewer import Scene, Viewer, parse_sdf, Molecules
-    
-mol_data  = parse_sdf(open("molecule.sdf", "r", encoding="utf-8").read())
+from cosmol_viewer import Molecule, Scene, Viewer
 
-mol = Molecules(mol_data).centered()
+mol_data = open("molecule.sdf", "r", encoding="utf-8").read()
+
+mol = Molecule.from_sdf(mol_data).centered()
 
 scene = Scene()
-scene.add_shape(mol, "mol")
 
-viewer = Viewer.render(scene, width=600, height=400)
+scene.set_scale(1.0)
+
+scene.add_shape_with_id("molecule", mol)
+
+viewer = Viewer.render(scene, width=800, height=500)
+
+viewer.save_image("screenshot.png")
 
 print("Press Any Key to exit...", end='', flush=True)
 _ = input()  # Keep the viewer open until you decide to close
@@ -70,20 +76,18 @@ _ = input()  # Keep the viewer open until you decide to close
 ### 2. Animation playback with `Viewer.play`
 
 ```python
-from cosmol_viewer import Scene, Viewer, parse_sdf, Molecules
+from cosmol_viewer import Scene, Viewer, Molecule, Animation
 
-frames = []
-
+anim = Animation(interval=0.05, loops=-1, smooth=False)
 for i in range(1, 10):
     with open(f"frames/frame_{i}.sdf", "r") as f:
-        sdf = f.read()
-        mol = Molecules(parse_sdf(sdf)).centered()
+        mol = Molecule.from_sdf(sdf.read())
 
     scene = Scene()
-    scene.add_shape(mol, "mol")
-    frames.append(scene)
+    scene.add_shape(mol)
+    anim.add_frame(scene)
 
-Viewer.play(frames, interval=0.033, loops=-1, width=800, height=500, smooth=True) # loops=-1 for infinite repeat
+Viewer.play(anim, width=800, height=500) # loops=-1 for infinite repeat
 ```
 
 more examples can be found in the [examples](https://github.com/COSMol-repl/COSMol-viewer/tree/main/cosmol_viewer/examples) folder:
