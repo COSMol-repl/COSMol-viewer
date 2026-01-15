@@ -5,7 +5,7 @@ use std::ffi::CStr;
 
 use pyo3::{ffi::c_str, prelude::*};
 
-use crate::shapes::{PyMolecules, PyProtein, PySphere, PyStick};
+use crate::shapes::{PyMolecule, PyProtein, PySphere, PyStick};
 use cosmol_viewer_core::{NativeGuiViewer, scene::Scene as _Scene};
 use cosmol_viewer_wasm::{WasmViewer, setup_wasm_if_needed};
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
@@ -47,6 +47,21 @@ impl Animation {
 #[derive(Clone)]
 #[gen_stub_pyclass]
 #[pyclass]
+#[doc = r#"
+    A 3D scene container for visualizing molecular or geometric shapes.
+
+    This class allows adding, updating, and removing shapes in a 3D scene,
+    as well as modifying scene-level properties like scale and background color.
+
+    Supported shape types:
+      - Sphere
+      - Stick
+      - Molecule
+      - Protein
+
+    Shapes can be optionally identified with a string `id`,
+    which allows updates and deletion.
+"#]
 pub struct Scene {
     inner: _Scene,
 }
@@ -55,6 +70,14 @@ pub struct Scene {
 #[pymethods]
 impl Scene {
     #[new]
+    #[doc = r#"
+        Creates a new empty scene.
+
+        # Example
+        ```python
+        scene = Scene()
+        ```
+    "#]
     pub fn new() -> Self {
         Self {
             inner: _Scene::new(),
@@ -73,7 +96,7 @@ impl Scene {
 
         try_add!(PySphere);
         try_add!(PyStick);
-        try_add!(PyMolecules);
+        try_add!(PyMolecule);
         try_add!(PyProtein);
 
         let type_name = shape
@@ -84,7 +107,7 @@ impl Scene {
 
         Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
             "add_shape(): unsupported shape type '{type_name}'. \
-             Expected one of: Sphere, Stick, Molecules, Protein"
+             Expected one of: Sphere, Stick, Molecule, Protein"
         )))
     }
 
@@ -100,7 +123,7 @@ impl Scene {
 
         try_add!(PySphere);
         try_add!(PyStick);
-        try_add!(PyMolecules);
+        try_add!(PyMolecule);
         try_add!(PyProtein);
 
         let type_name = shape
@@ -115,6 +138,18 @@ impl Scene {
         )))
     }
 
+    #[doc = r#"
+        Replace an existing shape in the scene by its ID.
+
+        # Args
+            - id: ID of the shape to update.
+            - shape: New shape object to replace the existing one.
+
+        # Example
+        ```python
+        scene.replace_shape("mol", updated_molecule)
+        ```
+    "#]
     pub fn replace_shape(&mut self, id: &str, shape: &Bound<'_, PyAny>) -> PyResult<()> {
         macro_rules! update_with {
             ($py_type:ty) => {{
@@ -131,7 +166,7 @@ impl Scene {
 
         update_with!(PySphere);
         update_with!(PyStick);
-        update_with!(PyMolecules);
+        update_with!(PyMolecule);
         update_with!(PyProtein);
 
         let type_name = shape
@@ -141,7 +176,7 @@ impl Scene {
             .unwrap_or("<unknown type>".to_string());
 
         Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
-            "update_shape(): unsupported type {type_name}",
+            "replace_shape(): unsupported type {type_name}",
         )))
     }
 
@@ -387,7 +422,7 @@ fn cosmol_viewer(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Viewer>()?;
     m.add_class::<PySphere>()?;
     m.add_class::<PyStick>()?;
-    m.add_class::<PyMolecules>()?;
+    m.add_class::<PyMolecule>()?;
     m.add_class::<PyProtein>()?;
     Ok(())
 }

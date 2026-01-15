@@ -1,7 +1,7 @@
 use crate::PyErr;
 use crate::PyResult;
 use cosmol_viewer_core::{
-    shapes::{Molecules, Protein, Sphere, Stick},
+    shapes::{Molecule, Protein, Sphere, Stick},
     utils::VisualShape,
 };
 use pyo3::{PyRefMut, pyclass, pymethods};
@@ -99,19 +99,19 @@ impl PyStick {
 }
 
 #[gen_stub_pyclass]
-#[pyclass(name = "Molecules")]
+#[pyclass(name = "Molecule")]
 #[derive(Clone)]
-pub struct PyMolecules {
-    pub inner: Molecules,
+pub struct PyMolecule {
+    pub inner: Molecule,
 }
 
 #[gen_stub_pymethods]
 #[pymethods]
-impl PyMolecules {
+impl PyMolecule {
     #[staticmethod]
     pub fn from_sdf(sdf: &str) -> PyResult<Self> {
         Ok(Self {
-            inner: Molecules::from_sdf(sdf)
+            inner: Molecule::from_sdf(sdf)
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?,
         })
     }

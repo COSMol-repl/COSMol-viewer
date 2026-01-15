@@ -1,8 +1,8 @@
-use cosmol_viewer::{Scene, Viewer, shapes::Molecules};
+use cosmol_viewer::{Scene, Viewer, shapes::Molecule};
 use std::path::Path;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mol = Molecules::from_sdf(include_str!("../examples/6fi1_ligand.sdf"))?.centered();
+    let mol = Molecule::from_sdf(include_str!("../examples/6fi1_ligand.sdf"))?.centered();
 
     let mut scene = Scene::new();
 

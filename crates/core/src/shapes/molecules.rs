@@ -93,7 +93,7 @@ mod element_serde {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Molecules {
+pub struct Molecule {
     #[serde(with = "element_serde")]
     pub atom_types: Vec<Element>,
     pub atom_posits: Vec<Vec3>,
@@ -105,7 +105,7 @@ pub struct Molecules {
     pub interaction: Interaction,
 }
 
-impl Interpolatable for Molecules {
+impl Interpolatable for Molecule {
     fn interpolate(&self, other: &Self, t: f32, logger: impl Logger) -> Self {
         // 检查原子数量是否匹配
         if self.atom_posits.len() != other.atom_posits.len() {
@@ -155,7 +155,7 @@ impl Interpolatable for Molecules {
     }
 }
 
-impl Into<Shape> for Molecules {
+impl Into<Shape> for Molecule {
     fn into(self) -> Shape {
         Shape::Molecules(self)
     }
@@ -164,11 +164,11 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum ParseSdfError {
-    #[error("Failed to parse SDF data")]
+    #[error("Failed to parse SDF data: '{0}'")]
     ParsingError(String),
 }
 
-impl Molecules {
+impl Molecule {
     pub fn from_sdf(sdf: &str) -> Result<Self, ParseSdfError> {
         let molecule_data =
             Sdf::new(sdf).map_err(|e| ParseSdfError::ParsingError(e.to_string()))?;
@@ -388,7 +388,7 @@ impl Molecules {
     }
 }
 
-impl IntoInstanceGroups for Molecules {
+impl IntoInstanceGroups for Molecule {
     fn to_instance_group(&self, scale: f32) -> InstanceGroups {
         let mut groups = InstanceGroups::default();
 
@@ -588,7 +588,7 @@ impl IntoInstanceGroups for Molecules {
     }
 }
 
-impl VisualShape for Molecules {
+impl VisualShape for Molecule {
     fn style_mut(&mut self) -> &mut VisualStyle {
         &mut self.style
     }

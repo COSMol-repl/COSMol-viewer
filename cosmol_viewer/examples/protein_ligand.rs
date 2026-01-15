@@ -1,9 +1,9 @@
 use cosmol_viewer::utils::VisualShape;
-use cosmol_viewer::{Scene, Viewer, shapes::Molecules, shapes::Protein};
+use cosmol_viewer::{Scene, Viewer, shapes::Molecule, shapes::Protein};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let prot = Protein::from_mmcif(include_str!("../examples/6fi1.cif"))?.color([0.2, 0.45, 0.6]);
-    let ligand = Molecules::from_sdf(include_str!("../examples/6fi1_ligand.sdf"))?;
+    let ligand = Molecule::from_sdf(include_str!("../examples/6fi1_ligand.sdf"))?;
 
     let mut scene = Scene::new();
     scene.recenter(ligand.get_center());

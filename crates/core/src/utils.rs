@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     scene::InstanceGroups,
-    shapes::{Molecules, Protein, Sphere, Stick},
+    shapes::{Molecule, Protein, Sphere, Stick},
 };
 
 pub trait Logger: Send + Sync + Copy {
@@ -55,7 +55,7 @@ pub trait Interpolatable {
 pub enum Shape {
     Sphere(Sphere),
     Stick(Stick),
-    Molecules(Molecules),
+    Molecules(Molecule),
     Protein(Protein),
     Qudrate, // Custom(CustomShape),
              // ...

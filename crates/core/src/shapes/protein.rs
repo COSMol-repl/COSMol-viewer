@@ -21,7 +21,7 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum ParseMmCifError {
-    #[error("Failed to parse MmCif data")]
+    #[error("Failed to parse MmCif data: '{0}'")]
     ParsingError(String),
 }
 
