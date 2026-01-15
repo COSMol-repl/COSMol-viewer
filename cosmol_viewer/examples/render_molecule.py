@@ -1,8 +1,8 @@
-from cosmol_viewer import Molecules, Scene, Viewer
+from cosmol_viewer import Molecule, Scene, Viewer
 
 mol_data = open("./examples/6fi1_ligand.sdf", "r", encoding="utf-8").read()
 
-mol = Molecules.from_sdf(mol_data).centered()
+mol = Molecule.from_sdf(mol_data).centered()
 
 scene = Scene()
 

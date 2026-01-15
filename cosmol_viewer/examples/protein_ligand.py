@@ -1,10 +1,10 @@
-from cosmol_viewer import Molecules, Protein, Scene, Viewer
+from cosmol_viewer import Molecule, Protein, Scene, Viewer
 
 mmcif_data = open("./examples/6fi1.cif", "r", encoding="utf-8").read()
 prot = Protein.from_mmcif(mmcif_data).color([0.2, 0.45, 0.6])
 
 ligand_data = open("./examples/6fi1_ligand.sdf", "r", encoding="utf-8").read()
-ligand = Molecules.from_sdf(ligand_data)
+ligand = Molecule.from_sdf(ligand_data)
 
 scene = Scene()
 scene.add_shape_with_id("prot", prot)

@@ -10,6 +10,18 @@ use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 #[gen_stub_pyclass]
 #[pyclass(name = "Sphere")]
 #[derive(Clone)]
+#[doc = r#"
+    A sphere shape in the scene.
+
+    # Args
+        - center: [x, y, z] coordinates of the sphere center.
+        - radius: Radius of the sphere.
+
+    # Example
+    ```python
+    sphere = Sphere([0, 0, 0], 1.0).color([1, 0, 0])
+    ```
+"#]
 pub struct PySphere {
     pub inner: Sphere,
 }
@@ -53,6 +65,19 @@ impl PySphere {
 #[gen_stub_pyclass]
 #[pyclass(name = "Stick")]
 #[derive(Clone)]
+#[doc = r#"
+    A cylindrical stick (or capsule) connecting two points.
+
+    # Args
+        - start: Starting point [x, y, z].
+        - end: Ending point [x, y, z].
+        - thickness: Stick radius.
+
+    # Example
+    ```python
+    stick = Stick([0,0,0], [1,1,1], 0.1).opacity(0.5)
+    ```
+"#]
 pub struct PyStick {
     pub inner: Stick,
 }
@@ -101,6 +126,17 @@ impl PyStick {
 #[gen_stub_pyclass]
 #[pyclass(name = "Molecule")]
 #[derive(Clone)]
+#[doc = r#"
+    A molecular shape object.
+    Typically created by parsing an SDF format string.
+
+    # Example
+    ```python
+    # Load from file content
+    content = open("structure.sdf", "r").read()
+    mol = Molecule.from_sdf(content).centered().color([0, 1, 0])
+    ```
+"#]
 pub struct PyMolecule {
     pub inner: Molecule,
 }
@@ -109,6 +145,15 @@ pub struct PyMolecule {
 #[pymethods]
 impl PyMolecule {
     #[staticmethod]
+    #[doc = r#"
+        Create a Molecule from an SDF format string.
+
+        # Args
+            - sdf: The SDF file content as a string.
+
+        # Returns
+            - Molecule: The parsed molecule object.
+    "#]
     pub fn from_sdf(sdf: &str) -> PyResult<Self> {
         Ok(Self {
             inner: Molecule::from_sdf(sdf)
@@ -144,6 +189,17 @@ impl PyMolecule {
 #[gen_stub_pyclass]
 #[pyclass(name = "Protein")]
 #[derive(Clone)]
+#[doc = r#"
+    A protein shape object.
+    Typically created by parsing an mmCIF format string.
+
+    # Example
+    ```python
+    # Load from file content
+    content = open("2AMD.cif", "r").read()
+    prot = Protein.from_mmcif(content).centered().color([0, 1, 0])
+    ```
+"#]
 pub struct PyProtein {
     pub inner: Protein,
 }
@@ -152,6 +208,15 @@ pub struct PyProtein {
 #[pymethods]
 impl PyProtein {
     #[staticmethod]
+    #[doc = r#"
+        Create a Protein from an mmCIF format string.
+
+        # Args
+            - mmcif: The mmCIF file content as a string.
+
+        # Returns
+            - Protein: The parsed protein object.
+    "#]
     pub fn from_mmcif(mmcif: &str) -> PyResult<Self> {
         Ok(Self {
             inner: Protein::from_mmcif(mmcif)
