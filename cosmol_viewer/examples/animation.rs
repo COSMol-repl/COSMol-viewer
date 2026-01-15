@@ -1,6 +1,6 @@
 use cosmol_viewer::shapes::Sphere;
 use cosmol_viewer::utils::VisualShape;
-use cosmol_viewer::{Scene, Viewer};
+use cosmol_viewer::{Animation, Scene, Viewer};
 use std::f32::consts::PI;
 
 fn main() {
@@ -13,13 +13,13 @@ fn main() {
     let num_frames = (duration / interval) as usize;
 
     // 存储所有帧
-    let mut frames: Vec<Scene> = Vec::with_capacity(num_frames);
+    let mut animation = Animation::new(interval, -1, true);
 
     for frame_idx in 0..num_frames {
         let t = frame_idx as f32 * interval;
 
         let mut scene = Scene::new();
-        scene.scale(2.0);
+        scene.set_scale(2.0);
 
         for (i, id) in ids.iter().enumerate() {
             let phase = i as f32 * PI / 3.0;
@@ -39,12 +39,12 @@ fn main() {
             let b = 1.0 - r;
 
             let sphere = Sphere::new([x, y, z], radius).color([r, g, b]);
-            scene.add_shape(sphere, Some(id));
+            scene.add_shape_with_id(*id, sphere);
         }
 
-        frames.push(scene);
+        animation.add_frame(scene);
     }
 
     // 一次性提交所有帧，由 Viewer 控制播放
-    Viewer::play(frames, interval, -1, 800.0, 500.0, true);
+    let _ = Viewer::play(animation, 800.0, 500.0);
 }

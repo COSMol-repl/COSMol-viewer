@@ -11,18 +11,19 @@ use eframe::{
 use glam::{Quat, Vec3};
 
 use crate::Scene;
+use crate::scene::Animation;
 use crate::scene::InstanceGroups;
 use crate::scene::SphereInstance;
 use crate::scene::StickInstance;
 use crate::shapes::Sphere;
 use crate::shapes::Stick;
-use crate::utils::Frames;
 use crate::utils::{Interpolatable, Logger};
 
 pub struct Canvas<L: Logger> {
     shader: Arc<Mutex<Shader>>,
     camera_state: CameraState,
-    frames: Option<Frames>,
+    animation: Option<Animation>,
+    static_scene: Option<Scene>,
     interpolate_enabled: bool,
     logger: L,
 }
@@ -33,23 +34,29 @@ impl<L: Logger> Canvas<L> {
         Some(Self {
             shader: Arc::new(Mutex::new(Shader::new(&gl, scene)?)),
             camera_state: camera_state,
-            frames: None,
+            animation: None,
+            static_scene: None,
             interpolate_enabled: false,
             logger,
         })
     }
 
-    pub fn new_play<'a>(gl: Arc<eframe::glow::Context>, frames: Frames, logger: L) -> Option<Self> {
-        if frames.frames.is_empty() {
-            logger.error("No frames provided");
-            return None;
+    pub fn new_play<'a>(
+        gl: Arc<eframe::glow::Context>,
+        animation: Animation,
+        logger: L,
+    ) -> Option<Self> {
+        if animation.frames.is_empty() {
+            unreachable!("Animation must have at least one frame");
         }
-        let camera_state = frames.frames[0].camera_state.clone();
+        let init_frame = animation.frames[0].clone();
+        let camera_state = init_frame.camera_state;
         Some(Self {
-            shader: Arc::new(Mutex::new(Shader::new(&gl, frames.frames[0].clone())?)),
+            shader: Arc::new(Mutex::new(Shader::new(&gl, init_frame)?)),
             camera_state: camera_state,
-            interpolate_enabled: frames.smooth,
-            frames: Some(frames),
+            interpolate_enabled: animation.smooth,
+            static_scene: animation.static_scene.clone(),
+            animation: Some(animation),
             logger,
         })
     }
@@ -63,13 +70,13 @@ impl<L: Logger> Canvas<L> {
             egui::Sense::drag(),
         );
 
-        if let Some(frames) = &mut self.frames {
+        if let Some(animation) = &mut self.animation {
             ui.ctx().request_repaint();
             let now = ui.input(|i| i.time);
 
             // 播放总时长（秒）
-            let frame_count = frames.frames.len();
-            let frame_duration = frames.interval as f64 / 1000.0; // 秒
+            let frame_count = animation.frames.len();
+            let frame_duration = animation.interval as f64 / 1000.0; // 秒
             let total_duration = frame_duration * frame_count as f64;
 
             // 计算从动画开始到现在的累积时间
@@ -77,8 +84,8 @@ impl<L: Logger> Canvas<L> {
 
             // 判断是否结束（loops = -1 表示无限循环）
             let mut is_finished = false;
-            if frames.loops != -1 {
-                let max_loops = frames.loops as usize;
+            if animation.loops != -1 {
+                let max_loops = animation.loops as usize;
                 let max_time = total_duration * max_loops as f64;
                 if elapsed >= max_time {
                     is_finished = true;
@@ -86,7 +93,7 @@ impl<L: Logger> Canvas<L> {
             }
 
             // 计算当前在第几个 loop 内的 offset
-            let anim_time = if frames.loops == -1 {
+            let anim_time = if animation.loops == -1 {
                 elapsed % total_duration
             } else {
                 elapsed % total_duration
@@ -105,20 +112,24 @@ impl<L: Logger> Canvas<L> {
             let t = ((anim_time % frame_duration) / frame_duration) as f32;
 
             // 生成最终帧
-            let interp_frame = if is_finished {
-                frames.frames[frame_count - 1].clone()
+            let mut interp_frame = if is_finished {
+                animation.frames[frame_count - 1].clone()
             } else {
                 // 这里是原先的插值 / 非插值逻辑
                 if self.interpolate_enabled {
-                    frames.frames[frame_a_index].interpolate(
-                        &frames.frames[frame_b_index],
+                    animation.frames[frame_a_index].interpolate(
+                        &animation.frames[frame_b_index],
                         t,
                         self.logger,
                     )
                 } else {
-                    frames.frames[frame_a_index].clone()
+                    animation.frames[frame_a_index].clone()
                 }
             };
+
+            if let Some(static_scene) = self.static_scene.as_ref() {
+                interp_frame.merge_shapes(static_scene);
+            }
 
             self.shader.lock().update_scene(Some(&interp_frame));
         }

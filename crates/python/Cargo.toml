@@ -11,10 +11,11 @@ serde_json.workspace = true
 base64.workspace = true
 eframe.workspace = true
 pyo3.workspace = true
+pyo3-stub-gen = "0.17.2"
 
 [lib]
 name = "cosmol_viewer"
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [features]
 default = []

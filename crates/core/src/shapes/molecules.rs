@@ -1,20 +1,17 @@
 // use anyhow::Result;
+use crate::parser::sdf::Sdf;
+use crate::parser::utils::BondType as SdfBondType;
+pub use crate::utils::{Logger, RustLogger};
+use crate::{
+    Shape,
+    scene::InstanceGroups,
+    shapes::{sphere::Sphere, stick::Stick},
+    utils::{Interaction, Interpolatable, IntoInstanceGroups, MeshData, VisualShape, VisualStyle},
+};
 use glam::Vec3;
 use na_seq::Element;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
-
-use crate::{
-    Shape,
-    parser::sdf::MoleculeData,
-    scene::InstanceGroups,
-    shapes::{sphere::Sphere, stick::Stick},
-    utils::{
-        Interaction, Interpolatable, IntoInstanceGroups, Logger, MeshData, VisualShape, VisualStyle,
-    },
-};
-
-use std::collections::HashMap;
 
 pub fn my_color(element: &Element) -> Vec3 {
     // 优先使用自定义颜色
@@ -46,6 +43,7 @@ pub enum BondType {
     SINGLE = 1,
     DOUBLE = 2,
     TRIPLE = 3,
+    UNKNOWN = 4,
     AROMATIC = 0,
 }
 
@@ -98,9 +96,9 @@ mod element_serde {
 pub struct Molecules {
     #[serde(with = "element_serde")]
     pub atom_types: Vec<Element>,
-    pub atoms: Vec<Vec3>,
+    pub atom_posits: Vec<Vec3>,
     pub bond_types: Vec<BondType>,
-    pub bonds: Vec<[usize; 2]>,
+    pub bond_indices: Vec<[usize; 2]>,
     pub quality: u32,
 
     pub style: VisualStyle,
@@ -110,32 +108,32 @@ pub struct Molecules {
 impl Interpolatable for Molecules {
     fn interpolate(&self, other: &Self, t: f32, logger: impl Logger) -> Self {
         // 检查原子数量是否匹配
-        if self.atoms.len() != other.atoms.len() {
+        if self.atom_posits.len() != other.atom_posits.len() {
             logger.error(format!(
                 "Interpolation aborted: atom count differs (self: {}, other: {}). \
                 Smooth interpolation requires scenes with identical atom structures.",
-                self.atoms.len(),
-                other.atoms.len()
+                self.atom_posits.len(),
+                other.atom_posits.len()
             ));
             panic!("Smooth interpolation requires matching atom structures.");
         }
 
         // 检查键数量是否匹配（可选，根据需要）
-        if self.bonds.len() != other.bonds.len() {
+        if self.bond_indices.len() != other.bond_indices.len() {
             logger.error(format!(
                 "Interpolation aborted: bond topology differs (self: {}, other: {}). \
                 Smooth interpolation cannot proceed with different bonding graphs.",
-                self.bonds.len(),
-                other.bonds.len()
+                self.bond_indices.len(),
+                other.bond_indices.len()
             ));
             panic!("Smooth interpolation requires matching bond topology.");
         }
 
         // 原子坐标插值
         let atoms: Vec<Vec3> = self
-            .atoms
+            .atom_posits
             .iter()
-            .zip(&other.atoms)
+            .zip(&other.atom_posits)
             .map(|(a, b)| {
                 Vec3::new(
                     a[0] * (1.0 - t) + b[0] * t,
@@ -147,9 +145,9 @@ impl Interpolatable for Molecules {
 
         Self {
             atom_types: self.atom_types.clone(), // 假设 atom 类型不变
-            atoms,
+            atom_posits: atoms,
             bond_types: self.bond_types.clone(),
-            bonds: self.bonds.clone(),
+            bond_indices: self.bond_indices.clone(),
             quality: ((self.quality as f32) * (1.0 - t) + (other.quality as f32) * t) as u32,
             style: self.style.clone(),
             interaction: self.interaction.clone(),
@@ -162,54 +160,53 @@ impl Into<Shape> for Molecules {
         Shape::Molecules(self)
     }
 }
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum ParseSdfError {
+    #[error("Failed to parse SDF data")]
+    ParsingError(String),
+}
 
 impl Molecules {
-    pub fn new(molecule_data: MoleculeData) -> Self {
-        let mut atom_types = Vec::new();
-        let mut atoms = Vec::new();
-        let mut bond_set = HashMap::new(); // prevent duplicates
-        let mut bond_types = Vec::new();
-        let mut bonds = Vec::new();
+    pub fn from_sdf(sdf: &str) -> Result<Self, ParseSdfError> {
+        let molecule_data =
+            Sdf::new(sdf).map_err(|e| ParseSdfError::ParsingError(e.to_string()))?;
+        Self::new(molecule_data)
+    }
 
-        for molecule in molecule_data {
-            for atom in &molecule {
-                // 原子类型
-                let atom_type: Element = Element::from_letter(&atom.elem).unwrap_or(Element::Other);
-                atom_types.push(atom_type);
+    fn new(sdf: Sdf) -> Result<Self, ParseSdfError> {
+        // Split atoms into positions + types in one pass
+        let (atom_posits, atom_types): (Vec<Vec3>, Vec<Element>) = sdf
+            .atoms
+            .into_iter()
+            .map(|atom| (atom.posit, atom.element))
+            .unzip();
 
-                // 原子坐标
-                atoms.push(Vec3::new(atom.x, atom.y, atom.z));
-            }
+        // Split bonds into indices + types in one pass
+        let (bond_indices, bond_types): (Vec<[usize; 2]>, Vec<BondType>) = sdf
+            .bonds
+            .into_iter()
+            .map(|bond| {
+                let indices = [bond.atom_0_sn as usize - 1, bond.atom_1_sn as usize - 1];
 
-            // 处理键（避免重复）
-            for atom in &molecule {
-                let from = atom.index;
-                for (i, &to) in atom.bonds.iter().enumerate() {
-                    let to = to;
-                    let key = if from < to { (from, to) } else { (to, from) };
+                let bond_type = match bond.bond_type {
+                    SdfBondType::Single => BondType::SINGLE,
+                    SdfBondType::Double => BondType::DOUBLE,
+                    SdfBondType::Triple => BondType::TRIPLE,
+                    SdfBondType::Aromatic => BondType::AROMATIC,
+                    _ => BondType::UNKNOWN,
+                };
 
-                    if !bond_set.contains_key(&key) {
-                        bond_set.insert(key, true);
-                        bonds.push([key.0, key.1]);
+                (indices, bond_type)
+            })
+            .unzip();
 
-                        let order = atom.bond_order[i];
-                        let bond_type = match order {
-                            1 => BondType::SINGLE,
-                            2 => BondType::DOUBLE,
-                            3 => BondType::TRIPLE,
-                            _ => BondType::AROMATIC, // fallback
-                        };
-                        bond_types.push(bond_type);
-                    }
-                }
-            }
-        }
-
-        Self {
-            atom_types: atom_types,
-            atoms,
+        Ok(Self {
+            atom_types,
+            atom_posits,
             bond_types,
-            bonds,
+            bond_indices,
             quality: 6,
             style: VisualStyle {
                 opacity: 1.0,
@@ -217,24 +214,24 @@ impl Molecules {
                 ..Default::default()
             },
             interaction: Default::default(),
-        }
+        })
     }
 
     pub fn get_center(&self) -> [f32; 3] {
-        if self.atoms.is_empty() {
+        if self.atom_posits.is_empty() {
             return [0.0; 3];
         }
 
         // 1. 累加所有原子坐标
         let mut center = [0.0f32; 3];
-        for pos in &self.atoms {
+        for pos in &self.atom_posits {
             center[0] += pos[0];
             center[1] += pos[1];
             center[2] += pos[2];
         }
 
         // 2. 计算平均值
-        let count = self.atoms.len() as f32;
+        let count = self.atom_posits.len() as f32;
         center[0] /= count;
         center[1] /= count;
         center[2] /= count;
@@ -246,7 +243,7 @@ impl Molecules {
     /// is at the origin (0.0, 0.0, 0.0).
     pub fn centered(mut self) -> Self {
         let center = self.get_center();
-        for atom in &mut self.atoms {
+        for atom in &mut self.atom_posits {
             atom[0] -= center[0];
             atom[1] -= center[1];
             atom[2] -= center[2];
@@ -395,7 +392,7 @@ impl IntoInstanceGroups for Molecules {
     fn to_instance_group(&self, scale: f32) -> InstanceGroups {
         let mut groups = InstanceGroups::default();
 
-        for (i, pos) in self.atoms.iter().enumerate() {
+        for (i, pos) in self.atom_posits.iter().enumerate() {
             let sphere_instance = Sphere::new(
                 pos.to_array(),
                 self.atom_types.get(i).map(|x| my_radius(x) * 0.2).unwrap(),
@@ -411,10 +408,10 @@ impl IntoInstanceGroups for Molecules {
             groups.spheres.push(sphere_instance.to_instance(scale));
         }
 
-        for (i, bond) in self.bonds.iter().enumerate() {
+        for (i, bond) in self.bond_indices.iter().enumerate() {
             let [a, b] = bond;
-            let pos_a = self.atoms[*a];
-            let pos_b = self.atoms[*b];
+            let pos_a = self.atom_posits[*a];
+            let pos_b = self.atom_posits[*b];
 
             let bond_type = self.bond_types.get(i).unwrap_or(&BondType::SINGLE);
 
@@ -431,10 +428,10 @@ impl IntoInstanceGroups for Molecules {
 
             // === Step 1: 先找 A 的邻居方向（排除 B）===
             let mut neighbor_dir_opt = None;
-            for (_j, other_bond) in self.bonds.iter().enumerate() {
+            for (_j, other_bond) in self.bond_indices.iter().enumerate() {
                 let [x, y] = other_bond;
                 if x == a && y != b {
-                    let pos_n = self.atoms[*y];
+                    let pos_n = self.atom_posits[*y];
                     neighbor_dir_opt = Some([
                         pos_n[0] - pos_a[0],
                         pos_n[1] - pos_a[1],
@@ -442,7 +439,7 @@ impl IntoInstanceGroups for Molecules {
                     ]);
                     break;
                 } else if y == a && x != b {
-                    let pos_n = self.atoms[*x];
+                    let pos_n = self.atom_posits[*x];
                     neighbor_dir_opt = Some([
                         pos_n[0] - pos_a[0],
                         pos_n[1] - pos_a[1],
@@ -454,10 +451,10 @@ impl IntoInstanceGroups for Molecules {
 
             // ✅ 若 A 没有邻居，则去找 B 的邻居
             if neighbor_dir_opt.is_none() {
-                for (_j, other_bond) in self.bonds.iter().enumerate() {
+                for (_j, other_bond) in self.bond_indices.iter().enumerate() {
                     let [x, y] = other_bond;
                     if x == b && y != a {
-                        let pos_n = self.atoms[*y];
+                        let pos_n = self.atom_posits[*y];
                         neighbor_dir_opt = Some([
                             pos_n[0] - pos_b[0],
                             pos_n[1] - pos_b[1],
@@ -465,7 +462,7 @@ impl IntoInstanceGroups for Molecules {
                         ]);
                         break;
                     } else if y == b && x != a {
-                        let pos_n = self.atoms[*x];
+                        let pos_n = self.atom_posits[*x];
                         neighbor_dir_opt = Some([
                             pos_n[0] - pos_b[0],
                             pos_n[1] - pos_b[1],

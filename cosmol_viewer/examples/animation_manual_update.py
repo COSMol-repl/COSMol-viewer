@@ -10,9 +10,9 @@ ids = ["a", "b", "c", "d", "e", "f"]
 # 添加多个球体（6个）
 for id in ids:
     sphere = Sphere([0.0, 0.0, 0.0], 0.4).color([1.0, 1.0, 1.0])
-    scene.add_shape(sphere, id)
+    scene.add_shape_with_id(id, sphere)
 
-scene.scale(2.0)
+scene.set_scale(2.0)
 viewer = Viewer.render(scene, width=800.0, height=500.0)
 
 # 动画主循环
@@ -36,7 +36,7 @@ while True:
         b = 1.0 - r
 
         updated = Sphere([x, y, z], radius).color([r, g, b])
-        scene.update_shape(id, updated)
+        scene.replace_shape(id, updated)
 
     viewer.update(scene)
     time.sleep(0.02)

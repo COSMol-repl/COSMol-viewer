@@ -1,7 +1,7 @@
 use base64::Engine;
 #[cfg(feature = "wasm")]
 use cosmol_viewer_core::App;
-use cosmol_viewer_core::scene::Scene;
+use cosmol_viewer_core::scene::{Animation, Scene};
 #[cfg(feature = "wasm")]
 use cosmol_viewer_core::utils::Logger;
 #[cfg(feature = "js_bridge")]
@@ -96,7 +96,7 @@ impl WasmViewer {
             height = height
         );
 
-        let escaped = serde_json::to_string(&compress_json(&scene)).unwrap();
+        let escaped = serde_json::to_string(&compress_data(&scene)).unwrap();
 
         let combined_js = format!(
             r#"
@@ -149,14 +149,10 @@ impl WasmViewer {
 
     pub fn initiate_viewer_and_play(
         py: Python,
-        frames: Vec<Scene>,
-        interval: u64,
-        loops: i64,
+        animation: Animation,
         width: f32,
         height: f32,
-        smooth: bool,
     ) -> Self {
-        use cosmol_viewer_core::utils::Frames;
         use pyo3::types::PyAnyMethods;
         use uuid::Uuid;
 
@@ -171,13 +167,7 @@ impl WasmViewer {
             height = height
         );
 
-        let frames = &Frames {
-            frames,
-            interval,
-            loops,
-            smooth,
-        };
-        let escaped = serde_json::to_string(&compress_json(&frames)).unwrap();
+        let escaped = serde_json::to_string(&compress_data(&animation)).unwrap();
 
         let combined_js = format!(
             r#"
@@ -195,8 +185,8 @@ impl WasmViewer {
             return;
         }}
         const app = new mod.WebHandle();
-        const framesJson = {FRAMES_JSON};
-        await app.initiate_viewer_and_play(canvas, framesJson);
+        const animation_compressed = {ANIMATION};
+        await app.initiate_viewer_and_play(canvas, animation_compressed);
 
         window[ns + "_instances"] = window[ns + "_instances"] || {{}};
         window[ns + "_instances"]["{id}"] = app;
@@ -206,7 +196,7 @@ impl WasmViewer {
     "#,
             VERSION = VERSION,
             id = unique_id,
-            FRAMES_JSON = escaped
+            ANIMATION = escaped
         );
         let ipython = py.import("IPython.display").unwrap();
         let display = ipython.getattr("display").unwrap();
@@ -231,7 +221,7 @@ impl WasmViewer {
     pub fn call<T: Serialize>(&self, py: Python, name: &str, input: T) -> () {
         use pyo3::types::PyAnyMethods;
 
-        let escaped = serde_json::to_string(&compress_json(&input)).unwrap();
+        let escaped = serde_json::to_string(&compress_data(&input)).unwrap();
         let combined_js = format!(
             r#"
 (async function() {{
@@ -351,7 +341,7 @@ impl WebHandle {
         //     .map_err(|e| JsValue::from_str(&format!("Scene parse error: {}", e)))?;
 
         let _scene: Scene =
-            decompress_json(&scene_json).map_err(|e| JsValue::from_str(&e.to_string()))?;
+            decompress_data(&scene_json).map_err(|e| JsValue::from_str(&e.to_string()))?;
 
         println!("{:?}", _scene);
         web_sys::console::log_1(&JsValue::from_str(&scene_json.to_string()));
@@ -385,7 +375,7 @@ impl WebHandle {
     #[wasm_bindgen]
     pub async fn update_scene(&mut self, scene_json: String) -> Result<(), JsValue> {
         let scene: Scene =
-            decompress_json(&scene_json).map_err(|e| JsValue::from_str(&e.to_string()))?;
+            decompress_data(&scene_json).map_err(|e| JsValue::from_str(&e.to_string()))?;
 
         let mut app_guard = self.app.lock().unwrap();
         if let Some(app) = &mut *app_guard {
@@ -401,18 +391,16 @@ impl WebHandle {
     pub async fn initiate_viewer_and_play(
         &mut self,
         _canvas: HtmlCanvasElement,
-        _frames_json: String,
+        _animation_compressed: String,
     ) -> Result<(), JsValue> {
         #[cfg(target_arch = "wasm32")]
         {
-            use cosmol_viewer_core::utils::Frames;
-
-            let payload = _frames_json.to_string();
+            let payload = _animation_compressed.to_string();
             let kb = payload.as_bytes().len() as f64 / 1024.0;
             web_sys::console::log_1(&format!("Transmission size: {kb:.2} KB").into());
 
-            let frames: Frames =
-                decompress_json(&_frames_json).map_err(|e| JsValue::from_str(&e.to_string()))?;
+            let animation: Animation = decompress_data(&_animation_compressed)
+                .map_err(|e| JsValue::from_str(&e.to_string()))?;
 
             let app = Arc::clone(&self.app);
             let _ = self
@@ -424,7 +412,7 @@ impl WebHandle {
                         use cosmol_viewer_core::AppWrapper;
 
                         let mut guard = app.lock().unwrap();
-                        *guard = Some(App::new_play(cc, frames, WasmLogger));
+                        *guard = Some(App::new_play(cc, animation, WasmLogger));
                         Ok(Box::new(AppWrapper(app.clone())))
                     }),
                 )
@@ -441,16 +429,16 @@ impl WebHandle {
 
 use flate2::{Compression, read::GzDecoder, write::GzEncoder};
 use std::io::Read;
-/// 把 JSON 压缩成 base64 字符串（用于发送）
-pub fn compress_json<T: serde::Serialize>(value: &T) -> String {
+/// Compress data into a base64-encoded string.
+pub fn compress_data<T: serde::Serialize>(value: &T) -> String {
     let bytes = postcard::to_allocvec(value).expect("postcard failed");
     let mut e = GzEncoder::new(Vec::new(), Compression::fast());
     e.write_all(&bytes).unwrap();
     base64::engine::general_purpose::STANDARD.encode(e.finish().unwrap())
 }
 
-// 把 base64 字符串解压成目标类型（用于接收）
-pub fn decompress_json<T: for<'de> serde::Deserialize<'de>>(
+/// Decompress data from a base64-encoded string.
+pub fn decompress_data<T: for<'de> serde::Deserialize<'de>>(
     s: &str,
 ) -> Result<T, Box<dyn std::error::Error>> {
     let compressed = base64::engine::general_purpose::STANDARD.decode(s)?;

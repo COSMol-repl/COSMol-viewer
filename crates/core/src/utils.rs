@@ -2,7 +2,7 @@ use glam::{Mat4, Vec3, Vec4};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    scene::{InstanceGroups, Scene},
+    scene::InstanceGroups,
     shapes::{Molecules, Protein, Sphere, Stick},
 };
 
@@ -188,12 +188,4 @@ pub trait VisualShape {
         self.style_mut().opacity = opacity;
         self
     }
-}
-
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct Frames {
-    pub frames: Vec<Scene>,
-    pub interval: u64,
-    pub loops: i64, // -1 = infinite
-    pub smooth: bool,
 }

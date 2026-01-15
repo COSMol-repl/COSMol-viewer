@@ -3,7 +3,7 @@ use cosmol_viewer::utils::VisualShape;
 use cosmol_viewer::{Scene, Viewer};
 use std::{f32::consts::PI, thread, time::Duration};
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 初始化场景
     let mut scene = Scene::new();
 
@@ -11,10 +11,10 @@ fn main() {
     let ids = ["a", "b", "c", "d", "e", "f"];
     for id in ids.iter() {
         let sphere = Sphere::new([0.0, 0.0, 0.0], 0.4).color([1.0, 1.0, 1.0]);
-        scene.add_shape(sphere, Some(id));
+        scene.add_shape_with_id(*id, sphere);
     }
 
-    scene.scale(2.0);
+    scene.set_scale(2.0);
 
     let viewer = Viewer::render(&scene, 800.0, 500.0);
 
@@ -39,7 +39,7 @@ fn main() {
             let b = 1.0 - r;
 
             let sphere = Sphere::new([x, y, z], radius).color([r, g, b]);
-            scene.update_shape(id, sphere);
+            scene.replace_shape(id, sphere)?;
         }
 
         viewer.update(&scene);

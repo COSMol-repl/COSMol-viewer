@@ -1,14 +1,14 @@
-from cosmol_viewer import Protein, Scene, Viewer, parse_mmcif
+from cosmol_viewer import Protein, Scene, Viewer
 
-mmcif_data = parse_mmcif(open("./examples/2AMD.cif", "r", encoding="utf-8").read())
+mmcif_data = open("./examples/6fi1.cif", "r", encoding="utf-8").read()
 
-prot = Protein(mmcif_data).color([0.2, 0.45, 0.6])
+prot = Protein.from_mmcif(mmcif_data).color([0.2, 0.45, 0.6])
 
 scene = Scene()
 # scene.use_black_background()
-scene.scale(0.2)
+scene.set_scale(0.2)
 scene.recenter(prot.get_center())
-scene.add_shape(prot, "prot")
+scene.add_shape_with_id("prot", prot)
 
 viewer = Viewer.render(scene, width=800, height=500)
 

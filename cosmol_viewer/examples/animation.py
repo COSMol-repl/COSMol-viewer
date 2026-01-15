@@ -1,18 +1,17 @@
 import math
 
-from cosmol_viewer import Scene, Sphere, Viewer
+from cosmol_viewer import Animation, Scene, Sphere, Viewer
 
 ids = ["a", "b", "c", "d", "e", "f"]
-interval = 0.05  # 每帧间隔 (秒)
-duration = 10.0  # 动画时长 (秒)
-num_frames = int(duration / interval)
+interval = 0.05
+num_frames = int(10.0 / interval)
 
-frames = []
+animation = Animation(interval, -1, True)
 
 for frame_idx in range(num_frames):
     t = frame_idx * interval  # 时间直接用 interval 累积
     scene = Scene()
-    scene.scale(2.0)
+    scene.set_scale(2.0)
 
     for i, id in enumerate(ids):
         phase = i * math.pi / 3.0
@@ -32,12 +31,12 @@ for frame_idx in range(num_frames):
         b = 1.0 - r
 
         sphere = Sphere([x, y, z], radius).color([r, g, b])
-        scene.add_shape(sphere, id)
+        scene.add_shape_with_id(id, sphere)
 
-    frames.append(scene)
+    animation.add_frame(scene)
 
 # 一次性提交：间隔0.02秒
-Viewer.play(frames, interval=interval, loops=-1, width=800.0, height=500.0, smooth=True)
+Viewer.play(animation, width=800.0, height=500.0)
 
 print("Press Any Key to exit...", end="", flush=True)
 _ = input()

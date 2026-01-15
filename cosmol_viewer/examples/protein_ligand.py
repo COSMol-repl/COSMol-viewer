@@ -1,16 +1,14 @@
-from cosmol_viewer import Molecules, Protein, Scene, Viewer, parse_mmcif, parse_sdf
+from cosmol_viewer import Molecules, Protein, Scene, Viewer
 
-mmcif_data = parse_mmcif(open("./examples/2AMD.cif", "r", encoding="utf-8").read())
-prot = Protein(mmcif_data).color([0.2, 0.45, 0.6])
+mmcif_data = open("./examples/6fi1.cif", "r", encoding="utf-8").read()
+prot = Protein.from_mmcif(mmcif_data).color([0.2, 0.45, 0.6])
 
-ligand_data = parse_sdf(
-    open("./examples/2AMD_ligand.sdf", "r", encoding="utf-8").read()
-)
-ligand = Molecules(ligand_data)
+ligand_data = open("./examples/6fi1_ligand.sdf", "r", encoding="utf-8").read()
+ligand = Molecules.from_sdf(ligand_data)
 
 scene = Scene()
-scene.add_shape(prot, "prot")
-scene.add_shape(ligand, "ligand")
+scene.add_shape_with_id("prot", prot)
+scene.add_shape_with_id("ligand", ligand)
 scene.recenter(ligand.get_center())
 
 viewer = Viewer.render(scene, width=800, height=500)

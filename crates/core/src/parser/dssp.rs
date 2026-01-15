@@ -10,8 +10,7 @@
 // Kabsch & Sander, Biopolymers 22:2577-2637 (1983)
 // https://doi.org/10.1002/bip.360221211
 
-use crate::parser::mmcif::Residue;
-use crate::parser::mmcif::SecondaryStructure;
+use crate::parser::utils::{Residue, SecondaryStructure};
 use glam::Vec3;
 use kiddo::{KdTree, SquaredEuclidean};
 use na_seq::AminoAcid;

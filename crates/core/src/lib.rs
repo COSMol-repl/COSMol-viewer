@@ -1,5 +1,6 @@
 mod shader;
 use std::sync::{Arc, Mutex};
+use thiserror::Error;
 
 pub mod parser;
 pub mod utils;
@@ -10,9 +11,10 @@ use eframe::egui::{Color32, Stroke, UserData, ViewportCommand};
 
 use shader::Canvas;
 
+use crate::scene::Animation;
 pub use crate::utils::{Logger, RustLogger, Shape};
 pub mod shapes;
-use crate::{scene::Scene, utils::Frames};
+use crate::scene::Scene;
 
 pub mod scene;
 use image::{ImageBuffer, Rgba};
@@ -51,10 +53,10 @@ impl<L: Logger> App<L> {
         }
     }
 
-    pub fn new_play(cc: &eframe::CreationContext<'_>, scene: Frames, logger: L) -> Self {
+    pub fn new_play(cc: &eframe::CreationContext<'_>, animation: Animation, logger: L) -> Self {
         logger.log("Creating new viewer app...");
         let gl = cc.gl.clone();
-        let canvas = Canvas::new_play(gl.as_ref().unwrap().clone(), scene, logger).unwrap();
+        let canvas = Canvas::new_play(gl.as_ref().unwrap().clone(), animation, logger).unwrap();
         App {
             _gl: gl,
             canvas,
@@ -145,6 +147,12 @@ pub struct NativeGuiViewer {
     pub app: Arc<Mutex<Option<App<RustLogger>>>>,
 }
 
+#[derive(Error, Debug)]
+pub enum RenderError {
+    #[error("No frames provided")]
+    NoFramesProvided,
+}
+
 impl NativeGuiViewer {
     pub fn render(scene: &Scene, width: f32, height: f32) -> Self {
         use std::time::Duration;
@@ -158,8 +166,6 @@ impl NativeGuiViewer {
             NativeOptions,
             egui::{Vec2, ViewportBuilder},
         };
-
-        // let viewport_size = scene.viewport.unwrap_or([800, 500]);
 
         let app: Arc<Mutex<Option<App<RustLogger>>>> = Arc::new(Mutex::new(None));
         let app_clone = Arc::clone(&app);
@@ -208,7 +214,6 @@ impl NativeGuiViewer {
             process::exit(0);
         });
 
-        // 等待 App 初始化完成
         let timeout_ms = 30000;
         let mut waited = 0;
 
@@ -261,24 +266,14 @@ impl NativeGuiViewer {
         }
     }
 
-    pub fn play(
-        frames: Vec<Scene>,
-        interval: f32,
-        loops: i64,
-        width: f32,
-        height: f32,
-        smooth: bool,
-    ) {
+    pub fn play(animation: Animation, width: f32, height: f32) -> Result<Self, RenderError> {
+        if animation.frames.is_empty() {
+            return Err(RenderError::NoFramesProvided);
+        }
+
         use std::{
             sync::{Arc, Mutex},
             thread,
-        };
-
-        let frames = Frames {
-            frames,
-            interval: (interval * 1000.0) as u64,
-            loops,
-            smooth,
         };
 
         #[cfg(not(target_arch = "wasm32"))]
@@ -327,7 +322,7 @@ impl NativeGuiViewer {
                 native_options,
                 Box::new(move |cc| {
                     let mut guard = app_clone.lock().unwrap();
-                    *guard = Some(App::new_play(cc, frames, RustLogger));
+                    *guard = Some(App::new_play(cc, animation, RustLogger));
                     Ok(Box::new(AppWrapper(app_clone.clone())))
                 }),
             );

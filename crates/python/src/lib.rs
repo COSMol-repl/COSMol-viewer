@@ -1,25 +1,57 @@
+use cosmol_viewer_core::scene::Animation as _Animation;
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::exceptions::PyValueError;
 use std::ffi::CStr;
 
 use pyo3::{ffi::c_str, prelude::*};
 
-use crate::{
-    parser::{parse_mmcif, parse_sdf},
-    shapes::{PyMolecules, PyProtein, PySphere, PyStick},
-};
+use crate::shapes::{PyMolecules, PyProtein, PySphere, PyStick};
 use cosmol_viewer_core::{NativeGuiViewer, scene::Scene as _Scene};
 use cosmol_viewer_wasm::{WasmViewer, setup_wasm_if_needed};
+use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
-mod parser;
 mod shapes;
 
 #[derive(Clone)]
+#[gen_stub_pyclass]
+#[pyclass]
+pub struct Animation {
+    inner: _Animation,
+}
+
+#[gen_stub_pymethods]
+#[pymethods]
+impl Animation {
+    #[new]
+    pub fn new(interval: f32, loops: i64, smooth: bool) -> Self {
+        Self {
+            inner: _Animation {
+                static_scene: None,
+                frames: Vec::new(),
+                interval: (interval * 1000.0) as u64,
+                loops,
+                smooth,
+            },
+        }
+    }
+
+    pub fn add_frame(&mut self, frame: Scene) {
+        self.inner.frames.push(frame.inner);
+    }
+
+    pub fn set_static_scene(&mut self, scene: Scene) {
+        self.inner.static_scene = Some(scene.inner);
+    }
+}
+
+#[derive(Clone)]
+#[gen_stub_pyclass]
 #[pyclass]
 pub struct Scene {
     inner: _Scene,
 }
 
+#[gen_stub_pymethods]
 #[pymethods]
 impl Scene {
     #[new]
@@ -29,12 +61,11 @@ impl Scene {
         }
     }
 
-    #[pyo3(signature = (shape, id=None))]
-    pub fn add_shape(&mut self, shape: &Bound<'_, PyAny>, id: Option<&str>) -> PyResult<()> {
+    pub fn add_shape(&mut self, shape: &Bound<'_, PyAny>) -> PyResult<()> {
         macro_rules! try_add {
             ($py_type:ty) => {{
                 if let Ok(py_obj) = shape.extract::<PyRef<$py_type>>() {
-                    self.inner.add_shape(py_obj.inner.clone(), id);
+                    self.inner.add_shape(py_obj.inner.clone());
                     return Ok(());
                 }
             }};
@@ -51,18 +82,49 @@ impl Scene {
             .map(|name| name.to_string())
             .unwrap_or("<unknown type>".to_string());
 
-        Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(format!(
+        Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
             "add_shape(): unsupported shape type '{type_name}'. \
              Expected one of: Sphere, Stick, Molecules, Protein"
         )))
     }
 
-    pub fn update_shape(&mut self, id: &str, shape: &Bound<'_, PyAny>) -> PyResult<()> {
+    pub fn add_shape_with_id(&mut self, id: &str, shape: &Bound<'_, PyAny>) -> PyResult<()> {
+        macro_rules! try_add {
+            ($py_type:ty) => {{
+                if let Ok(py_obj) = shape.extract::<PyRef<$py_type>>() {
+                    self.inner.add_shape_with_id(id, py_obj.inner.clone());
+                    return Ok(());
+                }
+            }};
+        }
+
+        try_add!(PySphere);
+        try_add!(PyStick);
+        try_add!(PyMolecules);
+        try_add!(PyProtein);
+
+        let type_name = shape
+            .get_type()
+            .name()
+            .map(|name| name.to_string())
+            .unwrap_or("<unknown type>".to_string());
+
+        Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+            "add_shape(): unsupported shape type '{type_name}'. \
+             Expected one of: Sphere, Stick, Molecules, Protein"
+        )))
+    }
+
+    pub fn replace_shape(&mut self, id: &str, shape: &Bound<'_, PyAny>) -> PyResult<()> {
         macro_rules! update_with {
             ($py_type:ty) => {{
                 if let Ok(py_obj) = shape.extract::<PyRef<$py_type>>() {
-                    self.inner.update_shape(id, py_obj.inner.clone());
-                    return Ok(());
+                    return self
+                        .inner
+                        .replace_shape(id, py_obj.inner.clone())
+                        .map_err(|e| {
+                            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string())
+                        });
                 }
             }};
         }
@@ -72,22 +134,29 @@ impl Scene {
         update_with!(PyMolecules);
         update_with!(PyProtein);
 
-        Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(format!(
-            "update_shape(): unsupported type {}",
-            shape.get_type().name()?
+        let type_name = shape
+            .get_type()
+            .name()
+            .map(|name| name.to_string())
+            .unwrap_or("<unknown type>".to_string());
+
+        Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+            "update_shape(): unsupported type {type_name}",
         )))
     }
 
-    pub fn delete_shape(&mut self, id: &str) {
-        self.inner.delete_shape(id);
+    pub fn remove_shape(&mut self, id: &str) -> PyResult<()> {
+        self.inner
+            .remove_shape(id)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
     }
 
     pub fn recenter(&mut self, center: [f32; 3]) {
         self.inner.recenter(center);
     }
 
-    pub fn scale(&mut self, scale: f32) {
-        self.inner.scale(scale);
+    pub fn set_scale(&mut self, scale: f32) {
+        self.inner.set_scale(scale);
     }
 
     pub fn set_background_color(&mut self, background_color: [f32; 3]) {
@@ -123,6 +192,7 @@ impl std::fmt::Display for RuntimeEnv {
     }
 }
 
+#[gen_stub_pyclass]
 #[pyclass]
 #[pyo3(crate = "pyo3", unsendable)]
 pub struct Viewer {
@@ -172,6 +242,7 @@ def detect_env():
     Ok(env)
 }
 
+#[gen_stub_pymethods]
 #[pymethods]
 impl Viewer {
     #[staticmethod]
@@ -219,30 +290,14 @@ impl Viewer {
     }
 
     #[staticmethod]
-    pub fn play(
-        frames: Vec<Scene>,
-        interval: f32,
-        loops: i64,
-        width: f32,
-        height: f32,
-        smooth: bool,
-        py: Python,
-    ) -> PyResult<Self> {
+    pub fn play(animation: Animation, width: f32, height: f32, py: Python) -> PyResult<Self> {
         let env_type = detect_runtime_env(py).unwrap();
-        let rust_frames: Vec<_Scene> = frames.iter().map(|frame| frame.inner.clone()).collect();
 
         match env_type {
             RuntimeEnv::Colab | RuntimeEnv::Jupyter => {
                 setup_wasm_if_needed(py);
-                let wasm_viewer = WasmViewer::initiate_viewer_and_play(
-                    py,
-                    rust_frames,
-                    (interval * 1000.0) as u64,
-                    loops,
-                    width,
-                    height,
-                    smooth,
-                );
+                let wasm_viewer =
+                    WasmViewer::initiate_viewer_and_play(py, animation.inner, width, height);
 
                 Ok(Viewer {
                     environment: env_type,
@@ -253,7 +308,7 @@ impl Viewer {
             }
 
             RuntimeEnv::PlainScript | RuntimeEnv::IPythonTerminal => {
-                NativeGuiViewer::play(rust_frames, interval, loops, width, height, smooth);
+                let _ = NativeGuiViewer::play(animation.inner, width, height);
 
                 Ok(Viewer {
                     environment: env_type,
@@ -308,7 +363,6 @@ impl Viewer {
                     ),
                     py,
                 );
-                panic!("Error saving image. Saving images from Jupyter/Colab is not yet supported.")
             }
             RuntimeEnv::PlainScript | RuntimeEnv::IPythonTerminal => {
                 let native_gui_viewer = &self.native_gui_viewer.as_ref().unwrap();
@@ -329,12 +383,16 @@ fn print_to_notebook(msg: &CStr, py: Python) {
 #[pymodule]
 fn cosmol_viewer(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Scene>()?;
+    m.add_class::<Animation>()?;
     m.add_class::<Viewer>()?;
     m.add_class::<PySphere>()?;
     m.add_class::<PyStick>()?;
     m.add_class::<PyMolecules>()?;
     m.add_class::<PyProtein>()?;
-    m.add_function(wrap_pyfunction!(parse_sdf, m)?)?;
-    m.add_function(wrap_pyfunction!(parse_mmcif, m)?)?;
     Ok(())
 }
+
+use pyo3_stub_gen::define_stub_info_gatherer;
+
+// At the end of your lib.rs
+define_stub_info_gatherer!(stub_info);

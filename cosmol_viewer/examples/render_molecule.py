@@ -1,14 +1,14 @@
-from cosmol_viewer import Molecules, Scene, Viewer, parse_sdf
+from cosmol_viewer import Molecules, Scene, Viewer
 
-mol_data = parse_sdf(open("./examples/example.sdf", "r", encoding="utf-8").read())
+mol_data = open("./examples/6fi1_ligand.sdf", "r", encoding="utf-8").read()
 
-mol = Molecules(mol_data).centered()
+mol = Molecules.from_sdf(mol_data).centered()
 
 scene = Scene()
 
-scene.scale(1.0)
+scene.set_scale(1.0)
 
-scene.add_shape(mol, "molecule")
+scene.add_shape_with_id("molecule", mol)
 
 viewer = Viewer.render(scene, width=800, height=500)
 

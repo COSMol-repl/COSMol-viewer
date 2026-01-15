@@ -1,10 +1,7 @@
 use crate::Shape;
 use crate::parser::mmcif::Chain;
 use crate::parser::mmcif::MmCif;
-use crate::parser::mmcif::Residue;
-use crate::parser::mmcif::ResidueType;
-use crate::parser::mmcif::SecondaryStructure;
-use crate::shapes::protein::ResidueType::AminoAcid;
+use crate::parser::utils::{Residue, ResidueType::AminoAcid, SecondaryStructure};
 use crate::utils::{MeshData, VisualShape, VisualStyle};
 use bytemuck::{Pod, Zeroable};
 use glam::{Quat, Vec3, Vec4};
@@ -20,8 +17,22 @@ pub struct Protein {
     pub style: VisualStyle,
 }
 
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum ParseMmCifError {
+    #[error("Failed to parse MmCif data")]
+    ParsingError(String),
+}
+
 impl Protein {
-    pub fn new(mmcif: MmCif) -> Self {
+    pub fn from_mmcif(sdf: &str) -> Result<Self, ParseMmCifError> {
+        let protein_data =
+            MmCif::new(sdf).map_err(|e| ParseMmCifError::ParsingError(e.to_string()))?;
+        Self::new(protein_data)
+    }
+
+    pub fn new(mmcif: MmCif) -> Result<Self, ParseMmCifError> {
         let mut chains = Vec::new();
         let mut centers = Vec::new();
         let mut residue_index = 0;
@@ -117,7 +128,7 @@ impl Protein {
         }
         center = center / (centers.len() as f32);
 
-        Protein {
+        Ok(Protein {
             chains: chains,
             center: center,
             style: VisualStyle {
@@ -125,7 +136,7 @@ impl Protein {
                 visible: true,
                 ..Default::default()
             },
-        }
+        })
     }
 }
 

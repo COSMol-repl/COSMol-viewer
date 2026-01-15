@@ -1,16 +1,20 @@
-use crate::parser::{PyMoleculeData, PyProteinData};
+use crate::PyErr;
+use crate::PyResult;
 use cosmol_viewer_core::{
     shapes::{Molecules, Protein, Sphere, Stick},
     utils::VisualShape,
 };
 use pyo3::{PyRefMut, pyclass, pymethods};
+use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
+#[gen_stub_pyclass]
 #[pyclass(name = "Sphere")]
 #[derive(Clone)]
 pub struct PySphere {
     pub inner: Sphere,
 }
 
+#[gen_stub_pymethods]
 #[pymethods]
 impl PySphere {
     #[new]
@@ -46,12 +50,14 @@ impl PySphere {
     }
 }
 
+#[gen_stub_pyclass]
 #[pyclass(name = "Stick")]
 #[derive(Clone)]
 pub struct PyStick {
     pub inner: Stick,
 }
 
+#[gen_stub_pymethods]
 #[pymethods]
 impl PyStick {
     #[new]
@@ -92,19 +98,22 @@ impl PyStick {
     }
 }
 
+#[gen_stub_pyclass]
 #[pyclass(name = "Molecules")]
 #[derive(Clone)]
 pub struct PyMolecules {
     pub inner: Molecules,
 }
 
+#[gen_stub_pymethods]
 #[pymethods]
 impl PyMolecules {
-    #[new]
-    pub fn new(molecule_data: &PyMoleculeData) -> Self {
-        Self {
-            inner: Molecules::new(molecule_data.inner.clone()),
-        }
+    #[staticmethod]
+    pub fn from_sdf(sdf: &str) -> PyResult<Self> {
+        Ok(Self {
+            inner: Molecules::from_sdf(sdf)
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?,
+        })
     }
 
     pub fn get_center(slf: PyRefMut<'_, Self>) -> [f32; 3] {
@@ -132,19 +141,22 @@ impl PyMolecules {
     }
 }
 
+#[gen_stub_pyclass]
 #[pyclass(name = "Protein")]
 #[derive(Clone)]
 pub struct PyProtein {
     pub inner: Protein,
 }
 
+#[gen_stub_pymethods]
 #[pymethods]
 impl PyProtein {
-    #[new]
-    pub fn new(molecule_data: &PyProteinData) -> Self {
-        Self {
-            inner: Protein::new(molecule_data.inner.clone()),
-        }
+    #[staticmethod]
+    pub fn from_mmcif(mmcif: &str) -> PyResult<Self> {
+        Ok(Self {
+            inner: Protein::from_mmcif(mmcif)
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?,
+        })
     }
 
     pub fn get_center(slf: PyRefMut<'_, Self>) -> [f32; 3] {
