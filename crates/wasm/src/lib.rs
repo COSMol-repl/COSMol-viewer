@@ -1,36 +1,30 @@
 use base64::Engine;
-#[cfg(feature = "wasm")]
-use cosmol_viewer_core::App;
 use cosmol_viewer_core::scene::{Animation, Scene};
-#[cfg(feature = "wasm")]
-use cosmol_viewer_core::utils::Logger;
-#[cfg(feature = "js_bridge")]
-use pyo3::PyResult;
-#[cfg(feature = "js_bridge")]
-use pyo3::ffi::c_str;
-#[cfg(feature = "js_bridge")]
-use serde::Serialize;
 use std::io::Write;
+
 #[cfg(feature = "wasm")]
-use std::sync::Arc;
-#[cfg(feature = "wasm")]
-use std::sync::Mutex;
+use {
+    cosmol_viewer_core::{App, utils::Logger},
+    std::sync::{Arc, Mutex},
+    wasm_bindgen::{JsValue, prelude::wasm_bindgen},
+    web_sys::HtmlCanvasElement,
+};
+
+#[cfg(feature = "js_bridge")]
+use {
+    pyo3::{PyErr, PyResult, Python, ffi::c_str},
+    serde::Serialize,
+    std::ffi::CStr,
+};
 
 #[cfg(not(target_arch = "wasm32"))]
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-#[cfg(feature = "wasm")]
-use web_sys::HtmlCanvasElement;
-
-#[cfg(feature = "wasm")]
-use wasm_bindgen::JsValue;
-#[cfg(feature = "wasm")]
-use wasm_bindgen::prelude::wasm_bindgen;
-
 #[cfg(feature = "js_bridge")]
-use pyo3::PyErr;
-#[cfg(feature = "js_bridge")]
-use pyo3::Python;
+fn print_to_notebook(msg: &CStr, py: Python) {
+    let _ = py.run(msg, None, None);
+}
+
 #[cfg(feature = "js_bridge")]
 pub fn setup_wasm_if_needed(py: Python) {
     use base64::Engine;
@@ -479,8 +473,4 @@ pub fn decompress_data<T: for<'de> serde::Deserialize<'de>>(s: &str) -> Result<T
     let mut bytes = Vec::with_capacity(compressed.len());
     decoder.read_to_end(&mut bytes)?;
     Ok(postcard::from_bytes(&bytes)?)
-}
-use std::ffi::CStr;
-fn print_to_notebook(msg: &CStr, py: Python) {
-    let _ = py.run(msg, None, None);
 }

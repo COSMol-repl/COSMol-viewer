@@ -10,7 +10,7 @@ on:
 jobs:
   # Build the documentation and upload the static HTML files as an artifact.
   build:
-    runs-on: macos-26
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v6
 
