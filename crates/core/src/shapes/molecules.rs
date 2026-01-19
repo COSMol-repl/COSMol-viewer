@@ -1,7 +1,7 @@
 // use anyhow::Result;
 use crate::parser::sdf::Sdf;
 use crate::parser::utils::BondType as SdfBondType;
-pub use crate::utils::{Logger, RustLogger};
+pub use crate::utils::Logger;
 use crate::{
     Shape,
     scene::InstanceGroups,
@@ -536,7 +536,7 @@ impl IntoInstanceGroups for Molecule {
                 BondType::SINGLE => (1, 0.135),
                 BondType::DOUBLE => (2, 0.09),
                 BondType::TRIPLE => (3, 0.05),
-                _ => (1, 0.15), // aromatic等以后再处理
+                _ => (1, 0.05), // aromatic等以后再处理
             };
 
             for k in 0..num_sticks {

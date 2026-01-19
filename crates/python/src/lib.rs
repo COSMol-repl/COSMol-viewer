@@ -485,7 +485,7 @@ impl Viewer {
         match env_type {
             RuntimeEnv::Colab | RuntimeEnv::Jupyter => {
                 setup_wasm_if_needed(py);
-                let wasm_viewer = WasmViewer::initiate_viewer(py, &scene.inner, width, height);
+                let wasm_viewer = WasmViewer::initiate_viewer(py, &scene.inner, width, height)?;
 
                 Ok(Viewer {
                     environment: env_type,
@@ -544,7 +544,7 @@ impl Viewer {
             RuntimeEnv::Colab | RuntimeEnv::Jupyter => {
                 setup_wasm_if_needed(py);
                 let wasm_viewer =
-                    WasmViewer::initiate_viewer_and_play(py, animation.inner, width, height);
+                    WasmViewer::initiate_viewer_and_play(py, animation.inner, width, height)?;
 
                 Ok(Viewer {
                     environment: env_type,
@@ -577,7 +577,7 @@ impl Viewer {
         ⚠️ Note (Jupyter/Colab): Animation updates may be limited by notebook rendering capacity.
 
         # Args
-            - scene: The updated scene.
+        - scene: The updated scene.
 
         # Example
         ```python
@@ -585,7 +585,7 @@ impl Viewer {
         viewer.update(scene)
         ```
     "#]
-    pub fn update(&mut self, scene: &Scene, py: Python) {
+    pub fn update(&mut self, scene: &Scene, py: Python) -> PyResult<()> {
         let env_type = self.environment;
         match env_type {
             RuntimeEnv::Colab | RuntimeEnv::Jupyter => {
@@ -599,7 +599,7 @@ impl Viewer {
                     self.first_update = false;
                 }
                 if let Some(ref wasm_viewer) = self.wasm_viewer {
-                    wasm_viewer.update(py, &scene.inner);
+                    wasm_viewer.update(py, &scene.inner)?;
                 } else {
                     panic!("Viewer is not initialized properly")
                 }
@@ -613,6 +613,7 @@ impl Viewer {
             }
             _ => unreachable!(),
         }
+        Ok(())
     }
 
     #[doc = r#"

@@ -5,6 +5,10 @@ use cosmol_viewer_core::scene::{Animation, Scene};
 #[cfg(feature = "wasm")]
 use cosmol_viewer_core::utils::Logger;
 #[cfg(feature = "js_bridge")]
+use pyo3::PyResult;
+#[cfg(feature = "js_bridge")]
+use pyo3::ffi::c_str;
+#[cfg(feature = "js_bridge")]
 use serde::Serialize;
 use std::io::Write;
 #[cfg(feature = "wasm")]
@@ -23,6 +27,8 @@ use wasm_bindgen::JsValue;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::wasm_bindgen;
 
+#[cfg(feature = "js_bridge")]
+use pyo3::PyErr;
 #[cfg(feature = "js_bridge")]
 use pyo3::Python;
 #[cfg(feature = "js_bridge")]
@@ -81,7 +87,7 @@ pub struct WasmViewer {
 }
 #[cfg(feature = "js_bridge")]
 impl WasmViewer {
-    pub fn initiate_viewer(py: Python, scene: &Scene, width: f32, height: f32) -> Self {
+    pub fn initiate_viewer(py: Python, scene: &Scene, width: f32, height: f32) -> PyResult<Self> {
         use pyo3::types::PyAnyMethods;
         use uuid::Uuid;
 
@@ -96,7 +102,11 @@ impl WasmViewer {
             height = height
         );
 
-        let escaped = serde_json::to_string(&compress_data(&scene)).unwrap();
+        let escaped = serde_json::to_string::<String>(
+            &compress_data(&scene)
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?,
+        )
+        .unwrap();
 
         let combined_js = format!(
             r#"
@@ -114,8 +124,9 @@ impl WasmViewer {
             return;
         }}
         const app = new mod.WebHandle();
-        const sceneJson = {SCENE_JSON};
-        await app.start_with_scene(canvas, sceneJson);
+        const scene_compressed = {SCENE};
+        console.log(scene_compressed);
+        await app.start_with_scene(canvas, scene_compressed);
 
         window[ns + "_instances"] = window[ns + "_instances"] || {{}};
         window[ns + "_instances"]["{id}"] = app;
@@ -125,26 +136,28 @@ impl WasmViewer {
     "#,
             VERSION = VERSION,
             id = unique_id,
-            SCENE_JSON = escaped
+            SCENE = escaped
         );
-        let ipython = py.import("IPython.display").unwrap();
-        let display = ipython.getattr("display").unwrap();
+
+        print_to_notebook(c_str!("Scene compressed: {scene_compressed}"), py);
+        let ipython = py.import("IPython.display")?;
+        let display = ipython.getattr("display")?;
 
         let html = ipython
             .getattr("HTML")
             .unwrap()
             .call1((html_code,))
             .unwrap();
-        display.call1((html,)).unwrap();
+        display.call1((html,))?;
 
         let js = ipython
             .getattr("Javascript")
             .unwrap()
             .call1((combined_js,))
             .unwrap();
-        display.call1((js,)).unwrap();
+        display.call1((js,))?;
 
-        Self { id: unique_id }
+        Ok(Self { id: unique_id })
     }
 
     pub fn initiate_viewer_and_play(
@@ -152,7 +165,7 @@ impl WasmViewer {
         animation: Animation,
         width: f32,
         height: f32,
-    ) -> Self {
+    ) -> PyResult<Self> {
         use pyo3::types::PyAnyMethods;
         use uuid::Uuid;
 
@@ -167,7 +180,11 @@ impl WasmViewer {
             height = height
         );
 
-        let escaped = serde_json::to_string(&compress_data(&animation)).unwrap();
+        let escaped = serde_json::to_string::<String>(
+            &compress_data(&animation)
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?,
+        )
+        .unwrap();
 
         let combined_js = format!(
             r#"
@@ -198,30 +215,34 @@ impl WasmViewer {
             id = unique_id,
             ANIMATION = escaped
         );
-        let ipython = py.import("IPython.display").unwrap();
-        let display = ipython.getattr("display").unwrap();
+        let ipython = py.import("IPython.display")?;
+        let display = ipython.getattr("display")?;
 
         let html = ipython
             .getattr("HTML")
             .unwrap()
             .call1((html_code,))
             .unwrap();
-        display.call1((html,)).unwrap();
+        display.call1((html,))?;
 
         let js = ipython
             .getattr("Javascript")
             .unwrap()
             .call1((combined_js,))
             .unwrap();
-        display.call1((js,)).unwrap();
+        display.call1((js,))?;
 
-        Self { id: unique_id }
+        Ok(Self { id: unique_id })
     }
 
-    pub fn call<T: Serialize>(&self, py: Python, name: &str, input: T) -> () {
+    pub fn call<T: Serialize>(&self, py: Python, name: &str, input: T) -> PyResult<()> {
         use pyo3::types::PyAnyMethods;
 
-        let escaped = serde_json::to_string(&compress_data(&input)).unwrap();
+        let escaped = serde_json::to_string::<String>(
+            &compress_data(&input)
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?,
+        )
+        .unwrap();
         let combined_js = format!(
             r#"
 (async function() {{
@@ -246,22 +267,23 @@ impl WasmViewer {
             escaped = escaped
         );
 
-        let ipython = py.import("IPython.display").unwrap();
-        let display = ipython.getattr("display").unwrap();
+        let ipython = py.import("IPython.display")?;
+        let display = ipython.getattr("display")?;
 
         let js = ipython
             .getattr("Javascript")
             .unwrap()
             .call1((combined_js,))
             .unwrap();
-        let _ = display.call1((js,));
+        display.call1((js,))?;
+        Ok(())
     }
 
-    pub fn update(&self, py: Python, scene: &Scene) {
-        self.call(py, "update_scene", scene);
+    pub fn update(&self, py: Python, scene: &Scene) -> PyResult<()> {
+        self.call(py, "update_scene", scene)
     }
 
-    pub fn take_screenshot(&self, py: Python) {
+    pub fn take_screenshot(&self, py: Python) -> PyResult<()> {
         self.call(py, "take_screenshot", None::<u8>)
     }
 }
@@ -430,20 +452,35 @@ impl WebHandle {
 use flate2::{Compression, read::GzDecoder, write::GzEncoder};
 use std::io::Read;
 /// Compress data into a base64-encoded string.
-pub fn compress_data<T: serde::Serialize>(value: &T) -> String {
-    let bytes = postcard::to_allocvec(value).expect("postcard failed");
-    let mut e = GzEncoder::new(Vec::new(), Compression::fast());
-    e.write_all(&bytes).unwrap();
-    base64::engine::general_purpose::STANDARD.encode(e.finish().unwrap())
+pub fn compress_data<T: serde::Serialize>(value: &T) -> Result<String, postcard::Error> {
+    let bytes = postcard::to_allocvec(value)?;
+    let mut encoder = GzEncoder::new(Vec::with_capacity(bytes.len() / 2), Compression::fast());
+    encoder.write_all(&bytes).unwrap();
+    let compressed = encoder.finish().unwrap();
+    Ok(base64::engine::general_purpose::STANDARD.encode(compressed))
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum DecompressError {
+    #[error("base64 decode failed: {0}")]
+    Base64(#[from] base64::DecodeError),
+
+    #[error("gzip decode failed: {0}")]
+    Gzip(#[from] std::io::Error),
+
+    #[error("postcard decode failed: {0}")]
+    Postcard(#[from] postcard::Error),
 }
 
 /// Decompress data from a base64-encoded string.
-pub fn decompress_data<T: for<'de> serde::Deserialize<'de>>(
-    s: &str,
-) -> Result<T, Box<dyn std::error::Error>> {
+pub fn decompress_data<T: for<'de> serde::Deserialize<'de>>(s: &str) -> Result<T, DecompressError> {
     let compressed = base64::engine::general_purpose::STANDARD.decode(s)?;
-    let mut d = GzDecoder::new(&compressed[..]);
-    let mut bytes = Vec::new();
-    d.read_to_end(&mut bytes)?;
+    let mut decoder = GzDecoder::new(&*compressed);
+    let mut bytes = Vec::with_capacity(compressed.len());
+    decoder.read_to_end(&mut bytes)?;
     Ok(postcard::from_bytes(&bytes)?)
+}
+use std::ffi::CStr;
+fn print_to_notebook(msg: &CStr, py: Python) {
+    let _ = py.run(msg, None, None);
 }

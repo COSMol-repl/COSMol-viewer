@@ -589,14 +589,14 @@ dependencies = [
 
 [[package]]
 name = "cosmol_viewer"
-version = "0.2.0-nightly.2"
+version = "0.2.0-nightly.3"
 dependencies = [
  "cosmol_viewer_core",
 ]
 
 [[package]]
 name = "cosmol_viewer_core"
-version = "0.2.0-nightly.2"
+version = "0.2.0-nightly.3"
 dependencies = [
  "base64",
  "bytemuck",
@@ -632,7 +632,7 @@ dependencies = [
 
 [[package]]
 name = "cosmol_viewer_wasm"
-version = "0.2.0-nightly.2"
+version = "0.2.0-nightly.3"
 dependencies = [
  "base64",
  "cosmol_viewer_core",
@@ -644,6 +644,7 @@ dependencies = [
  "pyo3",
  "serde",
  "serde_json",
+ "thiserror 2.0.18",
  "uuid",
  "wasm-bindgen",
  "wasm-bindgen-futures",
