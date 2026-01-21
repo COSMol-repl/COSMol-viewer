@@ -26,6 +26,7 @@ pub fn my_color(element: &Element) -> Vec3 {
         Element::Chlorine => Vec3::new(0.0, 0.8, 0.0),
         Element::Bromine => Vec3::new(0.6, 0.2, 0.2),
         Element::Iodine => Vec3::new(0.4, 0.0, 0.8),
+        Element::Other => Vec3::new(0.8, 0.8, 0.8),
         _ => element.color().into(), // 其他未定义的元素
     }
 }

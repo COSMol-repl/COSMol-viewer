@@ -85,12 +85,17 @@ impl Sdf {
                 let x = cols[0].parse::<f64>().unwrap();
                 let y = cols[1].parse::<f64>().unwrap();
                 let z = cols[2].parse::<f64>().unwrap();
-                let element = cols[3];
+                let element_str = cols[3];
+
+                let element = match Element::from_letter(element_str) {
+                    Ok(element) => element,
+                    Err(_) => Element::Other,
+                };
 
                 atoms.push(AtomGeneric {
                     serial_number: (i - first_atom_line + 1) as u32,
                     posit: Vec3::new(x as f32, y as f32, z as f32),
-                    element: Element::from_letter(element)?,
+                    element: element,
                     hetero: true,
                     ..Default::default()
                 });
@@ -111,7 +116,10 @@ impl Sdf {
                     })?;
 
                 let bond_type_raw = line.get(6..9).unwrap_or("").trim();
-                let bond_type = BondType::from_str(bond_type_raw)?;
+                let bond_type = match BondType::from_str(bond_type_raw) {
+                    Ok(bond_type) => bond_type,
+                    Err(_) => BondType::Unknown,
+                };
 
                 bonds.push(BondGeneric {
                     atom_0_sn,
@@ -149,15 +157,20 @@ impl Sdf {
                 let cols: Vec<&str> = lines[i].split_whitespace().collect();
                 // M  V30 idx element x y z ...
                 let serial_number = cols[2].parse::<u32>().unwrap();
-                let element = cols[3];
+                let element_str = cols[3];
                 let x = cols[4].parse::<f64>().unwrap();
                 let y = cols[5].parse::<f64>().unwrap();
                 let z = cols[6].parse::<f64>().unwrap();
 
+                let element = match Element::from_letter(element_str) {
+                    Ok(element) => element,
+                    Err(_) => Element::Other,
+                };
+
                 atoms.push(AtomGeneric {
                     serial_number,
                     posit: Vec3::new(x as f32, y as f32, z as f32),
-                    element: Element::from_letter(element)?,
+                    element: element,
                     hetero: true,
                     ..Default::default()
                 });
@@ -175,7 +188,10 @@ impl Sdf {
             for _ in 0..n_bonds {
                 let cols: Vec<&str> = lines[i].split_whitespace().collect();
                 // M  V30 idx type a1 a2
-                let bond_type = BondType::from_str(cols[3])?;
+                let bond_type = match BondType::from_str(cols[3]) {
+                    Ok(bond_type) => bond_type,
+                    Err(_) => BondType::Unknown,
+                };
                 let atom_0_sn = cols[4].parse::<u32>().unwrap();
                 let atom_1_sn = cols[5].parse::<u32>().unwrap();
 

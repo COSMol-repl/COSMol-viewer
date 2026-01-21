@@ -81,7 +81,7 @@ from cosmol_viewer import Scene, Viewer, Molecule, Animation
 anim = Animation(interval=0.05, loops=-1, smooth=False)
 for i in range(1, 10):
     with open(f"frames/frame_{i}.sdf", "r") as f:
-        mol = Molecule.from_sdf(sdf.read())
+        mol = Molecule.from_sdf(f.read())
 
     scene = Scene()
     scene.add_shape(mol)

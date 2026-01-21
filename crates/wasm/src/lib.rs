@@ -353,9 +353,6 @@ impl WebHandle {
         _canvas: HtmlCanvasElement,
         scene_json: String,
     ) -> Result<(), JsValue> {
-        // let _scene: Scene = serde_json::from_str(&scene_json)
-        //     .map_err(|e| JsValue::from_str(&format!("Scene parse error: {}", e)))?;
-
         let _scene: Scene =
             decompress_data(&scene_json).map_err(|e| JsValue::from_str(&e.to_string()))?;
 
