@@ -4,10 +4,10 @@ use cosmol_viewer::{Scene, Viewer};
 use std::{f32::consts::PI, thread, time::Duration};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 初始化场景
+    // Initialize the scene
     let mut scene = Scene::new();
 
-    // 添加多个球体（6个）
+    // Add multiple spheres (6 in total)
     let ids = ["a", "b", "c", "d", "e", "f"];
     for id in ids.iter() {
         let sphere = Sphere::new([0.0, 0.0, 0.0], 0.4).color([1.0, 1.0, 1.0]);
@@ -18,22 +18,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let viewer = Viewer::render(&scene, 800.0, 500.0);
 
-    // 动画主循环
+    // Animation main loop
     let mut t: f32 = 0.0;
     loop {
         for (i, id) in ids.iter().enumerate() {
             let phase = i as f32 * PI / 3.0;
             let theta = t + phase;
 
-            // 轨迹：椭圆运动
+            // Trajectory: elliptical motion
             let x = 1.5 * f32::cos(theta);
             let y = 0.8 * f32::sin(theta);
             let z = 0.5 * f32::sin(theta * 2.0);
 
-            // 半径：脉动变化
+            // Radius: pulsating change
             let radius = 0.3 + 0.15 * f32::sin(theta * 1.5);
 
-            // 颜色：动态 RGB 渐变
+            // Color: dynamic RGB gradient
             let r = 0.5 + 0.5 * f32::sin(theta);
             let g = 0.5 + 0.5 * f32::cos(theta);
             let b = 1.0 - r;

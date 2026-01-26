@@ -15,6 +15,7 @@ pub struct Sdf {
     pub ident: String,
     pub metadata: HashMap<String, String>,
     pub atoms: Vec<AtomGeneric>,
+    pub atoms_weight: Option<Vec<Option<f32>>>,
     pub bonds: Vec<BondGeneric>,
     pub chains: Vec<ChainGeneric>,
     pub residues: Vec<ResidueGeneric>,
@@ -47,6 +48,8 @@ impl Sdf {
 
         let mut atoms = Vec::new();
         let mut bonds = Vec::new();
+
+        let mut atoms_weight: Option<Vec<Option<f32>>> = None;
 
         if is_v2000 {
             // ============================
@@ -137,6 +140,7 @@ impl Sdf {
             // --- find counts ---
             let mut n_atoms = 0usize;
             let mut n_bonds = 0usize;
+            let mut atoms_weight_: Vec<Option<f32>> = Vec::new();
 
             while i < lines.len() {
                 let line = lines[i];
@@ -162,6 +166,17 @@ impl Sdf {
                 let y = cols[5].parse::<f64>().unwrap();
                 let z = cols[6].parse::<f64>().unwrap();
 
+                // ---- parse WEIGHT if exists ----
+                let mut weight: Option<f32> = None;
+
+                for col in cols.iter().skip(7) {
+                    if let Some(v) = col.strip_prefix("WEIGHT=") {
+                        if let Ok(w) = v.parse::<f32>() {
+                            weight = Some(w);
+                        }
+                    }
+                }
+
                 let element = match Element::from_letter(element_str) {
                     Ok(element) => element,
                     Err(_) => Element::Other,
@@ -175,8 +190,12 @@ impl Sdf {
                     ..Default::default()
                 });
 
+                atoms_weight_.push(weight);
+
                 i += 1;
             }
+
+            atoms_weight = Some(atoms_weight_);
 
             // --- find bond begin ---
             while i < lines.len() && !lines[i].starts_with("M  V30 BEGIN BOND") {
@@ -227,6 +246,7 @@ impl Sdf {
         Ok(Self {
             ident,
             metadata: HashMap::new(),
+            atoms_weight,
             atoms,
             bonds,
             chains,

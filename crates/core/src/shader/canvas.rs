@@ -12,18 +12,17 @@ use glam::{Quat, Vec3};
 
 use crate::Scene;
 use crate::scene::Animation;
-use crate::scene::InstanceGroups;
-use crate::scene::SphereInstance;
-use crate::scene::StickInstance;
 use crate::shapes::Sphere;
+use crate::shapes::SphereInstance;
 use crate::shapes::Stick;
+use crate::shapes::StickInstance;
+use crate::utils::InstanceGroups;
 use crate::utils::{Interpolatable, Logger};
 
 pub struct Canvas<L: Logger> {
     shader: Arc<Mutex<Shader>>,
     camera_state: CameraState,
     animation: Option<Animation>,
-    static_scene: Option<Scene>,
     interpolate_enabled: bool,
     logger: L,
 }
@@ -35,7 +34,6 @@ impl<L: Logger> Canvas<L> {
             shader: Arc::new(Mutex::new(Shader::new(&gl, scene)?)),
             camera_state: camera_state,
             animation: None,
-            static_scene: None,
             interpolate_enabled: false,
             logger,
         })
@@ -55,7 +53,6 @@ impl<L: Logger> Canvas<L> {
             shader: Arc::new(Mutex::new(Shader::new(&gl, init_frame)?)),
             camera_state: camera_state,
             interpolate_enabled: animation.smooth,
-            static_scene: animation.static_scene.clone(),
             animation: Some(animation),
             logger,
         })
@@ -127,7 +124,11 @@ impl<L: Logger> Canvas<L> {
                 }
             };
 
-            if let Some(static_scene) = self.static_scene.as_ref() {
+            if let Some(static_scene) = self
+                .animation
+                .as_ref()
+                .and_then(|a| a.static_scene.as_ref())
+            {
                 interp_frame.merge_shapes(static_scene);
             }
 
@@ -188,7 +189,7 @@ struct Shader {
     sphere_index_count: usize,
     stick_index_count: usize,
     background_color: [f32; 3],
-    vertex_buffer: glow::Buffer,
+    vbo: glow::Buffer,
     ebo: glow::Buffer,
     sphere_instance_buffer: glow::Buffer,
     stick_instance_buffer: glow::Buffer,
@@ -444,7 +445,7 @@ impl Shader {
             // =========================
             // 4.2 Generate stick mesh template
             // =========================
-            let template_stick = Stick::get_or_generate_cylinder_mesh_template(32);
+            let template_stick = Stick::get_or_generate_cylinder_mesh_template(2);
             let vertex3d_stick: Vec<Vertex3d> = template_stick
                 .vertices
                 .iter()
@@ -461,16 +462,13 @@ impl Shader {
             // =========================
             // 5. Create buffers
             // =========================
-            let vertex_buffer = gl.create_buffer().expect("Cannot create vertex buffer");
+            let vbo = gl.create_buffer().expect("Cannot create vertex buffer");
             let ebo = gl.create_buffer().expect("Cannot create element buffer");
-            let sphere_instance_buffer = gl
-                .create_buffer()
-                .expect("Cannot create sphere instance buffer");
 
-            let sphere_vertex_buffer = gl
+            let sphere_vbo = gl
                 .create_buffer()
                 .expect("Cannot create sphere vertex buffer");
-            gl.bind_buffer(glow::ARRAY_BUFFER, Some(sphere_vertex_buffer));
+            gl.bind_buffer(glow::ARRAY_BUFFER, Some(sphere_vbo));
             gl.buffer_data_u8_slice(
                 glow::ARRAY_BUFFER,
                 bytemuck::cast_slice(&vertex3d_sphere),
@@ -491,10 +489,10 @@ impl Shader {
                 .create_buffer()
                 .expect("Cannot create stick instance buffer");
 
-            let stick_vertex_buffer = gl
+            let stick_vbo = gl
                 .create_buffer()
                 .expect("Cannot create stick vertex buffer");
-            gl.bind_buffer(glow::ARRAY_BUFFER, Some(stick_vertex_buffer));
+            gl.bind_buffer(glow::ARRAY_BUFFER, Some(stick_vbo));
             gl.buffer_data_u8_slice(
                 glow::ARRAY_BUFFER,
                 bytemuck::cast_slice(&vertex3d_stick),
@@ -518,95 +516,96 @@ impl Shader {
                 .create_vertex_array()
                 .expect("Cannot create vertex array");
             gl.bind_vertex_array(Some(vao_mesh));
-            gl.bind_buffer(glow::ARRAY_BUFFER, Some(vertex_buffer));
+            gl.bind_buffer(glow::ARRAY_BUFFER, Some(vbo));
 
             let pos_loc = gl.get_attrib_location(program, "a_position").unwrap();
             let normal_loc = gl.get_attrib_location(program, "a_normal").unwrap();
             let color_loc = gl.get_attrib_location(program, "a_color").unwrap();
 
-            let stride_vertex = std::mem::size_of::<Vertex3d>() as i32;
+            let stride_vertex_3d = std::mem::size_of::<Vertex3d>() as i32;
 
             gl.enable_vertex_attrib_array(pos_loc);
-            gl.vertex_attrib_pointer_f32(pos_loc, 3, glow::FLOAT, false, stride_vertex, 0);
+            gl.vertex_attrib_pointer_f32(pos_loc, 3, glow::FLOAT, false, stride_vertex_3d, 0);
 
             gl.enable_vertex_attrib_array(normal_loc);
-            gl.vertex_attrib_pointer_f32(normal_loc, 3, glow::FLOAT, false, stride_vertex, 3 * 4);
+            gl.vertex_attrib_pointer_f32(
+                normal_loc,
+                3,
+                glow::FLOAT,
+                false,
+                stride_vertex_3d,
+                3 * 4,
+            );
 
             gl.enable_vertex_attrib_array(color_loc);
-            gl.vertex_attrib_pointer_f32(color_loc, 4, glow::FLOAT, false, stride_vertex, 6 * 4);
-            gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(ebo));
+            gl.vertex_attrib_pointer_f32(color_loc, 4, glow::FLOAT, false, stride_vertex_3d, 6 * 4);
 
             // =========================
             // 7.1 Setup VAO for instanced spheres
             // =========================
-            let pos_a_position = gl
+
+            let pos_loc = gl
                 .get_attrib_location(program_sphere, "a_position")
                 .unwrap();
-            let normal_a_position = gl.get_attrib_location(program_sphere, "a_normal").unwrap();
-            let instance_i_position = gl
+            let normal_loc = gl.get_attrib_location(program_sphere, "a_normal").unwrap();
+            let i_pos_loc = gl
                 .get_attrib_location(program_sphere, "i_position")
                 .unwrap();
-            let instance_i_radius = gl.get_attrib_location(program_sphere, "i_radius").unwrap();
-            let instance_i_color = gl.get_attrib_location(program_sphere, "i_color").unwrap();
+            let i_radius_loc = gl.get_attrib_location(program_sphere, "i_radius").unwrap();
+            let i_color_loc = gl.get_attrib_location(program_sphere, "i_color").unwrap();
 
             let vao_sphere = gl
                 .create_vertex_array()
                 .expect("Cannot create vertex array");
             gl.bind_vertex_array(Some(vao_sphere));
+            gl.bind_buffer(glow::ARRAY_BUFFER, Some(sphere_vbo));
 
-            // per-vertex attributes
-            gl.bind_buffer(glow::ARRAY_BUFFER, Some(sphere_vertex_buffer));
-            gl.enable_vertex_attrib_array(pos_a_position); // a_position
-            gl.vertex_attrib_pointer_f32(pos_a_position, 3, glow::FLOAT, false, stride_vertex, 0);
-            gl.vertex_attrib_divisor(pos_a_position, 0);
+            gl.enable_vertex_attrib_array(pos_loc); // a_position
+            gl.vertex_attrib_pointer_f32(pos_loc, 3, glow::FLOAT, false, stride_vertex_3d, 0);
 
-            gl.enable_vertex_attrib_array(normal_a_position); // a_normal
+            gl.enable_vertex_attrib_array(normal_loc); // a_normal
             gl.vertex_attrib_pointer_f32(
-                normal_a_position,
+                normal_loc,
                 3,
                 glow::FLOAT,
                 false,
-                stride_vertex,
+                stride_vertex_3d,
                 3 * 4,
             );
-            gl.vertex_attrib_divisor(normal_a_position, 0);
 
             // per-instance attributes
+            let sphere_instance_buffer = gl
+                .create_buffer()
+                .expect("Cannot create sphere instance buffer");
             gl.bind_buffer(glow::ARRAY_BUFFER, Some(sphere_instance_buffer));
+
             let stride_instance = std::mem::size_of::<SphereInstance>() as i32;
 
-            gl.enable_vertex_attrib_array(instance_i_position); // i_position
-            gl.vertex_attrib_pointer_f32(
-                instance_i_position,
-                3,
-                glow::FLOAT,
-                false,
-                stride_instance,
-                0,
-            );
-            gl.vertex_attrib_divisor(instance_i_position, 1);
+            gl.enable_vertex_attrib_array(i_pos_loc); // i_position
+            gl.vertex_attrib_pointer_f32(i_pos_loc, 3, glow::FLOAT, false, stride_instance, 0);
+            gl.vertex_attrib_divisor(i_pos_loc, 1);
 
-            gl.enable_vertex_attrib_array(instance_i_radius); // i_radius
+            gl.enable_vertex_attrib_array(i_radius_loc); // i_radius
             gl.vertex_attrib_pointer_f32(
-                instance_i_radius,
+                i_radius_loc,
                 1,
                 glow::FLOAT,
                 false,
                 stride_instance,
                 3 * 4,
             );
-            gl.vertex_attrib_divisor(instance_i_radius, 1);
+            gl.vertex_attrib_divisor(i_radius_loc, 1);
 
-            gl.enable_vertex_attrib_array(instance_i_color); // i_color
+            gl.enable_vertex_attrib_array(i_color_loc); // i_color
             gl.vertex_attrib_pointer_f32(
-                instance_i_color,
+                i_color_loc,
                 4,
                 glow::FLOAT,
                 false,
                 stride_instance,
                 4 * 4,
             );
-            gl.vertex_attrib_divisor(instance_i_color, 1);
+            gl.vertex_attrib_divisor(i_color_loc, 1);
 
             gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(sphere_ebo));
             gl.bind_vertex_array(None);
@@ -629,9 +628,16 @@ impl Shader {
             gl.bind_vertex_array(Some(vao_stick));
 
             // per-vertex attributes
-            gl.bind_buffer(glow::ARRAY_BUFFER, Some(stick_vertex_buffer));
+            gl.bind_buffer(glow::ARRAY_BUFFER, Some(stick_vbo));
             gl.enable_vertex_attrib_array(pos_a_position); // a_position
-            gl.vertex_attrib_pointer_f32(pos_a_position, 3, glow::FLOAT, false, stride_vertex, 0);
+            gl.vertex_attrib_pointer_f32(
+                pos_a_position,
+                3,
+                glow::FLOAT,
+                false,
+                stride_vertex_3d,
+                0,
+            );
             gl.vertex_attrib_divisor(pos_a_position, 0);
 
             gl.enable_vertex_attrib_array(normal_a_position); // a_normal
@@ -640,7 +646,7 @@ impl Shader {
                 3,
                 glow::FLOAT,
                 false,
-                stride_vertex,
+                stride_vertex_3d,
                 3 * 4,
             );
             gl.vertex_attrib_divisor(normal_a_position, 0);
@@ -716,7 +722,7 @@ impl Shader {
                 sphere_index_count: indices_sphere.len(),
                 stick_index_count: indices_stick.len(),
                 background_color,
-                vertex_buffer,
+                vbo,
                 ebo,
                 instance_groups: None,
                 current_scene: scene,
@@ -868,7 +874,7 @@ impl Shader {
 
             // 绑定并上传缓冲
             gl.bind_vertex_array(Some(self.vao_mesh));
-            gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.vertex_buffer));
+            gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.vbo));
             gl.buffer_data_u8_slice(
                 glow::ARRAY_BUFFER,
                 bytemuck::cast_slice(&self.vertex3d),

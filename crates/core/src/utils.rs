@@ -1,10 +1,7 @@
 use glam::{Mat4, Vec3, Vec4};
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    scene::InstanceGroups,
-    shapes::{Molecule, Protein, Sphere, Stick},
-};
+use crate::shapes::{Molecule, Protein, Sphere, SphereInstance, Stick, StickInstance};
 
 pub trait Logger: Send + Sync + Copy {
     fn log(&self, message: impl std::fmt::Display);
@@ -84,6 +81,19 @@ impl Interpolatable for Shape {
             }
             _ => self.clone(), // 如果类型不匹配，可以选择不插值或做默认处理
         }
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct InstanceGroups {
+    pub spheres: Vec<SphereInstance>,
+    pub sticks: Vec<StickInstance>,
+}
+
+impl InstanceGroups {
+    pub fn merge(&mut self, mut other: InstanceGroups) {
+        self.spheres.append(&mut other.spheres);
+        self.sticks.append(&mut other.sticks);
     }
 }
 

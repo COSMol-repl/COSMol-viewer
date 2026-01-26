@@ -1,3 +1,4 @@
+use crate::utils::InstanceGroups;
 use crate::utils::Logger;
 use glam::Mat3;
 use glam::Mat4;
@@ -13,60 +14,9 @@ use crate::{
     utils::{self, Interpolatable, IntoInstanceGroups, ToMesh},
 };
 
-pub enum Instance {
-    Sphere(SphereInstance),
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable, Debug)]
-pub struct SphereInstance {
-    pub position: [f32; 3],
-    pub radius: f32,
-    pub color: [f32; 4],
-}
-
-impl SphereInstance {
-    pub fn new(position: [f32; 3], radius: f32, color: [f32; 4]) -> Self {
-        Self {
-            position,
-            radius,
-            color,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable, Debug)]
-pub struct StickInstance {
-    pub start: [f32; 3],
-    pub end: [f32; 3],
-    pub radius: f32,
-    pub color: [f32; 4],
-}
-
-impl StickInstance {
-    pub fn new(start: [f32; 3], end: [f32; 3], radius: f32, color: [f32; 4]) -> Self {
-        Self {
-            start,
-            end,
-            radius,
-            color,
-        }
-    }
-}
-
-#[derive(Clone, Default)]
-pub struct InstanceGroups {
-    pub spheres: Vec<SphereInstance>,
-    pub sticks: Vec<StickInstance>,
-}
-
-impl InstanceGroups {
-    pub fn merge(&mut self, mut other: InstanceGroups) {
-        self.spheres.append(&mut other.spheres);
-        self.sticks.append(&mut other.sticks);
-    }
-}
+// pub enum Instance {
+//     Sphere(SphereInstance),
+// }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Scene {

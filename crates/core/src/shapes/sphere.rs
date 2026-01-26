@@ -1,15 +1,13 @@
+use crate::Arc;
+use crate::{
+    Shape,
+    utils::{Interaction, Interpolatable, Logger, MeshData, VisualShape, VisualStyle},
+};
+use dashmap::DashMap;
 use glam::Vec3;
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    Shape,
-    scene::SphereInstance,
-    utils::{Interaction, Interpolatable, Logger, MeshData, VisualShape, VisualStyle},
-};
-
 use once_cell::sync::Lazy;
-use std::collections::HashMap;
-use std::sync::Mutex;
 
 #[derive(Clone)]
 pub struct MeshTemplate {
@@ -18,8 +16,7 @@ pub struct MeshTemplate {
     pub indices: Vec<u32>,
 }
 
-static SPHERE_TEMPLATE_CACHE: Lazy<Mutex<HashMap<u32, MeshTemplate>>> =
-    Lazy::new(|| Mutex::new(HashMap::new()));
+static SPHERE_TEMPLATE_CACHE: Lazy<DashMap<u32, Arc<MeshTemplate>>> = Lazy::new(|| DashMap::new());
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct Sphere {
@@ -120,11 +117,9 @@ impl Sphere {
         // }
     }
 
-    pub fn get_or_generate_sphere_mesh_template(quality: u32) -> MeshTemplate {
-        let mut cache = SPHERE_TEMPLATE_CACHE.lock().unwrap();
-
-        if let Some(template) = cache.get(&quality) {
-            return template.clone(); // 直接返回已有的
+    pub fn get_or_generate_sphere_mesh_template(quality: u32) -> Arc<MeshTemplate> {
+        if let Some(entry) = SPHERE_TEMPLATE_CACHE.get(&quality) {
+            return Arc::clone(entry.value());
         }
 
         let lat_segments = 10 * quality;
@@ -168,13 +163,14 @@ impl Sphere {
             }
         }
 
-        let template = MeshTemplate {
+        let template = Arc::new(MeshTemplate {
             vertices,
             normals,
             indices,
-        };
+        });
 
-        cache.insert(quality, template.clone());
+        // 3. 插入（如果并发下已经被别人插入，DashMap 会覆盖 or 返回旧值）
+        SPHERE_TEMPLATE_CACHE.insert(quality, Arc::clone(&template));
 
         template
     }
@@ -191,5 +187,23 @@ impl Sphere {
 impl VisualShape for Sphere {
     fn style_mut(&mut self) -> &mut VisualStyle {
         &mut self.style
+    }
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable, Debug)]
+pub struct SphereInstance {
+    pub position: [f32; 3],
+    pub radius: f32,
+    pub color: [f32; 4],
+}
+
+impl SphereInstance {
+    pub fn new(position: [f32; 3], radius: f32, color: [f32; 4]) -> Self {
+        Self {
+            position,
+            radius,
+            color,
+        }
     }
 }
