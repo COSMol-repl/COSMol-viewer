@@ -107,7 +107,7 @@ impl Stick {
         let mut indices = Vec::new();
         let mut colors = Vec::new();
 
-        let segments = 20 * self.quality;
+        let segments = 10 * self.quality;
         let r = self.thickness_radius;
 
         let start = Vec3::from_array(self.start);

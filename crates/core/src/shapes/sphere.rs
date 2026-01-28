@@ -77,44 +77,6 @@ impl Sphere {
 
     pub fn to_mesh(&self, _scale: f32) -> MeshData {
         return MeshData::default();
-
-        // let template = Self::get_or_generate_sphere_mesh_template(self.quality);
-
-        // let [cx, cy, cz] = self.center;
-        // let r = self.radius;
-
-        // let transformed_vertices: Vec<[f32; 3]> = template
-        //     .vertices
-        //     .iter()
-        //     .map(|v| {
-        //         [
-        //             (v[0] * r + cx) * scale,
-        //             (v[1] * r + cy) * scale,
-        //             (v[2] * r + cz) * scale,
-        //         ]
-        //     })
-        //     .collect();
-
-        // let transformed_normals: Vec<[f32; 3]> = template
-        //     .normals
-        //     .iter()
-        //     .map(|n| n.map(|x| x * scale)) // 你可以不乘 scale，如果只用于方向
-        //     .collect();
-
-        // let base_color = self.style.color.unwrap_or([1.0, 1.0, 1.0]);
-        // let alpha = self.style.opacity.clamp(0.0, 1.0);
-        // let color = [base_color[0], base_color[1], base_color[2], alpha];
-
-        // let colors = vec![color; transformed_vertices.len()];
-
-        // MeshData {
-        //     vertices: transformed_vertices,
-        //     normals: transformed_normals,
-        //     indices: template.indices.clone(),
-        //     colors: Some(colors),
-        //     transform: None,
-        //     is_wireframe: self.style.wireframe,
-        // }
     }
 
     pub fn get_or_generate_sphere_mesh_template(quality: u32) -> Arc<MeshTemplate> {
@@ -143,7 +105,7 @@ impl Sphere {
                 let ny = cos_theta;
                 let nz = sin_theta * sin_phi;
 
-                vertices.push(Vec3::new(nx, ny, nz)); // 单位球
+                vertices.push(Vec3::new(nx, ny, nz));
                 normals.push(Vec3::new(nx, ny, nz));
             }
         }
@@ -169,9 +131,111 @@ impl Sphere {
             indices,
         });
 
-        // 3. 插入（如果并发下已经被别人插入，DashMap 会覆盖 or 返回旧值）
         SPHERE_TEMPLATE_CACHE.insert(quality, Arc::clone(&template));
 
+        template
+    }
+
+    pub fn get_or_generate_icosphere_mesh_template(quality: u32) -> Arc<MeshTemplate> {
+        if let Some(entry) = SPHERE_TEMPLATE_CACHE.get(&quality) {
+            return Arc::clone(entry.value());
+        }
+
+        let t = (1.0 + 5.0f32.sqrt()) / 2.0;
+        let mut vertices = vec![
+            Vec3::new(-1.0, t, 0.0),
+            Vec3::new(1.0, t, 0.0),
+            Vec3::new(-1.0, -t, 0.0),
+            Vec3::new(1.0, -t, 0.0),
+            Vec3::new(0.0, -1.0, t),
+            Vec3::new(0.0, 1.0, t),
+            Vec3::new(0.0, -1.0, -t),
+            Vec3::new(0.0, 1.0, -t),
+            Vec3::new(t, 0.0, -1.0),
+            Vec3::new(t, 0.0, 1.0),
+            Vec3::new(-t, 0.0, -1.0),
+            Vec3::new(-t, 0.0, 1.0),
+        ];
+        vertices.iter_mut().for_each(|v| *v = v.normalize());
+
+        let mut indices = vec![
+            [0, 11, 5],
+            [0, 5, 1],
+            [0, 1, 7],
+            [0, 7, 10],
+            [0, 10, 11],
+            [1, 5, 9],
+            [5, 11, 4],
+            [11, 10, 2],
+            [10, 7, 6],
+            [7, 1, 8],
+            [3, 9, 4],
+            [3, 4, 2],
+            [3, 2, 6],
+            [3, 6, 8],
+            [3, 8, 9],
+            [4, 9, 5],
+            [2, 4, 11],
+            [6, 2, 10],
+            [8, 6, 7],
+            [9, 8, 1],
+        ];
+
+        use std::collections::HashMap;
+        let mut midpoint_cache: HashMap<(u32, u32), u32> = HashMap::new();
+
+        fn get_midpoint(
+            a: u32,
+            b: u32,
+            vertices: &mut Vec<Vec3>,
+            cache: &mut HashMap<(u32, u32), u32>,
+        ) -> u32 {
+            let key = if a < b { (a, b) } else { (b, a) };
+            if let Some(&idx) = cache.get(&key) {
+                return idx;
+            }
+
+            let midpoint = (vertices[a as usize] + vertices[b as usize]).normalize();
+            let idx = vertices.len() as u32;
+            vertices.push(midpoint);
+            cache.insert(key, idx);
+            idx
+        }
+
+        for _ in 0..quality {
+            let mut new_indices = Vec::new();
+            for tri in &indices {
+                let a = tri[0];
+                let b = tri[1];
+                let c = tri[2];
+
+                let ab = get_midpoint(a, b, &mut vertices, &mut midpoint_cache);
+                let bc = get_midpoint(b, c, &mut vertices, &mut midpoint_cache);
+                let ca = get_midpoint(c, a, &mut vertices, &mut midpoint_cache);
+
+                new_indices.push([a, ab, ca]);
+                new_indices.push([b, bc, ab]);
+                new_indices.push([c, ca, bc]);
+                new_indices.push([ab, bc, ca]);
+            }
+            indices = new_indices;
+        }
+
+        let normals = vertices.clone();
+        let mut flat_indices = Vec::with_capacity(indices.len() * 3);
+        for tri in indices {
+            flat_indices.push(tri[0]);
+            flat_indices.push(tri[1]);
+            flat_indices.push(tri[2]);
+        }
+
+        let template = Arc::new(MeshTemplate {
+            vertices,
+            normals,
+            indices: flat_indices,
+        });
+
+        SPHERE_TEMPLATE_CACHE.insert(quality, Arc::clone(&template));
         template
     }
 
