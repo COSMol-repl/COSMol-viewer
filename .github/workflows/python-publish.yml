@@ -68,7 +68,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: pyi
-          path: ./crates/python/pyproject.toml
+          path: ./crates/python/
       - name: Build wheels
         uses: PyO3/maturin-action@v1.49.4
         with:
@@ -108,7 +108,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: pyi
-          path: ./crates/python/pyproject.toml
+          path: ./crates/python/
       - name: Build wheels
         uses: PyO3/maturin-action@v1.49.4
         with:
@@ -173,7 +173,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: pyi
-          path: ./crates/python/pyproject.toml
+          path: ./crates/python/
       - name: Build wheels
         uses: PyO3/maturin-action@v1.49.4
         with:
