@@ -356,9 +356,8 @@ impl WebHandle {
         let _scene: Scene =
             decompress_data(&scene_json).map_err(|e| JsValue::from_str(&e.to_string()))?;
 
-        println!("{:?}", _scene);
-        web_sys::console::log_1(&JsValue::from_str(&scene_json.to_string()));
-        web_sys::console::log_1(&JsValue::from_str(format!("{:?}", _scene).as_str()));
+        // web_sys::console::log_1(&JsValue::from_str(&scene_json.to_string()));
+        // web_sys::console::log_1(&JsValue::from_str(format!("{:?}", _scene).as_str()));
 
         #[cfg(target_arch = "wasm32")]
         {
@@ -376,7 +375,7 @@ impl WebHandle {
                         use cosmol_viewer_core::AppWrapper;
 
                         let mut guard = app.lock().unwrap();
-                        *guard = Some(App::new(cc, _scene, WasmLogger));
+                        *guard = Some(App::new(cc, &_scene, WasmLogger));
                         Ok(Box::new(AppWrapper(app.clone())))
                     }),
                 )
