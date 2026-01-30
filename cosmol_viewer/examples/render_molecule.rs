@@ -8,7 +8,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     scene.add_shape_with_id("mol", mol);
 
-    let viewer = Viewer::render(&scene, 800.0, 500.0);
+    let viewer = Viewer::render(&scene, 800.0, 500.0)?;
 
     let img = viewer.take_screenshot();
 

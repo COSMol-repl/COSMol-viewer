@@ -46,7 +46,7 @@ pub enum BondType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-enum MoleculeStyle {
+pub enum MoleculeStyle {
     BallAndStick,
     Stick,
     Sphere,

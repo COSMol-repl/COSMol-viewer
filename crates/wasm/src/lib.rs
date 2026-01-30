@@ -392,7 +392,7 @@ impl WebHandle {
 
         let mut app_guard = self.app.lock().unwrap();
         if let Some(app) = &mut *app_guard {
-            app.update_scene(scene);
+            app.update_scene(&scene);
             app.ctx.request_repaint();
         } else {
             println!("scene update received but app is not initialized");

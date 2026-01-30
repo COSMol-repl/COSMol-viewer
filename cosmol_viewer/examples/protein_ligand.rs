@@ -10,7 +10,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     scene.add_shape_with_id("prot", prot);
     scene.add_shape_with_id("ligand", ligand);
 
-    Viewer::render(&scene, 800.0, 500.0);
+    Viewer::render(&scene, 800.0, 500.0)?;
 
     println!("Press Enter to exit...");
     use std::io::{self, Write};

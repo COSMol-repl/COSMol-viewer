@@ -376,10 +376,7 @@ fn build_round_cap(
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum StickTemplateId {
-    Cylinder {
-        quality: u32,
-        cap: StickCap, // Flat / Round / None
-    },
+    Cylinder { quality: u32, cap: StickCap },
 }
 
 struct StickTemplateGpu {

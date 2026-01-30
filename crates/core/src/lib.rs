@@ -40,7 +40,7 @@ pub struct App<L: Logger> {
 }
 
 impl<L: Logger> App<L> {
-    pub fn new(cc: &eframe::CreationContext<'_>, scene: Scene, logger: L) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>, scene: &Scene, logger: L) -> Self {
         logger.log("Creating new viewer app...");
         let gl = cc.gl.clone();
         let canvas = Canvas::new(gl.as_ref().unwrap().clone(), scene, logger).unwrap();
@@ -68,7 +68,7 @@ impl<L: Logger> App<L> {
         }
     }
 
-    pub fn update_scene(&mut self, scene: Scene) {
+    pub fn update_scene(&mut self, scene: &Scene) {
         self.canvas.update_scene(scene);
     }
 
@@ -152,10 +152,12 @@ pub struct NativeGuiViewer {
 pub enum RenderError {
     #[error("No frames provided")]
     NoFramesProvided,
+    #[error("Timeout waiting for App to initialize")]
+    InitializationTimeout,
 }
 
 impl NativeGuiViewer {
-    pub fn render(scene: &Scene, width: f32, height: f32) -> Self {
+    pub fn render(scene: &Scene, width: f32, height: f32) -> Result<Self, RenderError> {
         use std::time::Duration;
         use std::{
             sync::{Arc, Mutex},
@@ -169,9 +171,10 @@ impl NativeGuiViewer {
         };
 
         let app: Arc<Mutex<Option<App<RustLogger>>>> = Arc::new(Mutex::new(None));
+        let (tx, rx) = std::sync::mpsc::channel();
         let app_clone = Arc::clone(&app);
 
-        let scene = Arc::new(Mutex::new(scene.clone()));
+        let scene = Arc::new(scene.clone());
         #[cfg(not(target_arch = "wasm32"))]
         thread::spawn(move || {
             use eframe::{EventLoopBuilderHook, run_native};
@@ -212,34 +215,24 @@ impl NativeGuiViewer {
                 native_options,
                 Box::new(move |cc| {
                     let mut guard = app_clone.lock().unwrap();
-                    *guard = Some(App::new(cc, scene.lock().unwrap().clone(), RustLogger));
+                    *guard = Some(App::new(cc, scene.as_ref(), RustLogger));
+                    let _ = tx.send(());
                     Ok(Box::new(AppWrapper(app_clone.clone())))
                 }),
             );
             process::exit(0);
         });
 
-        let timeout_ms = 30000;
-        let mut waited = 0;
+        rx.recv_timeout(Duration::from_secs(30))
+            .map_err(|_| RenderError::InitializationTimeout)?;
 
-        loop {
-            if app.lock().unwrap().is_some() {
-                break;
-            }
-            if waited > timeout_ms {
-                panic!("Timeout waiting for App to initialize");
-            }
-            thread::sleep(Duration::from_millis(10));
-            waited += 10;
-        }
-
-        Self { app }
+        Ok(Self { app })
     }
 
     pub fn update(&self, scene: &Scene) {
         let mut app_guard = self.app.lock().unwrap();
         if let Some(app) = &mut *app_guard {
-            app.update_scene(scene.clone());
+            app.update_scene(scene);
             app.ctx.request_repaint();
         } else {
             panic!("App not initialized")

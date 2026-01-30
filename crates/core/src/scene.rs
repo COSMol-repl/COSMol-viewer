@@ -29,6 +29,16 @@ pub struct Scene {
     pub scene_center: [f32; 3],
 }
 
+pub struct SceneRef<'a> {
+    pub background_color: &'a [f32; 3],
+    pub camera_state: &'a CameraState,
+    pub named_shapes: &'a HashMap<String, Shape>,
+    pub unnamed_shapes: &'a Vec<Shape>,
+    pub scale: &'a f32,
+    pub viewport: &'a Option<[usize; 2]>,
+    pub scene_center: &'a [f32; 3],
+}
+
 #[derive(Error, Debug)]
 pub enum SceneError {
     #[error("Shape with ID '{0}' not found")]

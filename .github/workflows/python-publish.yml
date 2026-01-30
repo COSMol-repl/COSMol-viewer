@@ -27,11 +27,20 @@ jobs:
         run: |
           cargo binstall -y wasm-pack --force
           wasm-pack build ./crates/wasm --target web --out-dir ./pkg --release
+      - name: build pyi
+        working-directory: crates/python
+        run: |
+          cargo run --bin stub_gen
       - name: Upload wasm pkg
         uses: actions/upload-artifact@v4
         with:
           name: wasm-pkg
           path: ./crates/wasm/pkg
+      - name: Upload cosmol_viewer.pyi
+        uses: actions/upload-artifact@v4
+        with:
+          name: pyi
+          path: ./crates/python/pyproject.toml
 
   linux:
     needs: wasm
@@ -55,6 +64,11 @@ jobs:
         with:
           name: wasm-pkg
           path: crates/wasm/pkg
+      - name: Upload cosmol_viewer.pyi
+        uses: actions/upload-artifact@v4
+        with:
+          name: pyi
+          path: ./crates/python/pyproject.toml
       - name: Build wheels
         uses: PyO3/maturin-action@v1.49.4
         with:
@@ -90,6 +104,11 @@ jobs:
         with:
           name: wasm-pkg
           path: crates/wasm/pkg
+      - name: Upload cosmol_viewer.pyi
+        uses: actions/upload-artifact@v4
+        with:
+          name: pyi
+          path: ./crates/python/pyproject.toml
       - name: Build wheels
         uses: PyO3/maturin-action@v1.49.4
         with:
@@ -150,6 +169,11 @@ jobs:
         with:
           name: wasm-pkg
           path: crates/wasm/pkg
+      - name: Upload cosmol_viewer.pyi
+        uses: actions/upload-artifact@v4
+        with:
+          name: pyi
+          path: ./crates/python/pyproject.toml
       - name: Build wheels
         uses: PyO3/maturin-action@v1.49.4
         with:

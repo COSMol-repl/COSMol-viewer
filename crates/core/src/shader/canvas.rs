@@ -2,6 +2,7 @@ use glam::Mat3;
 use glam::Mat4;
 use glam::Vec4;
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 use std::sync::Arc;
 
 use eframe::{
@@ -28,7 +29,7 @@ pub struct Canvas<L: Logger> {
 }
 
 impl<L: Logger> Canvas<L> {
-    pub fn new<'a>(gl: Arc<eframe::glow::Context>, scene: Scene, logger: L) -> Option<Self> {
+    pub fn new<'a>(gl: Arc<eframe::glow::Context>, scene: &Scene, logger: L) -> Option<Self> {
         let camera_state = scene.camera_state.clone();
         Some(Self {
             shader: Arc::new(Mutex::new(Shader::new(&gl, scene)?)),
@@ -47,7 +48,7 @@ impl<L: Logger> Canvas<L> {
         if animation.frames.is_empty() {
             unreachable!("Animation must have at least one frame");
         }
-        let init_frame = animation.frames[0].clone();
+        let init_frame = &animation.frames[0];
         let camera_state = init_frame.camera_state;
         Some(Self {
             shader: Arc::new(Mutex::new(Shader::new(&gl, init_frame)?)),
@@ -67,7 +68,12 @@ impl<L: Logger> Canvas<L> {
             egui::Sense::drag(),
         );
 
-        if let Some(animation) = &mut self.animation {
+        let static_scene = match self.animation.as_ref() {
+            Some(animation) => animation.static_scene.as_ref(),
+            None => None,
+        };
+
+        if let Some(animation) = self.animation.as_ref() {
             ui.ctx().request_repaint();
             let now = ui.input(|i| i.time);
 
@@ -107,32 +113,25 @@ impl<L: Logger> Canvas<L> {
 
             // 帧内插值进度 t
             let t = ((anim_time % frame_duration) / frame_duration) as f32;
-
             // 生成最终帧
-            let mut interp_frame = if is_finished {
-                animation.frames[frame_count - 1].clone()
+            let frame_to_render: Cow<Scene> = if is_finished {
+                Cow::Borrowed(&animation.frames[frame_count - 1])
             } else {
                 // 这里是原先的插值 / 非插值逻辑
                 if self.interpolate_enabled {
-                    animation.frames[frame_a_index].interpolate(
+                    Cow::Owned(animation.frames[frame_a_index].interpolate(
                         &animation.frames[frame_b_index],
                         t,
                         self.logger,
-                    )
+                    ))
                 } else {
-                    animation.frames[frame_a_index].clone()
+                    Cow::Borrowed(&animation.frames[frame_a_index])
                 }
             };
 
-            if let Some(static_scene) = self
-                .animation
-                .as_ref()
-                .and_then(|a| a.static_scene.as_ref())
-            {
-                interp_frame.merge_shapes(static_scene);
-            }
-
-            self.shader.lock().update_scene(Some(&interp_frame));
+            self.shader
+                .lock()
+                .update_scene(Some(&frame_to_render), static_scene);
         }
         let scroll_delta = ui.input(|i| i.raw_scroll_delta.y);
 
@@ -171,8 +170,8 @@ impl<L: Logger> Canvas<L> {
         ui.painter().add(callback);
     }
 
-    pub fn update_scene(&mut self, scene: Scene) {
-        self.shader.lock().update_scene(Some(&scene));
+    pub fn update_scene(&mut self, scene: &Scene) {
+        self.shader.lock().update_scene(Some(scene), None);
     }
 }
 
@@ -194,12 +193,13 @@ struct Shader {
     sphere_instance_buffer: glow::Buffer,
     stick_instance_buffer: glow::Buffer,
     instance_groups: Option<InstanceGroups>,
-    current_scene: Scene,
+    u_model: Mat4,
+    u_normal_matrix: Mat3,
 }
 
 #[expect(unsafe_code)] // we need unsafe code to use glow
 impl Shader {
-    fn new(gl: &glow::Context, scene: Scene) -> Option<Self> {
+    fn new(gl: &glow::Context, scene: &Scene) -> Option<Self> {
         use glow::HasContext as _;
 
         let shader_version = egui_glow::ShaderVersion::get(gl);
@@ -726,23 +726,24 @@ impl Shader {
                 vbo,
                 ebo,
                 instance_groups: None,
-                current_scene: scene,
+                u_model: scene.model_matrix(),
+                u_normal_matrix: scene.normal_matrix(),
             };
 
             // =========================
             // 9. Update scene data
             // =========================
-            shader_instance.update_scene(None);
+            shader_instance.update_scene(Some(scene), None);
 
             Some(shader_instance)
         }
     }
 
-    fn update_scene(&mut self, scene_opt: Option<&Scene>) {
+    fn update_scene(&mut self, scene_opt: Option<&Scene>, static_scene_opt: Option<&Scene>) {
         let scene = if let Some(scene_data) = scene_opt {
             scene_data
         } else {
-            &self.current_scene
+            return;
         };
 
         self.background_color = scene.background_color;
@@ -774,9 +775,7 @@ impl Shader {
     }
 
     fn paint(&mut self, gl: &glow::Context, aspect_ratio: f32, camera_state: &CameraState) {
-        let u_model = self.current_scene.model_matrix();
         let (u_view, u_projection, u_view_pos) = camera_state.matrices(aspect_ratio);
-        let u_normal_matrix = self.current_scene.normal_matrix();
 
         use glow::HasContext as _;
 
@@ -830,7 +829,7 @@ impl Shader {
             gl.uniform_matrix_4_f32_slice(
                 gl.get_uniform_location(self.program, "u_model").as_ref(),
                 false,
-                (u_model).as_ref(),
+                (self.u_model).as_ref(),
             );
             gl.uniform_matrix_4_f32_slice(
                 gl.get_uniform_location(self.program, "u_view").as_ref(),
@@ -847,7 +846,7 @@ impl Shader {
                 gl.get_uniform_location(self.program, "u_normal_matrix")
                     .as_ref(),
                 false,
-                (u_normal_matrix).as_ref(),
+                (self.u_normal_matrix).as_ref(),
             );
 
             gl.uniform_3_f32_slice(
@@ -902,7 +901,7 @@ impl Shader {
                     gl.get_uniform_location(self.program_sphere, "u_model")
                         .as_ref(),
                     false,
-                    (u_model).as_ref(),
+                    (self.u_model).as_ref(),
                 );
                 gl.uniform_matrix_4_f32_slice(
                     gl.get_uniform_location(self.program_sphere, "u_view")
@@ -920,7 +919,7 @@ impl Shader {
                     gl.get_uniform_location(self.program_sphere, "u_normal_matrix")
                         .as_ref(),
                     false,
-                    (u_normal_matrix).as_ref(),
+                    (self.u_normal_matrix).as_ref(),
                 );
 
                 gl.uniform_3_f32_slice(
@@ -968,7 +967,7 @@ impl Shader {
                     gl.get_uniform_location(self.program_stick, "u_model")
                         .as_ref(),
                     false,
-                    (u_model).as_ref(),
+                    (self.u_model).as_ref(),
                 );
                 gl.uniform_matrix_4_f32_slice(
                     gl.get_uniform_location(self.program_stick, "u_view")
@@ -986,7 +985,7 @@ impl Shader {
                     gl.get_uniform_location(self.program_stick, "u_normal_matrix")
                         .as_ref(),
                     false,
-                    (u_normal_matrix).as_ref(),
+                    (self.u_normal_matrix).as_ref(),
                 );
                 gl.uniform_3_f32_slice(
                     gl.get_uniform_location(self.program_stick, "u_light_pos")

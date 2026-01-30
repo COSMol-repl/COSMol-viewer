@@ -16,7 +16,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     scene.set_scale(2.0);
 
-    let viewer = Viewer::render(&scene, 800.0, 500.0);
+    let viewer = Viewer::render(&scene, 800.0, 500.0)?;
 
     // Animation main loop
     let mut t: f32 = 0.0;

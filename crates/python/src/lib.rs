@@ -495,21 +495,20 @@ impl Viewer {
                 })
             }
             RuntimeEnv::PlainScript | RuntimeEnv::IPythonTerminal => {
-                let native_gui_viewer = std::panic::catch_unwind(|| {
-                    NativeGuiViewer::render(&scene.inner, width, height)
-                });
-
-                if let Err(err) = native_gui_viewer {
-                    return Err(PyRuntimeError::new_err(format!(
-                        "Error: Failed to initialize native GUI viewer: {:?}",
-                        err
-                    )));
-                }
+                let native_gui_viewer = match NativeGuiViewer::render(&scene.inner, width, height) {
+                    Ok(viewer) => viewer,
+                    Err(err) => {
+                        return Err(PyRuntimeError::new_err(format!(
+                            "Error: Failed to initialize native GUI viewer: {:?}",
+                            err
+                        )));
+                    }
+                };
 
                 Ok(Viewer {
                     environment: env_type,
                     wasm_viewer: None,
-                    native_gui_viewer: Some(native_gui_viewer.unwrap()),
+                    native_gui_viewer: Some(native_gui_viewer),
                     first_update: true,
                 })
             }
