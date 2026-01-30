@@ -40,7 +40,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: pyi
-          path: ./crates/python/pyproject.toml
+          path: ./crates/python/cosmol_viewer.pyi
 
   linux:
     needs: wasm
