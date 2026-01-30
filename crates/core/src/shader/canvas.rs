@@ -25,6 +25,7 @@ pub struct Canvas<L: Logger> {
     camera_state: CameraState,
     animation: Option<Animation>,
     interpolate_enabled: bool,
+    animation_start_time: Option<f64>,
     logger: L,
 }
 
@@ -36,6 +37,7 @@ impl<L: Logger> Canvas<L> {
             camera_state: camera_state,
             animation: None,
             interpolate_enabled: false,
+            animation_start_time: None,
             logger,
         })
     }
@@ -55,6 +57,7 @@ impl<L: Logger> Canvas<L> {
             camera_state: camera_state,
             interpolate_enabled: animation.smooth,
             animation: Some(animation),
+            animation_start_time: None,
             logger,
         })
     }
@@ -76,6 +79,9 @@ impl<L: Logger> Canvas<L> {
         if let Some(animation) = self.animation.as_ref() {
             ui.ctx().request_repaint();
             let now = ui.input(|i| i.time);
+            if let None = self.animation_start_time {
+                self.animation_start_time = Some(ui.input(|i| i.time));
+            }
 
             // 播放总时长（秒）
             let frame_count = animation.frames.len();
@@ -83,7 +89,7 @@ impl<L: Logger> Canvas<L> {
             let total_duration = frame_duration * frame_count as f64;
 
             // 计算从动画开始到现在的累积时间
-            let elapsed = now - 0.0;
+            let elapsed = now - self.animation_start_time.unwrap();
 
             // 判断是否结束（loops = -1 表示无限循环）
             let mut is_finished = false;
