@@ -364,7 +364,6 @@ impl WebHandle {
                 .start(
                     _canvas,
                     eframe::WebOptions {
-                        // multisampling: 4, // Enable 4x MSAA
                         ..Default::default()
                     },
                     Box::new(move |cc| {

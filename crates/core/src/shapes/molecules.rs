@@ -32,7 +32,7 @@ pub fn my_color(element: &Element) -> Vec3 {
 pub fn my_radius(e: &Element) -> f32 {
     match e {
         Element::Hydrogen => 1.20,
-        _ => 1.20,
+        _ => e.vdw_radius(),
     }
 }
 
