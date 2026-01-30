@@ -1,4 +1,5 @@
 mod shader;
+use crate::egui::IconData;
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
 
@@ -194,8 +195,12 @@ impl NativeGuiViewer {
                     }
                 }));
 
+            let icon = load_icon();
+
             let native_options = NativeOptions {
-                viewport: ViewportBuilder::default().with_inner_size(Vec2::new(width, height)),
+                viewport: ViewportBuilder::default()
+                    .with_inner_size(Vec2::new(width, height))
+                    .with_icon(icon),
                 depth_buffer: 24,
                 multisampling: 4,
                 event_loop_builder,
@@ -330,5 +335,19 @@ impl NativeGuiViewer {
         });
 
         loop {}
+    }
+}
+fn load_icon() -> IconData {
+    let bytes = include_bytes!("../assets/icon.png");
+    let image = image::load_from_memory(bytes)
+        .expect("Failed to load icon")
+        .into_rgba8();
+
+    let (width, height) = image.dimensions();
+
+    IconData {
+        rgba: image.into_raw(),
+        width,
+        height,
     }
 }

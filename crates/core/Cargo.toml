@@ -24,6 +24,11 @@ wide = "1.1.1"
 kiddo = "5.2.4"
 image = "0.25.9"
 
+[build-dependencies]
+resvg = "0.46"
+usvg = "0.46"
+tiny-skia = "0.11"
+
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 egui-winit.workspace = true
 
