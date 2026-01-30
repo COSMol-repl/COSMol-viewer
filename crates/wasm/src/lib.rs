@@ -351,16 +351,12 @@ impl WebHandle {
     pub async fn start_with_scene(
         &mut self,
         _canvas: HtmlCanvasElement,
-        scene_json: String,
+        _scene_json: String,
     ) -> Result<(), JsValue> {
-        let _scene: Scene =
-            decompress_data(&scene_json).map_err(|e| JsValue::from_str(&e.to_string()))?;
-
-        // web_sys::console::log_1(&JsValue::from_str(&scene_json.to_string()));
-        // web_sys::console::log_1(&JsValue::from_str(format!("{:?}", _scene).as_str()));
-
         #[cfg(target_arch = "wasm32")]
         {
+            let scene: Scene =
+                decompress_data(&_scene_json).map_err(|e| JsValue::from_str(&e.to_string()))?;
             let app = Arc::clone(&self.app);
 
             let _ = self
@@ -375,7 +371,7 @@ impl WebHandle {
                         use cosmol_viewer_core::AppWrapper;
 
                         let mut guard = app.lock().unwrap();
-                        *guard = Some(App::new(cc, &_scene, WasmLogger));
+                        *guard = Some(App::new(cc, &scene, WasmLogger));
                         Ok(Box::new(AppWrapper(app.clone())))
                     }),
                 )
