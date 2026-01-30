@@ -338,7 +338,7 @@ impl NativeGuiViewer {
     }
 }
 fn load_icon() -> IconData {
-    let bytes = include_bytes!("../assets/icon.png");
+    let bytes = include_bytes!(concat!(env!("OUT_DIR"), "/icon.png"));
     let image = image::load_from_memory(bytes)
         .expect("Failed to load icon")
         .into_rgba8();
