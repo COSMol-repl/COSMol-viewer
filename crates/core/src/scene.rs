@@ -183,17 +183,17 @@ pub struct Animation {
     pub frames: Vec<Scene>,
     pub interval: u64,
     pub loops: i64, // -1 = infinite
-    pub smooth: bool,
+    pub interpolate: bool,
 }
 
 impl Animation {
-    pub fn new(interval: f32, loops: i64, smooth: bool) -> Self {
+    pub fn new(interval: f32, loops: i64, interpolate: bool) -> Self {
         Self {
             static_scene: None,
             frames: Vec::new(),
             interval: (interval * 1000.0) as u64,
             loops,
-            smooth,
+            interpolate,
         }
     }
 

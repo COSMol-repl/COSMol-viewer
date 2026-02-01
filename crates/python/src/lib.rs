@@ -1,14 +1,18 @@
+use cosmol_viewer_core::BUILD_ID;
 use cosmol_viewer_core::scene::Animation as _Animation;
+use flate2::read::ZlibDecoder;
 use pyo3::exceptions::PyIndexError;
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::exceptions::PyValueError;
+use std::env;
 use std::ffi::CStr;
+use std::io::Read;
 
 use pyo3::{ffi::c_str, prelude::*};
 
 use crate::shapes::{PyMolecule, PyProtein, PySphere, PyStick};
 use cosmol_viewer_core::{NativeGuiViewer, scene::Scene as _Scene};
-use cosmol_viewer_wasm::{WasmViewer, setup_wasm_if_needed};
+use cosmol_viewer_wasm::WasmViewer;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
 mod shapes;
@@ -31,23 +35,23 @@ impl Animation {
         Create a new Animation container.
 
         # Args
-            - interval: Time in seconds between frames.
-            - loops: Number of times to loop the animation (-1 for infinite).
-            - smooth: Whether to interpolate between frames for smoother visualization.
+        - interval: Time in seconds between frames.
+        - loops: Number of times to loop the animation (-1 for infinite).
+        - smooth: Whether to interpolate between frames for smoother visualization.
 
         # Example
         ```python
         anim = Animation(interval=0.1, loops=-1, smooth=True)
         ```
     "#]
-    pub fn new(interval: f32, loops: i64, smooth: bool) -> Self {
+    pub fn new(interval: f32, loops: i64, interpolate: bool) -> Self {
         Self {
             inner: _Animation {
                 static_scene: None,
                 frames: Vec::new(),
                 interval: (interval * 1000.0) as u64,
                 loops,
-                smooth,
+                interpolate,
             },
         }
     }
@@ -56,7 +60,7 @@ impl Animation {
         Add a frame (Scene) to the animation.
 
         # Args
-            - frame: A Scene object representing a single frame of the animation.
+        - frame: A Scene object representing a single frame of the animation.
     "#]
     pub fn add_frame(&mut self, frame: Scene) {
         self.inner.frames.push(frame.inner);
@@ -67,7 +71,7 @@ impl Animation {
         Useful for background elements or reference structures.
 
         # Args
-            - scene: A Scene object to be rendered statically.
+        - scene: A Scene object to be rendered statically.
     "#]
     pub fn set_static_scene(&mut self, scene: Scene) {
         self.inner.static_scene = Some(scene.inner);
@@ -85,7 +89,7 @@ impl Animation {
 
         format!(
             "Animation(frames={}, interval={:.3}s, loops={}, smooth={})",
-            frames, interval_sec, self.inner.loops, self.inner.smooth
+            frames, interval_sec, self.inner.loops, self.inner.interpolate
         )
     }
 
@@ -124,10 +128,10 @@ impl Animation {
     as well as modifying scene-level properties like scale and background color.
 
     Supported shape types:
-      - Sphere
-      - Stick
-      - Molecule
-      - Protein
+    - Sphere
+    - Stick
+    - Molecule
+    - Protein
 
     Shapes can be optionally identified with a string `id`,
     which allows updates and deletion.
@@ -158,7 +162,7 @@ impl Scene {
         Add a shape to the scene without an explicit ID.
 
         # Args
-            - shape: A shape instance (Sphere, Stick, Molecule, or Protein).
+        - shape: A shape instance (Sphere, Stick, Molecule, or Protein).
 
         # Example
         ```python
@@ -197,8 +201,8 @@ impl Scene {
         If a shape with the same ID exists, this method may fail or behave strictly;
 
         # Args
-            - id: Unique string ID for the shape.
-            - shape: A shape instance.
+        - id: Unique string ID for the shape.
+        - shape: A shape instance.
 
         # Example
         ```python
@@ -236,8 +240,8 @@ impl Scene {
         Replace an existing shape in the scene by its ID.
 
         # Args
-            - id: ID of the shape to update.
-            - shape: New shape object to replace the existing one.
+        - id: ID of the shape to update.
+        - shape: New shape object to replace the existing one.
 
         # Example
         ```python
@@ -278,7 +282,7 @@ impl Scene {
         Remove a shape from the scene by its ID.
 
         # Args
-            - id: ID of the shape to remove.
+        - id: ID of the shape to remove.
 
         # Example
         ```python
@@ -295,7 +299,7 @@ impl Scene {
         Recenter the scene at a given point.
 
         # Args
-            - center: An XYZ array of 3 float values representing the new center.
+        - center: An XYZ array of 3 float values representing the new center.
 
         # Example
         ```python
@@ -311,7 +315,7 @@ impl Scene {
         This affects the visual size of all shapes uniformly.
 
         # Args
-            - scale: A positive float scaling factor.
+        - scale: A positive float scaling factor.
 
         # Example
         ```python
@@ -326,7 +330,7 @@ impl Scene {
         Set the background color of the scene.
 
         # Args
-            - background_color: An RGB array of 3 float values between 0.0 and 1.0.
+        - background_color: An RGB array of 3 float values between 0.0 and 1.0.
 
         # Example
         ```python
@@ -356,7 +360,7 @@ impl Scene {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum RuntimeEnv {
+pub enum RuntimeEnv {
     Colab,
     Jupyter,
     IPythonTerminal,
@@ -387,8 +391,8 @@ impl std::fmt::Display for RuntimeEnv {
     (e.g., Jupyter, Colab, or native GUI).
 
     The `Viewer` automatically selects a backend:
-      - Jupyter/Colab → WebAssembly canvas (inline display)
-      - Python script/terminal → native GUI window (if supported)
+    - Jupyter/Colab → WebAssembly canvas (inline display)
+    - Python script/terminal → native GUI window (if supported)
 
     Use `Viewer.render(scene)` to create and display a viewer instance.
 "#]
@@ -447,7 +451,7 @@ impl Viewer {
         Get the current runtime environment.
 
         # Returns
-            - str: One of "Jupyter", "Colab", "PlainScript", or "IPythonTerminal".
+        - str: One of "Jupyter", "Colab", "PlainScript", or "IPythonTerminal".
 
         # Example
         ```python
@@ -465,12 +469,12 @@ impl Viewer {
         Render a 3D scene.
 
         # Args
-            - scene: The scene to render.
-            - width: The viewport width in pixels (default: 800).
-            - height: The viewport height in pixels (default: 600).
+        - scene: The scene to render.
+        - width: The viewport width in pixels (default: 800).
+        - height: The viewport height in pixels (default: 600).
 
         # Returns
-            - Viewer: The created viewer instance.
+        - Viewer: The created viewer instance.
 
         # Example
         ```python
@@ -484,7 +488,7 @@ impl Viewer {
         let env_type = detect_runtime_env(py)?;
         match env_type {
             RuntimeEnv::Colab | RuntimeEnv::Jupyter => {
-                setup_wasm_if_needed(py);
+                setup_wasm_if_needed(py, env_type);
                 let wasm_viewer = WasmViewer::initiate_viewer(py, &scene.inner, width, height)?;
 
                 Ok(Viewer {
@@ -521,12 +525,12 @@ impl Viewer {
         Play an animation.
 
         # Args
-            - animation: An Animation object containing frames and settings.
-            - width: The viewport width in pixels.
-            - height: The viewport height in pixels.
+        - animation: An Animation object containing frames and settings.
+        - width: The viewport width in pixels.
+        - height: The viewport height in pixels.
 
         # Returns
-            - Viewer: The created viewer instance playing the animation.
+        - Viewer: The created viewer instance playing the animation.
 
         # Example
         ```python
@@ -537,11 +541,14 @@ impl Viewer {
         ```
     "#]
     pub fn play(animation: Animation, width: f32, height: f32, py: Python) -> PyResult<Self> {
+        if animation.inner.frames.is_empty() {
+            return Err(PyErr::new::<PyRuntimeError, _>("No frames provided"));
+        }
         let env_type = detect_runtime_env(py).unwrap();
 
         match env_type {
             RuntimeEnv::Colab | RuntimeEnv::Jupyter => {
-                setup_wasm_if_needed(py);
+                setup_wasm_if_needed(py, env_type);
                 let wasm_viewer =
                     WasmViewer::initiate_viewer_and_play(py, animation.inner, width, height)?;
 
@@ -563,9 +570,10 @@ impl Viewer {
                     first_update: false,
                 })
             }
-            _ => Err(PyErr::new::<PyRuntimeError, _>(
-                "Error: Invalid runtime environment",
-            )),
+            _ => Err(PyErr::new::<PyRuntimeError, _>(format!(
+                "Invalid runtime environment {}",
+                env_type
+            ))),
         }
     }
 
@@ -600,14 +608,18 @@ impl Viewer {
                 if let Some(ref wasm_viewer) = self.wasm_viewer {
                     wasm_viewer.update(py, &scene.inner)?;
                 } else {
-                    panic!("Viewer is not initialized properly")
+                    return Err(PyErr::new::<PyRuntimeError, _>(
+                        "Viewer is not initialized properly",
+                    ));
                 }
             }
             RuntimeEnv::PlainScript | RuntimeEnv::IPythonTerminal => {
                 if let Some(ref mut native_gui_viewer) = self.native_gui_viewer {
                     native_gui_viewer.update(&scene.inner);
                 } else {
-                    panic!("Viewer is not initialized properly")
+                    return Err(PyErr::new::<PyRuntimeError, _>(
+                        "Viewer is not initialized properly",
+                    ));
                 }
             }
             _ => unreachable!(),
@@ -619,20 +631,50 @@ impl Viewer {
         Save the current image to a file.
 
         # Args
-            - path: File path for the saved image.
+        - path: File path for the saved image.
 
         # Example
         ```python
         viewer.save_image("output.png")
         ```
     "#]
-    pub fn save_image(&self, path: &str, py: Python) {
+    pub fn save_image(&self, path: &str, py: Python) -> PyResult<()> {
+        use std::fs;
         let env_type = self.environment;
         match env_type {
-            RuntimeEnv::Colab | RuntimeEnv::Jupyter => {
+            RuntimeEnv::Colab => {
+                if let Some(ref wasm_viewer) = self.wasm_viewer {
+                    let img_buf_vec = wasm_viewer.take_screenshot_colab(py)?;
+                    if let Err(e) = fs::write(path, &img_buf_vec) {
+                        return Err(PyErr::new::<PyRuntimeError, _>(format!(
+                            "Error saving image: {}",
+                            e
+                        )));
+                    }
+                } else {
+                    return Err(PyErr::new::<PyRuntimeError, _>(
+                        "Viewer is not initialized properly",
+                    ));
+                }
+            }
+            RuntimeEnv::Jupyter => {
+                // test code
+                // if let Some(ref wasm_viewer) = self.wasm_viewer {
+                //     let img_buf_vec = wasm_viewer.take_screenshot_jupyter(py)?;
+                //     if let Err(e) = fs::write(path, &img_buf_vec) {
+                //         return Err(PyErr::new::<PyRuntimeError, _>(format!(
+                //             "Error saving image: {}",
+                //             e
+                //         )));
+                //     }
+                // } else {
+                //     return Err(PyErr::new::<PyRuntimeError, _>(
+                //         "Viewer is not initialized properly",
+                //     ));
+                // }
                 print_to_notebook(
                     c_str!(
-                        r###"print("\033[33m⚠️ Image saving in Jupyter/Colab is not yet fully supported.\033[0m")"###
+                        r###"print("\033[33m⚠️ Image saving in Jupyter is not yet fully supported.\033[0m")"###
                     ),
                     py,
                 );
@@ -641,11 +683,15 @@ impl Viewer {
                 let native_gui_viewer = &self.native_gui_viewer.as_ref().unwrap();
                 let img = native_gui_viewer.take_screenshot();
                 if let Err(e) = img.save(path) {
-                    panic!("{}", format!("Error saving image: {}", e))
+                    return Err(PyErr::new::<PyRuntimeError, _>(format!(
+                        "Error saving image: {}",
+                        e
+                    )));
                 }
             }
             _ => unreachable!(),
         }
+        Ok(())
     }
 }
 
@@ -665,6 +711,64 @@ fn cosmol_viewer(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     Ok(())
 }
 
-use pyo3_stub_gen::define_stub_info_gatherer;
+pub fn setup_wasm_if_needed(py: Python, env: RuntimeEnv) {
+    use base64::Engine;
+    use pyo3::types::PyAnyMethods;
 
+    match env {
+        RuntimeEnv::Colab => {}
+        _ => (),
+    }
+
+    const JS_CODE: &str = include_str!("../../wasm/pkg/cosmol_viewer_wasm.js");
+
+    let js_base64 = base64::engine::general_purpose::STANDARD.encode(JS_CODE);
+
+    let compressed_bytes = include_bytes!(concat!(env!("OUT_DIR"), "/compressed_wasm.bin"));
+    let mut decoder = ZlibDecoder::new(&compressed_bytes[..]);
+    let mut wasm_bytes = Vec::new();
+    decoder.read_to_end(&mut wasm_bytes).unwrap();
+
+    let wasm_base64 = base64::engine::general_purpose::STANDARD.encode(&wasm_bytes);
+
+    let combined_js = format!(
+        r#"
+(function() {{
+    const version = "{BUILD_ID}";
+    const ns = "cosmol_viewer_" + version;
+
+    if (!window[ns + "_ready"]) {{
+        // 1. setup JS module
+        const jsCode = atob("{js_base64}");
+        const jsBlob = new Blob([jsCode], {{ type: 'application/javascript' }});
+        window[ns + "_blob_url"] = URL.createObjectURL(jsBlob);
+
+        // 2. preload WASM
+        const wasmBytes = Uint8Array.from(atob("{wasm_base64}"), c => c.charCodeAt(0));
+        window[ns + "_wasm_bytes"] = wasmBytes;
+
+        window[ns + "_ready"] = true;
+        console.log("Cosmol viewer setup done, version:", version);
+    }} else {{
+        console.log("Cosmol viewer already set up, version:", version);
+    }}
+}})();
+        "#,
+        BUILD_ID = BUILD_ID,
+        js_base64 = js_base64,
+        wasm_base64 = wasm_base64
+    );
+
+    let ipython = py.import("IPython.display").unwrap();
+    let display = ipython.getattr("display").unwrap();
+
+    let js = ipython
+        .getattr("Javascript")
+        .unwrap()
+        .call1((combined_js,))
+        .unwrap();
+    display.call1((js,)).unwrap();
+}
+
+use pyo3_stub_gen::define_stub_info_gatherer;
 define_stub_info_gatherer!(stub_info);

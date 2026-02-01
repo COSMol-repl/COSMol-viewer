@@ -14,8 +14,8 @@ use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
     A sphere shape in the scene.
 
     # Args
-        - center: [x, y, z] coordinates of the sphere center.
-        - radius: Radius of the sphere.
+    - center: [x, y, z] coordinates of the sphere center.
+    - radius: Radius of the sphere.
 
     # Example
     ```python
@@ -69,9 +69,9 @@ impl PySphere {
     A cylindrical stick (or capsule) connecting two points.
 
     # Args
-        - start: Starting point [x, y, z].
-        - end: Ending point [x, y, z].
-        - thickness: Stick radius.
+    - start: Starting point [x, y, z].
+    - end: Ending point [x, y, z].
+    - thickness: Stick radius.
 
     # Example
     ```python
@@ -149,10 +149,10 @@ impl PyMolecule {
         Create a Molecule from an SDF format string.
 
         # Args
-            - sdf: The SDF file content as a string.
+        - sdf: The SDF file content as a string.
 
         # Returns
-            - Molecule: The parsed molecule object.
+        - Molecule: The parsed molecule object.
     "#]
     pub fn from_sdf(sdf: &str) -> PyResult<Self> {
         Ok(Self {
@@ -212,10 +212,10 @@ impl PyProtein {
         Create a Protein from an mmCIF format string.
 
         # Args
-            - mmcif: The mmCIF file content as a string.
+        - mmcif: The mmCIF file content as a string.
 
         # Returns
-            - Protein: The parsed protein object.
+        - Protein: The parsed protein object.
     "#]
     pub fn from_mmcif(mmcif: &str) -> PyResult<Self> {
         Ok(Self {

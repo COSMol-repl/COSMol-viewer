@@ -22,6 +22,8 @@ use image::{ImageBuffer, Rgba};
 
 pub struct AppWrapper<L: Logger>(pub Arc<Mutex<Option<App<L>>>>);
 
+pub const BUILD_ID: &str = concat!(env!("CARGO_PKG_VERSION"), compile_time::datetime_str!());
+
 impl<L: Logger> eframe::App for AppWrapper<L> {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         if let Some(app) = &mut *self.0.lock().unwrap() {
@@ -328,6 +330,16 @@ impl NativeGuiViewer {
         });
 
         loop {}
+    }
+
+    pub fn save_video(
+        animation: Animation,
+        filename: &str,
+        width: f32,
+        height: f32,
+        fps: Option<u32>, // If None, fps = 1 / animation.interval
+    ) -> Result<Self, RenderError> {
+        unimplemented!()
     }
 }
 fn load_icon() -> IconData {

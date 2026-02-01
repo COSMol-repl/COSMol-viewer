@@ -30,7 +30,7 @@ pub struct Canvas<L: Logger> {
 }
 
 impl<L: Logger> Canvas<L> {
-    pub fn new<'a>(gl: Arc<eframe::glow::Context>, scene: &Scene, logger: L) -> Option<Self> {
+    pub fn new(gl: Arc<eframe::glow::Context>, scene: &Scene, logger: L) -> Option<Self> {
         let camera_state = scene.camera_state.clone();
         Some(Self {
             shader: Arc::new(Mutex::new(Shader::new(&gl, scene)?)),
@@ -42,7 +42,7 @@ impl<L: Logger> Canvas<L> {
         })
     }
 
-    pub fn new_play<'a>(
+    pub fn new_play(
         gl: Arc<eframe::glow::Context>,
         animation: Animation,
         logger: L,
@@ -55,7 +55,7 @@ impl<L: Logger> Canvas<L> {
         Some(Self {
             shader: Arc::new(Mutex::new(Shader::new(&gl, init_frame)?)),
             camera_state: camera_state,
-            interpolate_enabled: animation.smooth,
+            interpolate_enabled: animation.interpolate,
             animation: Some(animation),
             animation_start_time: None,
             logger,
@@ -1051,7 +1051,6 @@ impl CameraState {
         }
     }
 
-    /// 根据 yaw / pitch / distance / target 生成摄像机位置和方向
     pub fn matrices(&self, aspect: f32) -> (Mat4, Mat4, Vec3) {
         // Camera looks down -Z in local space
         let local_forward = Vec3::new(0.0, 0.0, -1.0);
