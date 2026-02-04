@@ -13,7 +13,6 @@ use {
 
 #[cfg(feature = "js_bridge")]
 use {
-    pyo3::prelude::PyModule,
     pyo3::{PyErr, PyResult, Python, ffi::c_str},
     serde::Serialize,
     serde::de::DeserializeOwned,

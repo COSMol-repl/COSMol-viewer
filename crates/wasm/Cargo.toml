@@ -20,7 +20,7 @@ eframe = { workspace = true, optional = true }
 pyo3 = { workspace = true, optional = true }
 
 uuid = { version = "1.19.0", features = ["v4"], optional = true }
-log = { version = "0.4.28", optional = true }
+log = { version = "0.4.29", optional = true }
 wasm-bindgen-futures = { version = "0.4.58", optional = true }
 web-sys = { version = "0.3.85", features = ["HtmlCanvasElement", "console","Window"], optional = true }
 wasm-bindgen = { version = "0.2.108", optional = true }

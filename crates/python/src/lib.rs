@@ -1,12 +1,10 @@
 use cosmol_viewer_core::BUILD_ID;
 use cosmol_viewer_core::scene::Animation as _Animation;
-use flate2::read::ZlibDecoder;
 use pyo3::exceptions::PyIndexError;
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::exceptions::PyValueError;
 use std::env;
 use std::ffi::CStr;
-use std::io::Read;
 
 use pyo3::{ffi::c_str, prelude::*};
 
@@ -488,7 +486,7 @@ impl Viewer {
         let env_type = detect_runtime_env(py)?;
         match env_type {
             RuntimeEnv::Colab | RuntimeEnv::Jupyter => {
-                setup_wasm_if_needed(py, env_type);
+                setup_wasm_if_needed(py, env_type)?;
                 let wasm_viewer = WasmViewer::initiate_viewer(py, &scene.inner, width, height)?;
 
                 Ok(Viewer {
@@ -548,7 +546,7 @@ impl Viewer {
 
         match env_type {
             RuntimeEnv::Colab | RuntimeEnv::Jupyter => {
-                setup_wasm_if_needed(py, env_type);
+                setup_wasm_if_needed(py, env_type)?;
                 let wasm_viewer =
                     WasmViewer::initiate_viewer_and_play(py, animation.inner, width, height)?;
 
@@ -711,7 +709,7 @@ fn cosmol_viewer(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     Ok(())
 }
 
-pub fn setup_wasm_if_needed(py: Python, env: RuntimeEnv) {
+pub fn setup_wasm_if_needed(py: Python, env: RuntimeEnv) -> PyResult<()> {
     use base64::Engine;
     use pyo3::types::PyAnyMethods;
 
@@ -721,15 +719,10 @@ pub fn setup_wasm_if_needed(py: Python, env: RuntimeEnv) {
     }
 
     const JS_CODE: &str = include_str!("../../wasm/pkg/cosmol_viewer_wasm.js");
+    const WASM_BYTES: &[u8] = include_bytes!("../../wasm/pkg/cosmol_viewer_wasm_bg.wasm");
 
     let js_base64 = base64::engine::general_purpose::STANDARD.encode(JS_CODE);
-
-    let compressed_bytes = include_bytes!(concat!(env!("OUT_DIR"), "/compressed_wasm.bin"));
-    let mut decoder = ZlibDecoder::new(&compressed_bytes[..]);
-    let mut wasm_bytes = Vec::new();
-    decoder.read_to_end(&mut wasm_bytes).unwrap();
-
-    let wasm_base64 = base64::engine::general_purpose::STANDARD.encode(&wasm_bytes);
+    let wasm_base64 = base64::engine::general_purpose::STANDARD.encode(WASM_BYTES);
 
     let combined_js = format!(
         r#"
@@ -748,9 +741,9 @@ pub fn setup_wasm_if_needed(py: Python, env: RuntimeEnv) {
         window[ns + "_wasm_bytes"] = wasmBytes;
 
         window[ns + "_ready"] = true;
-        console.log("Cosmol viewer setup done, version:", version);
+        console.log("Cosmol viewer setup done, BUILD_ID:", version);
     }} else {{
-        console.log("Cosmol viewer already set up, version:", version);
+        console.log("Cosmol viewer already set up, BUILD_ID:", version);
     }}
 }})();
         "#,
@@ -759,15 +752,13 @@ pub fn setup_wasm_if_needed(py: Python, env: RuntimeEnv) {
         wasm_base64 = wasm_base64
     );
 
-    let ipython = py.import("IPython.display").unwrap();
-    let display = ipython.getattr("display").unwrap();
+    let ipython = py.import("IPython.display")?;
+    let display = ipython.getattr("display")?;
 
-    let js = ipython
-        .getattr("Javascript")
-        .unwrap()
-        .call1((combined_js,))
-        .unwrap();
-    display.call1((js,)).unwrap();
+    let js = ipython.getattr("Javascript")?.call1((combined_js,))?;
+    display.call1((js,))?;
+
+    Ok(())
 }
 
 use pyo3_stub_gen::define_stub_info_gatherer;

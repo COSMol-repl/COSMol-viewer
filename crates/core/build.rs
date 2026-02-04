@@ -12,9 +12,9 @@ fn main() {
 }
 
 fn svg_to_png(svg: &std::path::Path, png: &std::path::Path, width: u32, height: u32) {
+    use resvg::tiny_skia::{Pixmap, Transform};
+    use resvg::usvg::{Options, Tree};
     use std::fs;
-    use tiny_skia::{Pixmap, Transform};
-    use usvg::{Options, Tree};
 
     let svg_data = fs::read(svg).expect("Failed to read SVG");
 

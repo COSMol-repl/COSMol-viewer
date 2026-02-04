@@ -22,7 +22,11 @@ use image::{ImageBuffer, Rgba};
 
 pub struct AppWrapper<L: Logger>(pub Arc<Mutex<Option<App<L>>>>);
 
-pub const BUILD_ID: &str = concat!(env!("CARGO_PKG_VERSION"), compile_time::datetime_str!());
+pub const BUILD_ID: &str = concat!(
+    env!("CARGO_PKG_VERSION"),
+    "_",
+    compile_time::datetime_str!()
+);
 
 impl<L: Logger> eframe::App for AppWrapper<L> {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
