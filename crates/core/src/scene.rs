@@ -17,6 +17,7 @@ use crate::{
 // pub enum Instance {
 //     Sphere(SphereInstance),
 // }
+//
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Scene {
@@ -27,16 +28,8 @@ pub struct Scene {
     pub scale: f32,
     pub viewport: Option<[usize; 2]>,
     pub scene_center: [f32; 3],
-}
-
-pub struct SceneRef<'a> {
-    pub background_color: &'a [f32; 3],
-    pub camera_state: &'a CameraState,
-    pub named_shapes: &'a HashMap<String, Shape>,
-    pub unnamed_shapes: &'a Vec<Shape>,
-    pub scale: &'a f32,
-    pub viewport: &'a Option<[usize; 2]>,
-    pub scene_center: &'a [f32; 3],
+    pub camera_lights: Option<Lighting>,
+    // pub _world_lights: Lighting,
 }
 
 #[derive(Error, Debug)]
@@ -57,6 +50,7 @@ impl Default for Scene {
             scale: 1.0,
             viewport: None,
             scene_center: [0.0, 0.0, 0.0],
+            camera_lights: None,
         }
     }
 }
@@ -142,6 +136,15 @@ impl Scene {
             .extend(other.named_shapes.iter().map(|(_k, v)| v.clone()));
         self.unnamed_shapes.extend(other.unnamed_shapes.clone());
     }
+
+    pub fn add_camera_light(&mut self, light: Lighting) {
+        self.camera_lights = Some(light);
+    }
+
+    pub fn add_world_light(&mut self, light: Lighting) {
+        println!("{:?}", light);
+        unimplemented!()
+    }
 }
 
 impl Interpolatable for Scene {
@@ -149,9 +152,11 @@ impl Interpolatable for Scene {
         let named_shapes = self
             .named_shapes
             .iter()
-            .map(|(k, v)| {
-                let other_shape = &other.named_shapes[k];
-                (k.clone(), v.interpolate(other_shape, t, logger))
+            .filter_map(|(k, v)| {
+                other
+                    .named_shapes
+                    .get(k)
+                    .map(|ov| (k.clone(), v.interpolate(ov, t, logger)))
             })
             .collect();
 
@@ -167,12 +172,13 @@ impl Interpolatable for Scene {
 
         Self {
             background_color: self.background_color,
-            camera_state: self.camera_state, // 可以单独插值
+            camera_state: self.camera_state,
             named_shapes,
             unnamed_shapes,
             scale: self.scale * (1.0 - t) + other.scale * t,
             viewport: self.viewport,
             scene_center: [scene_center.x, scene_center.y, scene_center.z],
+            camera_lights: None,
         }
     }
 }
@@ -203,5 +209,48 @@ impl Animation {
 
     pub fn set_static_scene(&mut self, scene: Scene) {
         self.static_scene = Some(scene);
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct AmbientLight {
+    intensity: f32,
+    color: Vec3,
+}
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct DirectionalLight {
+    pub direction: Vec3,
+    pub intensity: f32,
+    pub color: Vec3,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct PointLight {
+    position: Vec3,
+    intensity: f32,
+    color: Vec3,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Lighting {
+    pub ambient: AmbientLight,
+    pub directionals: Option<DirectionalLight>,
+    pub points: Option<PointLight>,
+}
+
+impl Default for Lighting {
+    fn default() -> Self {
+        Self {
+            ambient: AmbientLight {
+                intensity: 0.1,
+                color: Vec3::new(1.0, 1.0, 1.0),
+            },
+            directionals: Some(DirectionalLight {
+                direction: Vec3::new(-1.0, 1.0, 5.0) * 1000.0,
+                color: Vec3::new(1.0, 0.97, 0.97),
+                intensity: 1.0,
+            }),
+            points: None,
+        }
     }
 }

@@ -250,8 +250,8 @@ impl WasmViewer {
             escaped = escaped
         );
 
-        let colab_output = py.import("google.colab")?;
-        let output = colab_output.getattr("output")?;
+        let colab_output = py.import("google.colab.output")?;
+        let output = colab_output.getattr("eval_js")?;
 
         let py_result = output.call1((combined_js,))?;
 
@@ -423,8 +423,8 @@ pub trait JsBridge {
     fn update(scene: &Scene) -> ();
 }
 
-#[cfg(feature = "wasm")]
 #[cfg(target_arch = "wasm32")]
+#[cfg(feature = "wasm")]
 use eframe::WebRunner;
 
 #[cfg(feature = "wasm")]
@@ -454,7 +454,6 @@ impl Logger for WasmLogger {
     }
 }
 
-#[cfg(feature = "wasm")]
 #[wasm_bindgen]
 pub struct WebHandle {
     #[cfg(target_arch = "wasm32")]
@@ -463,7 +462,6 @@ pub struct WebHandle {
     wasm_logger: WasmLogger,
 }
 
-#[cfg(feature = "wasm")]
 #[wasm_bindgen]
 impl WebHandle {
     #[wasm_bindgen(constructor)]

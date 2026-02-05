@@ -12,7 +12,7 @@ use eframe::{
 use glam::{Quat, Vec3};
 
 use crate::Scene;
-use crate::scene::Animation;
+use crate::scene::{Animation, Lighting};
 use crate::shapes::Sphere;
 use crate::shapes::SphereInstance;
 use crate::shapes::Stick;
@@ -120,24 +120,23 @@ impl<L: Logger> Canvas<L> {
             // 帧内插值进度 t
             let t = ((anim_time % frame_duration) / frame_duration) as f32;
             // 生成最终帧
-            let frame_to_render: Cow<Scene> = if is_finished {
-                Cow::Borrowed(&animation.frames[frame_count - 1])
+            let frame_to_render: Option<Cow<Scene>> = if is_finished {
+                Some(Cow::Borrowed(&animation.frames[frame_count - 1]))
             } else {
                 // 这里是原先的插值 / 非插值逻辑
                 if self.interpolate_enabled {
-                    Cow::Owned(animation.frames[frame_a_index].interpolate(
+                    Some(Cow::Owned(animation.frames[frame_a_index].interpolate(
                         &animation.frames[frame_b_index],
                         t,
                         self.logger,
-                    ))
+                    )))
                 } else {
-                    Cow::Borrowed(&animation.frames[frame_a_index])
+                    None
                 }
             };
-
-            self.shader
-                .lock()
-                .update_scene(Some(&frame_to_render), static_scene);
+            if let Some(frame) = frame_to_render {
+                self.shader.lock().update_scene(Some(&frame), static_scene);
+            }
         }
         let scroll_delta = ui.input(|i| i.raw_scroll_delta.y);
 
@@ -189,6 +188,7 @@ struct Shader {
     vao_mesh: glow::VertexArray,
     vao_sphere: glow::VertexArray,
     vao_stick: glow::VertexArray,
+    camera_lighting: Lighting,
     vertex3d: Vec<Vertex3d>,
     indices: Vec<u32>,
     sphere_index_count: usize,
@@ -721,6 +721,7 @@ impl Shader {
                 program_stick,
                 vertex3d: vec![],
                 indices: vec![],
+                camera_lighting: Lighting::default(),
                 vao_mesh,
                 vao_sphere,
                 vao_stick,
@@ -778,6 +779,10 @@ impl Shader {
         }
 
         self.instance_groups = Some(scene.get_instances_grouped());
+
+        if let Some(lighting) = scene.camera_lights.as_ref() {
+            self.camera_lighting = lighting.clone();
+        }
     }
 
     fn paint(&mut self, gl: &glow::Context, aspect_ratio: f32, camera_state: &CameraState) {
@@ -785,18 +790,25 @@ impl Shader {
 
         use glow::HasContext as _;
 
-        let light = Light {
-            direction: Vec3::new(-1.0, 1.0, 5.0) * 1000.0,
-            color: Vec3::new(1.0, 0.9, 0.9),
-            intensity: 1.0,
-        };
-
-        let light_dir_cam_space = light.direction;
-        let rot = Mat3::from_mat4(u_view); // 取上3x3
-        let light_dir_world = rot.transpose() * light_dir_cam_space; // 注意是逆旋转
+        let light_dir_cam_space =
+            if let Some(directionals) = self.camera_lighting.directionals.as_ref() {
+                directionals.direction.clone()
+            } else {
+                Vec3::new(0.0, 0.0, 0.0)
+            };
+        let light_color_cam_space =
+            if let Some(directionals) = self.camera_lighting.directionals.as_ref() {
+                directionals
+                    .color
+                    .clone()
+                    .map(|x| x * directionals.intensity)
+            } else {
+                Vec3::new(0.0, 0.0, 0.0)
+            };
+        let rot = Mat3::from_mat4(u_view);
+        let light_dir_world = rot.transpose() * light_dir_cam_space;
 
         unsafe {
-            // 背面剔除 + 深度测试
             gl.enable(glow::CULL_FACE);
             gl.cull_face(glow::BACK);
             gl.front_face(glow::CCW);
@@ -869,7 +881,7 @@ impl Shader {
             gl.uniform_3_f32_slice(
                 gl.get_uniform_location(self.program, "u_light_color")
                     .as_ref(),
-                (light.color.map(|x| x * light.intensity)).as_ref(),
+                light_color_cam_space.as_ref(),
             );
 
             gl.uniform_1_f32(
@@ -943,7 +955,7 @@ impl Shader {
                 gl.uniform_3_f32_slice(
                     gl.get_uniform_location(self.program_sphere, "u_light_color")
                         .as_ref(),
-                    (light.color.map(|x| x * light.intensity)).as_ref(),
+                    light_color_cam_space.as_ref(),
                 );
 
                 gl.uniform_1_f32(
@@ -1006,7 +1018,7 @@ impl Shader {
                 gl.uniform_3_f32_slice(
                     gl.get_uniform_location(self.program_stick, "u_light_color")
                         .as_ref(),
-                    (light.color.map(|x| x * light.intensity)).as_ref(),
+                    light_color_cam_space.as_ref(),
                 );
                 gl.uniform_1_f32(
                     gl.get_uniform_location(self.program_stick, "u_light_intensity")
