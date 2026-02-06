@@ -22,7 +22,7 @@ use crate::{
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Scene {
     pub background_color: [f32; 3],
-    pub camera_state: CameraState,
+    pub camera_state: Option<CameraState>,
     pub named_shapes: HashMap<String, Shape>,
     pub unnamed_shapes: Vec<Shape>,
     pub scale: f32,
@@ -44,7 +44,7 @@ impl Default for Scene {
     fn default() -> Self {
         Self {
             background_color: [1.0, 1.0, 1.0],
-            camera_state: CameraState::new(35.0),
+            camera_state: None,
             named_shapes: HashMap::new(),
             unnamed_shapes: Vec::new(),
             scale: 1.0,

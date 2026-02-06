@@ -26,6 +26,7 @@ pub struct Canvas<L: Logger> {
     animation: Option<Animation>,
     interpolate_enabled: bool,
     animation_start_time: Option<f64>,
+    last_frame_id: Option<usize>,
     logger: L,
 }
 
@@ -34,10 +35,11 @@ impl<L: Logger> Canvas<L> {
         let camera_state = scene.camera_state.clone();
         Some(Self {
             shader: Arc::new(Mutex::new(Shader::new(&gl, scene)?)),
-            camera_state: camera_state,
+            camera_state: camera_state.unwrap_or(CameraState::default()),
             animation: None,
             interpolate_enabled: false,
             animation_start_time: None,
+            last_frame_id: None,
             logger,
         })
     }
@@ -54,10 +56,11 @@ impl<L: Logger> Canvas<L> {
         let camera_state = init_frame.camera_state;
         Some(Self {
             shader: Arc::new(Mutex::new(Shader::new(&gl, init_frame)?)),
-            camera_state: camera_state,
+            camera_state: camera_state.unwrap_or(CameraState::default()),
             interpolate_enabled: animation.interpolate,
             animation: Some(animation),
             animation_start_time: None,
+            last_frame_id: None,
             logger,
         })
     }
@@ -83,15 +86,12 @@ impl<L: Logger> Canvas<L> {
                 self.animation_start_time = Some(ui.input(|i| i.time));
             }
 
-            // 播放总时长（秒）
             let frame_count = animation.frames.len();
             let frame_duration = animation.interval as f64 / 1000.0; // 秒
             let total_duration = frame_duration * frame_count as f64;
 
-            // 计算从动画开始到现在的累积时间
             let elapsed = now - self.animation_start_time.unwrap();
 
-            // 判断是否结束（loops = -1 表示无限循环）
             let mut is_finished = false;
             if animation.loops != -1 {
                 let max_loops = animation.loops as usize;
@@ -101,29 +101,24 @@ impl<L: Logger> Canvas<L> {
                 }
             }
 
-            // 计算当前在第几个 loop 内的 offset
             let anim_time = if animation.loops == -1 {
                 elapsed % total_duration
             } else {
                 elapsed % total_duration
             };
 
-            // 当前帧序号（整帧）
             let frame_index = (anim_time / frame_duration).floor() as usize;
             let frame_a_index = frame_index.min(frame_count - 1);
             let frame_b_index = if frame_a_index + 1 < frame_count {
                 frame_a_index + 1
             } else {
-                frame_a_index // 或者 0，如果你想循环插值
+                frame_a_index
             };
 
-            // 帧内插值进度 t
             let t = ((anim_time % frame_duration) / frame_duration) as f32;
-            // 生成最终帧
             let frame_to_render: Option<Cow<Scene>> = if is_finished {
                 Some(Cow::Borrowed(&animation.frames[frame_count - 1]))
             } else {
-                // 这里是原先的插值 / 非插值逻辑
                 if self.interpolate_enabled {
                     Some(Cow::Owned(animation.frames[frame_a_index].interpolate(
                         &animation.frames[frame_b_index],
@@ -131,7 +126,13 @@ impl<L: Logger> Canvas<L> {
                         self.logger,
                     )))
                 } else {
-                    None
+                    if Some(frame_a_index) != self.last_frame_id {
+                        self.last_frame_id = Some(frame_a_index);
+                        Some(Cow::Borrowed(&animation.frames[frame_a_index]))
+                    } else {
+                        self.last_frame_id = Some(frame_a_index);
+                        None
+                    }
                 }
             };
             if let Some(frame) = frame_to_render {
@@ -140,15 +141,11 @@ impl<L: Logger> Canvas<L> {
         }
         let scroll_delta = ui.input(|i| i.raw_scroll_delta.y);
 
-        // 正值表示向上滚动，通常是“缩小”，负值是放大
         if scroll_delta != 0.0 {
-            // zoom factor: same logic as before
             let zoom_factor = 1.0 + scroll_delta * 0.001;
 
-            // new distance
             self.camera_state.distance *= zoom_factor;
 
-            // clamp to safe range
             self.camera_state.distance = self.camera_state.distance.clamp(0.1, 500.0);
         }
 
@@ -1105,6 +1102,12 @@ impl CameraState {
         self.rotation = (q_yaw * q_pitch) * self.rotation;
 
         self.rotation = self.rotation.normalize();
+    }
+}
+
+impl Default for CameraState {
+    fn default() -> Self {
+        Self::new(35.0)
     }
 }
 

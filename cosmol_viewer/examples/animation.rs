@@ -39,6 +39,7 @@ fn main() {
             let b = 1.0 - r;
 
             let sphere = Sphere::new([x, y, z], radius).color([r, g, b]);
+            // scene.add_shape(sphere);
             scene.add_shape_with_id(*id, sphere);
         }
 
