@@ -10,7 +10,7 @@ use pyo3::{ffi::c_str, prelude::*};
 
 use crate::shapes::{PyMolecule, PyProtein, PySphere, PyStick};
 use cosmol_viewer_core::{NativeGuiViewer, scene::Scene as _Scene};
-use cosmol_viewer_wasm::WasmViewer;
+use cosmol_viewer_wasm::NotebookViewer;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
 mod shapes;
@@ -396,7 +396,7 @@ impl std::fmt::Display for RuntimeEnv {
 "#]
 pub struct Viewer {
     environment: RuntimeEnv,
-    wasm_viewer: Option<WasmViewer>,
+    wasm_viewer: Option<NotebookViewer>,
     native_gui_viewer: Option<NativeGuiViewer>,
     first_update: bool,
 }
@@ -487,7 +487,7 @@ impl Viewer {
         match env_type {
             RuntimeEnv::Colab | RuntimeEnv::Jupyter => {
                 setup_wasm_if_needed(py, env_type)?;
-                let wasm_viewer = WasmViewer::initiate_viewer(py, &scene.inner, width, height)?;
+                let wasm_viewer = NotebookViewer::initiate_viewer(py, &scene.inner, width, height)?;
 
                 Ok(Viewer {
                     environment: env_type,
@@ -548,7 +548,7 @@ impl Viewer {
             RuntimeEnv::Colab | RuntimeEnv::Jupyter => {
                 setup_wasm_if_needed(py, env_type)?;
                 let wasm_viewer =
-                    WasmViewer::initiate_viewer_and_play(py, animation.inner, width, height)?;
+                    NotebookViewer::initiate_viewer_and_play(py, animation.inner, width, height)?;
 
                 Ok(Viewer {
                     environment: env_type,
