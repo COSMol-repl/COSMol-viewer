@@ -92,6 +92,10 @@ impl<L: Logger> App<L> {
         self.canvas.update_scene(scene);
     }
 
+    pub fn set_camera_parameter_logging(&mut self, enabled: bool) {
+        self.canvas.set_camera_parameter_logging(enabled);
+    }
+
     pub fn take_screenshot(&mut self) {
         self.screenshot_requested = true;
     }
@@ -277,6 +281,16 @@ impl NativeGuiViewer {
         let mut app_guard = self.app.lock().unwrap();
         if let Some(app) = &mut *app_guard {
             app.update_scene(scene);
+            app.ctx.request_repaint();
+        } else {
+            panic!("App not initialized")
+        }
+    }
+
+    pub fn set_camera_parameter_logging(&self, enabled: bool) {
+        let mut app_guard = self.app.lock().unwrap();
+        if let Some(app) = &mut *app_guard {
+            app.set_camera_parameter_logging(enabled);
             app.ctx.request_repaint();
         } else {
             panic!("App not initialized")

@@ -43,6 +43,10 @@ windows-sys = { version = "0.61.2", features = [
     "Win32_UI_WindowsAndMessaging",
 ] }
 
+[target.'cfg(target_os = "linux")'.dependencies]
+glutin_egl_sys = "0.7.1"
+libloading = "0.8.9"
+
 [features]
 default = []
 wayland = []

@@ -9,7 +9,7 @@ use eframe::{
     egui::{self, Vec2, mutex::Mutex},
     egui_glow, glow,
 };
-use glam::{Quat, Vec3};
+use glam::{EulerRot, Quat, Vec3};
 
 use crate::Scene;
 use crate::scene::{Animation, AutoRotate, DepthCue, Lighting};
@@ -81,6 +81,10 @@ struct SceneUniforms {
     view_pos: Option<glow::UniformLocation>,
     light_color: Option<glow::UniformLocation>,
     light_intensity: Option<glow::UniformLocation>,
+    ambient_light_color: Option<glow::UniformLocation>,
+    ambient_light_intensity: Option<glow::UniformLocation>,
+    diffuse_light_intensity: Option<glow::UniformLocation>,
+    specular_light_intensity: Option<glow::UniformLocation>,
     render_pass: Option<glow::UniformLocation>,
     depth_cue_enabled: Option<glow::UniformLocation>,
     depth_cue_color: Option<glow::UniformLocation>,
@@ -101,6 +105,11 @@ impl SceneUniforms {
             view_pos: gl.get_uniform_location(program, "u_view_pos"),
             light_color: gl.get_uniform_location(program, "u_light_color"),
             light_intensity: gl.get_uniform_location(program, "u_light_intensity"),
+            ambient_light_color: gl.get_uniform_location(program, "u_ambient_light_color"),
+            ambient_light_intensity: gl.get_uniform_location(program, "u_ambient_light_intensity"),
+            diffuse_light_intensity: gl.get_uniform_location(program, "u_diffuse_light_intensity"),
+            specular_light_intensity: gl
+                .get_uniform_location(program, "u_specular_light_intensity"),
             render_pass: gl.get_uniform_location(program, "u_render_pass"),
             depth_cue_enabled: gl.get_uniform_location(program, "u_depth_cue_enabled"),
             depth_cue_color: gl.get_uniform_location(program, "u_depth_cue_color"),
@@ -177,14 +186,17 @@ pub struct Canvas<L: Logger> {
     auto_rotate_last_time: Option<f64>,
     last_frame_id: Option<usize>,
     logger: L,
+    camera_parameter_logging: bool,
+    last_logged_camera_state: CameraState,
+    last_camera_log_time: Option<f64>,
 }
 
 impl<L: Logger> Canvas<L> {
     pub fn new(gl: Arc<eframe::glow::Context>, scene: &Scene, logger: L) -> Option<Self> {
-        let camera_state = scene.camera_state.clone();
+        let camera_state = scene.camera_state.unwrap_or(CameraState::default());
         Some(Self {
             shader: Arc::new(Mutex::new(Shader::new(&gl, scene)?)),
-            camera_state: camera_state.unwrap_or(CameraState::default()),
+            camera_state,
             animation: None,
             auto_rotate: scene.auto_rotate,
             interpolate_enabled: false,
@@ -192,6 +204,9 @@ impl<L: Logger> Canvas<L> {
             auto_rotate_last_time: None,
             last_frame_id: None,
             logger,
+            camera_parameter_logging: false,
+            last_logged_camera_state: camera_state,
+            last_camera_log_time: None,
         })
     }
 
@@ -204,10 +219,10 @@ impl<L: Logger> Canvas<L> {
             unreachable!("Animation must have at least one frame");
         }
         let init_frame = &animation.frames[0];
-        let camera_state = init_frame.camera_state;
+        let camera_state = init_frame.camera_state.unwrap_or(CameraState::default());
         Some(Self {
             shader: Arc::new(Mutex::new(Shader::new(&gl, init_frame)?)),
-            camera_state: camera_state.unwrap_or(CameraState::default()),
+            camera_state,
             interpolate_enabled: animation.interpolate,
             auto_rotate: init_frame.auto_rotate,
             animation: Some(animation),
@@ -215,7 +230,16 @@ impl<L: Logger> Canvas<L> {
             auto_rotate_last_time: None,
             last_frame_id: None,
             logger,
+            camera_parameter_logging: false,
+            last_logged_camera_state: camera_state,
+            last_camera_log_time: None,
         })
+    }
+
+    pub fn set_camera_parameter_logging(&mut self, enabled: bool) {
+        self.camera_parameter_logging = enabled;
+        self.last_logged_camera_state = self.camera_state;
+        self.last_camera_log_time = None;
     }
 
     pub fn custom_painting(&mut self, ui: &mut egui::Ui) {
@@ -233,6 +257,11 @@ impl<L: Logger> Canvas<L> {
         };
 
         if let Some(animation) = self.animation.as_ref() {
+            if animation.frames.is_empty() {
+                self.logger.error("Animation contains no frames");
+                return;
+            }
+
             ui.ctx().request_repaint();
             let now = ui.input(|i| i.time);
             if let None = self.animation_start_time {
@@ -327,6 +356,8 @@ impl<L: Logger> Canvas<L> {
             self.auto_rotate_last_time = None;
         }
 
+        self.log_camera_parameters_if_changed(ui);
+
         // Clone locals so we can move them into the paint callback:
         let shader = self.shader.clone();
 
@@ -353,6 +384,31 @@ impl<L: Logger> Canvas<L> {
 
     pub fn transparent_background(&self) -> bool {
         self.shader.lock().transparent_background()
+    }
+
+    fn log_camera_parameters_if_changed(&mut self, ui: &egui::Ui) {
+        if !self.camera_parameter_logging {
+            return;
+        }
+
+        if !self
+            .camera_state
+            .is_visibly_different_from(&self.last_logged_camera_state)
+        {
+            return;
+        }
+
+        let now = ui.input(|i| i.time);
+        if self
+            .last_camera_log_time
+            .is_some_and(|last| now - last < 0.2)
+        {
+            return;
+        }
+
+        self.logger.log(self.camera_state.format_orbit_parameters());
+        self.last_logged_camera_state = self.camera_state;
+        self.last_camera_log_time = Some(now);
     }
 }
 
@@ -1132,6 +1188,11 @@ impl Shader {
         u_view_pos: Vec3,
         light_dir_world: Vec3,
         light_color: Vec3,
+        light_intensity: f32,
+        ambient_light_color: Vec3,
+        ambient_light_intensity: f32,
+        diffuse_light_intensity: f32,
+        specular_light_intensity: f32,
         depth_cue_range: [f32; 2],
         pass: SceneRenderPass,
     ) {
@@ -1149,7 +1210,23 @@ impl Shader {
         gl.uniform_3_f32_slice(uniforms.light_pos.as_ref(), light_dir_world.as_ref());
         gl.uniform_3_f32_slice(uniforms.view_pos.as_ref(), u_view_pos.as_ref());
         gl.uniform_3_f32_slice(uniforms.light_color.as_ref(), light_color.as_ref());
-        gl.uniform_1_f32(uniforms.light_intensity.as_ref(), 1.0);
+        gl.uniform_1_f32(uniforms.light_intensity.as_ref(), light_intensity);
+        gl.uniform_3_f32_slice(
+            uniforms.ambient_light_color.as_ref(),
+            ambient_light_color.as_ref(),
+        );
+        gl.uniform_1_f32(
+            uniforms.ambient_light_intensity.as_ref(),
+            ambient_light_intensity,
+        );
+        gl.uniform_1_f32(
+            uniforms.diffuse_light_intensity.as_ref(),
+            diffuse_light_intensity,
+        );
+        gl.uniform_1_f32(
+            uniforms.specular_light_intensity.as_ref(),
+            specular_light_intensity,
+        );
         gl.uniform_1_i32(uniforms.render_pass.as_ref(), pass as i32);
         gl.uniform_1_i32(
             uniforms.depth_cue_enabled.as_ref(),
@@ -1171,6 +1248,11 @@ impl Shader {
         u_view_pos: Vec3,
         light_dir_world: Vec3,
         light_color: Vec3,
+        light_intensity: f32,
+        ambient_light_color: Vec3,
+        ambient_light_intensity: f32,
+        diffuse_light_intensity: f32,
+        specular_light_intensity: f32,
         depth_cue_range: [f32; 2],
         pass: SceneRenderPass,
     ) {
@@ -1188,6 +1270,11 @@ impl Shader {
                 u_view_pos,
                 light_dir_world,
                 light_color,
+                light_intensity,
+                ambient_light_color,
+                ambient_light_intensity,
+                diffuse_light_intensity,
+                specular_light_intensity,
                 depth_cue_range,
                 pass,
             );
@@ -1214,6 +1301,11 @@ impl Shader {
                     u_view_pos,
                     light_dir_world,
                     light_color,
+                    light_intensity,
+                    ambient_light_color,
+                    ambient_light_intensity,
+                    diffuse_light_intensity,
+                    specular_light_intensity,
                     depth_cue_range,
                     pass,
                 );
@@ -1239,6 +1331,11 @@ impl Shader {
                     u_view_pos,
                     light_dir_world,
                     light_color,
+                    light_intensity,
+                    ambient_light_color,
+                    ambient_light_intensity,
+                    diffuse_light_intensity,
+                    specular_light_intensity,
                     depth_cue_range,
                     pass,
                 );
@@ -1264,21 +1361,19 @@ impl Shader {
 
         use glow::HasContext as _;
 
-        let light_dir_cam_space =
-            if let Some(directionals) = self.camera_lighting.directionals.as_ref() {
-                directionals.direction.clone()
-            } else {
-                Vec3::new(0.0, 0.0, 0.0)
-            };
-        let light_color_cam_space =
-            if let Some(directionals) = self.camera_lighting.directionals.as_ref() {
-                directionals
-                    .color
-                    .clone()
-                    .map(|x| x * directionals.intensity)
-            } else {
-                Vec3::new(0.0, 0.0, 0.0)
-            };
+        let directional = self
+            .camera_lighting
+            .directionals
+            .as_ref()
+            .cloned()
+            .unwrap_or_else(Lighting::default_directional);
+        let light_dir_cam_space = directional.direction;
+        let light_color_cam_space = directional.color;
+        let light_intensity = directional.intensity;
+        let diffuse_light_intensity = directional.diffuse;
+        let specular_light_intensity = directional.specular;
+        let ambient_light_color = self.camera_lighting.ambient.color;
+        let ambient_light_intensity = self.camera_lighting.ambient.intensity;
         let rot = Mat3::from_mat4(u_view);
         let light_dir_world = rot.transpose() * light_dir_cam_space;
         let depth_cue_range = self
@@ -1328,6 +1423,11 @@ impl Shader {
                 u_view_pos,
                 light_dir_world,
                 light_color_cam_space,
+                light_intensity,
+                ambient_light_color,
+                ambient_light_intensity,
+                diffuse_light_intensity,
+                specular_light_intensity,
                 depth_cue_range,
                 SceneRenderPass::Opaque,
             );
@@ -1345,6 +1445,11 @@ impl Shader {
                     u_view_pos,
                     light_dir_world,
                     light_color_cam_space,
+                    light_intensity,
+                    ambient_light_color,
+                    ambient_light_intensity,
+                    diffuse_light_intensity,
+                    specular_light_intensity,
                     depth_cue_range,
                     SceneRenderPass::TransparentDepth,
                 );
@@ -1365,6 +1470,11 @@ impl Shader {
                     u_view_pos,
                     light_dir_world,
                     light_color_cam_space,
+                    light_intensity,
+                    ambient_light_color,
+                    ambient_light_intensity,
+                    diffuse_light_intensity,
+                    specular_light_intensity,
                     depth_cue_range,
                     SceneRenderPass::TransparentColor,
                 );
@@ -1621,6 +1731,46 @@ impl CameraState {
         let delta = Quat::from_axis_angle(camera_up, degrees.to_radians());
         self.rotation = (delta * self.rotation).normalize();
     }
+
+    pub fn orbit_angles_degrees(&self) -> (f32, f32, f32) {
+        let (azimuth, elevation, roll) = self.rotation.to_euler(EulerRot::YXZ);
+        (
+            normalize_degrees(azimuth.to_degrees()),
+            normalize_degrees(elevation.to_degrees()),
+            normalize_degrees(roll.to_degrees()),
+        )
+    }
+
+    pub fn format_orbit_parameters(&self) -> String {
+        let (azimuth, elevation, roll) = self.orbit_angles_degrees();
+        format!(
+            "camera: azimuth={:.3}, elevation={:.3}, roll={:.3}, distance={:.3}, target=[{:.3}, {:.3}, {:.3}], fov={:.3}",
+            azimuth,
+            elevation,
+            roll,
+            self.distance,
+            self.target.x,
+            self.target.y,
+            self.target.z,
+            self.fov
+        )
+    }
+
+    fn is_visibly_different_from(&self, other: &Self) -> bool {
+        (self.target - other.target).length_squared() > 1.0e-8
+            || (self.distance - other.distance).abs() > 1.0e-4
+            || (self.fov - other.fov).abs() > 1.0e-4
+            || self.rotation.dot(other.rotation).abs() < 0.999_999
+    }
+}
+
+fn normalize_degrees(degrees: f32) -> f32 {
+    let normalized = (degrees + 180.0).rem_euclid(360.0) - 180.0;
+    if normalized == -180.0 {
+        180.0
+    } else {
+        normalized
+    }
 }
 
 impl Default for CameraState {
@@ -1646,8 +1796,8 @@ pub struct Light {
 
 #[cfg(test)]
 mod tests {
-    use super::{AlphaCoverage, SceneBounds, SceneRenderPass};
-    use crate::scene::DepthCue;
+    use super::{AlphaCoverage, CameraState, SceneBounds, SceneRenderPass};
+    use crate::scene::{DepthCue, Lighting};
     use glam::{Mat4, Vec3};
 
     #[test]
@@ -1685,5 +1835,35 @@ mod tests {
         );
 
         assert_eq!(range, [6.0, 10.0]);
+    }
+
+    #[test]
+    fn camera_orbit_angles_round_trip_to_same_rotation() {
+        let camera =
+            CameraState::from_orbit_angles(135.0, -25.0, 12.0, 32.0, [1.0, 2.0, 3.0], 18.0);
+        let (azimuth, elevation, roll) = camera.orbit_angles_degrees();
+        let reconstructed = CameraState::from_orbit_angles(
+            azimuth,
+            elevation,
+            roll,
+            camera.distance,
+            camera.target.to_array(),
+            camera.fov,
+        );
+
+        assert!(camera.rotation.dot(reconstructed.rotation).abs() > 0.999_99);
+    }
+
+    #[test]
+    fn default_lighting_matches_previous_shader_constants() {
+        let lighting = Lighting::default();
+        let directional = lighting.directionals.as_ref().unwrap();
+
+        assert_eq!(lighting.ambient.intensity, 0.55);
+        assert_eq!(lighting.ambient.color.to_array(), [1.0, 0.97, 0.97]);
+        assert_eq!(directional.diffuse, 0.65);
+        assert_eq!(directional.specular, 1.0);
+        assert_eq!(directional.intensity, 1.0);
+        assert_eq!(directional.color.to_array(), [1.0, 0.97, 0.97]);
     }
 }

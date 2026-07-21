@@ -312,6 +312,54 @@ impl Scene {
         self.camera_lights = Some(light);
     }
 
+    pub fn set_lighting(
+        &mut self,
+        ambient: f32,
+        diffuse: f32,
+        specular: f32,
+        intensity: f32,
+        color: Vec3,
+    ) {
+        self.camera_lights = Some(Lighting {
+            ambient: AmbientLight {
+                intensity: ambient,
+                color,
+            },
+            directionals: Some(DirectionalLight {
+                diffuse,
+                specular,
+                intensity,
+                color,
+                ..Lighting::default_directional()
+            }),
+            points: None,
+        });
+    }
+
+    pub fn set_light_intensity(&mut self, intensity: f32) {
+        let mut lighting = self.camera_lights.clone().unwrap_or_default();
+        if let Some(directional) = lighting.directionals.as_mut() {
+            directional.intensity = intensity;
+        }
+        self.camera_lights = Some(lighting);
+    }
+
+    pub fn set_ambient_light(&mut self, intensity: f32) {
+        let mut lighting = self.camera_lights.clone().unwrap_or_default();
+        lighting.ambient.intensity = intensity;
+        self.camera_lights = Some(lighting);
+    }
+
+    pub fn set_light_color<C: Into<Color>>(&mut self, color: C) {
+        let color = color.into().into();
+        let mut lighting = self.camera_lights.clone().unwrap_or_default();
+        lighting.ambient.color = color;
+        if let Some(directional) = lighting.directionals.as_mut() {
+            directional.color = color;
+        }
+        self.camera_lights = Some(lighting);
+    }
+
     pub fn add_world_light(&mut self, light: Lighting) {
         println!("{:?}", light);
         unimplemented!()
@@ -424,13 +472,17 @@ impl Animation {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AmbientLight {
-    intensity: f32,
-    color: Vec3,
+    pub intensity: f32,
+    pub color: Vec3,
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DirectionalLight {
     pub direction: Vec3,
     pub intensity: f32,
+    #[serde(default = "default_diffuse_light")]
+    pub diffuse: f32,
+    #[serde(default = "default_specular_light")]
+    pub specular: f32,
     pub color: Vec3,
 }
 
@@ -452,15 +504,43 @@ impl Default for Lighting {
     fn default() -> Self {
         Self {
             ambient: AmbientLight {
-                intensity: 0.1,
-                color: Vec3::new(1.0, 1.0, 1.0),
+                intensity: default_ambient_light(),
+                color: default_light_color(),
             },
-            directionals: Some(DirectionalLight {
-                direction: Vec3::new(-1.0, 1.0, 5.0) * 1000.0,
-                color: Vec3::new(1.0, 0.97, 0.97),
-                intensity: 1.0,
-            }),
+            directionals: Some(Self::default_directional()),
             points: None,
         }
     }
+}
+
+impl Lighting {
+    pub fn default_directional() -> DirectionalLight {
+        DirectionalLight {
+            direction: Vec3::new(-1.0, 1.0, 5.0) * 1000.0,
+            color: default_light_color(),
+            intensity: default_light_intensity(),
+            diffuse: default_diffuse_light(),
+            specular: default_specular_light(),
+        }
+    }
+}
+
+pub fn default_light_color() -> Vec3 {
+    Vec3::new(1.0, 0.97, 0.97)
+}
+
+fn default_light_intensity() -> f32 {
+    1.0
+}
+
+fn default_ambient_light() -> f32 {
+    0.55
+}
+
+fn default_diffuse_light() -> f32 {
+    0.65
+}
+
+fn default_specular_light() -> f32 {
+    1.0
 }

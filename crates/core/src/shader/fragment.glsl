@@ -4,6 +4,10 @@ uniform vec3 u_light_pos;
 uniform vec3 u_light_color;
 uniform vec3 u_view_pos;
 uniform float u_light_intensity;
+uniform vec3 u_ambient_light_color;
+uniform float u_ambient_light_intensity;
+uniform float u_diffuse_light_intensity;
+uniform float u_specular_light_intensity;
 uniform int u_render_pass;
 uniform int u_depth_cue_enabled;
 uniform vec3 u_depth_cue_color;
@@ -43,12 +47,12 @@ void main() {
     vec3 base_color = v_color.rgb;
 
     // === Ambient ===
-    vec3 ambient = 0.55 * u_light_color * base_color;
+    vec3 ambient = u_ambient_light_intensity * u_ambient_light_color * base_color;
 
     // === Diffuse ===
     float diff = max(dot(N, L), 0.0);
     vec3 diffuse_color = mix(base_color, base_color * 0.2, metallic);
-    vec3 diffuse = 0.65 * diff * u_light_color * diffuse_color;
+    vec3 diffuse = u_diffuse_light_intensity * diff * u_light_color * diffuse_color;
 
     // Roughness controls highlight width. Metallic tints the specular lobe.
     vec3 H = normalize(L + V);
@@ -56,7 +60,7 @@ void main() {
     float spec = pow(max(dot(N, H), 0.0), shininess);
     float spec_strength = mix(0.45, 0.08, roughness);
     vec3 specular_color = mix(vec3(1.0), base_color, metallic);
-    vec3 specular = spec_strength * spec * u_light_color * specular_color;
+    vec3 specular = u_specular_light_intensity * spec_strength * spec * u_light_color * specular_color;
 
     // === Final Color ===
     vec3 lighting = ambient + diffuse + specular;

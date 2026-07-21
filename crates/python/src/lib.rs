@@ -15,7 +15,10 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use pyo3::{ffi::c_str, prelude::*};
 
 use crate::shapes::{PyMolecule, PyProtein, PySphere, PyStick};
-use cosmol_viewer_core::{ImageBackground, ImageRenderer, NativeGuiViewer, scene::Scene as _Scene};
+use cosmol_viewer_core::{
+    ImageBackground, ImageRenderer, NativeGuiViewer,
+    scene::{Scene as _Scene, default_light_color},
+};
 use cosmol_viewer_wasm::NotebookViewer;
 #[cfg(feature = "stubgen")]
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
@@ -434,6 +437,81 @@ color : tuple[int, int, int] or str
     pub fn set_depth_cue_color(&mut self, color: Bound<'_, PyAny>) -> PyResult<()> {
         let color = py_to_color(color)?;
         self.inner.set_depth_cue_color(color);
+        Ok(())
+    }
+
+    #[doc = r##"
+Set scene lighting parameters.
+
+The defaults match the renderer's historical hard-coded lighting, so calling
+this method with no arguments preserves the old appearance.
+
+Parameters
+----------
+ambient : float, optional
+    Global ambient light strength. Defaults to ``0.55``.
+diffuse : float, optional
+    Directional diffuse light strength. Defaults to ``0.65``.
+specular : float, optional
+    Multiplier for the existing material-dependent specular highlight curve.
+    Defaults to ``1.0``.
+intensity : float, optional
+    Final directional light multiplier. Defaults to ``1.0``.
+color : tuple[int, int, int] or str, optional
+    RGB light color as a tuple or hex string such as ``"#fff7f7"``. Defaults
+    to the previous light color ``[255, 247, 247]``.
+"##]
+    #[pyo3(signature = (ambient=0.55, diffuse=0.65, specular=1.0, intensity=1.0, color=None))]
+    pub fn set_lighting(
+        &mut self,
+        ambient: f32,
+        diffuse: f32,
+        specular: f32,
+        intensity: f32,
+        color: Option<Bound<'_, PyAny>>,
+    ) -> PyResult<()> {
+        let color = match color {
+            Some(color) => py_to_color(color)?.into(),
+            None => default_light_color(),
+        };
+        self.inner
+            .set_lighting(ambient, diffuse, specular, intensity, color);
+        Ok(())
+    }
+
+    #[doc = r#"
+Set the final directional light intensity multiplier.
+
+Defaults to ``1.0``. Increasing this brightens the whole lit scene while keeping
+the current ambient, diffuse, specular, and light color settings.
+"#]
+    pub fn set_light_intensity(&mut self, intensity: f32) {
+        self.inner.set_light_intensity(intensity);
+    }
+
+    #[doc = r#"
+Set the global ambient light strength.
+
+Defaults to ``0.55``, matching the renderer's previous hard-coded ambient term.
+"#]
+    pub fn set_ambient_light(&mut self, intensity: f32) {
+        self.inner.set_ambient_light(intensity);
+    }
+
+    #[doc = r##"
+Set the scene light color.
+
+The color affects both ambient and directional light. The default light color is
+``[255, 247, 247]``, matching the renderer's previous hard-coded color.
+
+Parameters
+----------
+color : tuple[int, int, int] or str
+    RGB light color tuple or hex string such as ``"#fff7f7"``.
+"##]
+    pub fn set_light_color(&mut self, color: Bound<'_, PyAny>) -> PyResult<()> {
+        let color = py_to_color(color)?;
+        self.inner.set_light_color(color);
         Ok(())
     }
 
@@ -1186,6 +1264,42 @@ rendering capacity, which can lead to delayed or incomplete rendering.
             _ => unreachable!(),
         }
         Ok(())
+    }
+
+    #[doc = r#"
+Enable or disable logging camera parameters whenever the native viewer camera moves.
+
+When enabled, native viewer interaction logs one line of orbit-style camera
+parameters after drag, zoom, or auto-rotation changes the camera. The printed
+values can be passed back to ``scene.set_camera_view(...)`` to reproduce the
+view. Logging is disabled by default, and the angle conversion is only computed
+while this option is enabled.
+
+Parameters
+----------
+enabled : bool, optional
+    Whether to print camera parameters on camera movement. Defaults to ``True``.
+"#]
+    #[pyo3(signature = (enabled=true))]
+    pub fn set_camera_parameter_logging(&mut self, enabled: bool) -> PyResult<()> {
+        match self.environment {
+            RuntimeEnv::PlainScript | RuntimeEnv::IPythonTerminal => {
+                if let Some(ref native_gui_viewer) = self.native_gui_viewer {
+                    native_gui_viewer.set_camera_parameter_logging(enabled);
+                    Ok(())
+                } else {
+                    Err(PyRuntimeError::new_err(
+                        "Native viewer is not initialized properly",
+                    ))
+                }
+            }
+            RuntimeEnv::Colab | RuntimeEnv::Jupyter => Err(PyRuntimeError::new_err(
+                "Camera parameter logging is only available for native viewers",
+            )),
+            _ => Err(PyRuntimeError::new_err(
+                "Camera parameter logging is not available in this runtime environment",
+            )),
+        }
     }
 }
 

@@ -35,11 +35,28 @@ pub enum ImageBackground {
 
 struct OffscreenGl {
     gl: glow::Context,
-    _context: glutin::context::PossiblyCurrentContext,
-    _surface: Surface<PbufferSurface>,
-    _window: Option<Window>,
-    #[cfg(target_os = "windows")]
-    _win32_window: Option<HiddenWin32Window>,
+    _backend: OffscreenBackend,
+}
+
+enum OffscreenBackend {
+    Glutin {
+        _context: glutin::context::PossiblyCurrentContext,
+        _surface: Surface<PbufferSurface>,
+        _window: Option<Window>,
+        #[cfg(target_os = "windows")]
+        _win32_window: Option<HiddenWin32Window>,
+    },
+    #[cfg(target_os = "linux")]
+    RawEgl(RawEglContext),
+}
+
+#[cfg(target_os = "linux")]
+struct RawEglContext {
+    egl: glutin_egl_sys::egl::Egl,
+    display: glutin_egl_sys::egl::types::EGLDisplay,
+    context: glutin_egl_sys::egl::types::EGLContext,
+    surface: glutin_egl_sys::egl::types::EGLSurface,
+    _library: libloading::Library,
 }
 
 #[cfg(target_os = "windows")]
@@ -156,6 +173,236 @@ fn unique_wgl_class_name() -> String {
     static COUNTER: AtomicUsize = AtomicUsize::new(0);
     let id = COUNTER.fetch_add(1, Ordering::Relaxed);
     format!("cosmol_viewer_offscreen_wgl_{}_{}", std::process::id(), id)
+}
+
+#[cfg(target_os = "linux")]
+impl RawEglContext {
+    const PLATFORM_SURFACELESS_MESA: u32 = 0x31DD;
+
+    fn new(width: NonZeroU32, height: NonZeroU32) -> Result<(Self, glow::Context), String> {
+        use glutin_egl_sys::egl;
+        use std::ffi::c_void;
+
+        let library = unsafe {
+            libloading::Library::new("libEGL.so.1")
+                .or_else(|_| libloading::Library::new("libEGL.so"))
+        }
+        .map_err(|err| format!("could not load libEGL: {err}"))?;
+        let egl = egl::Egl::load_with(|symbol| unsafe {
+            library
+                .get::<*const c_void>(symbol.as_bytes())
+                .map(|address| *address)
+                .unwrap_or(std::ptr::null())
+        });
+
+        let display = unsafe {
+            if egl.GetPlatformDisplay.is_loaded() {
+                egl.GetPlatformDisplay(
+                    Self::PLATFORM_SURFACELESS_MESA,
+                    std::ptr::null_mut(),
+                    [egl::NONE as isize].as_ptr(),
+                )
+            } else if egl.GetPlatformDisplayEXT.is_loaded() {
+                egl.GetPlatformDisplayEXT(
+                    Self::PLATFORM_SURFACELESS_MESA,
+                    std::ptr::null_mut(),
+                    [egl::NONE as i32].as_ptr(),
+                )
+            } else {
+                return Err("libEGL exposes no platform-display function".to_owned());
+            }
+        };
+        if display == egl::NO_DISPLAY {
+            return Err(format!(
+                "eglGetPlatformDisplay(EGL_PLATFORM_SURFACELESS_MESA) failed: {}",
+                egl_error(&egl)
+            ));
+        }
+
+        let mut major = 0;
+        let mut minor = 0;
+        if unsafe { egl.Initialize(display, &mut major, &mut minor) } == egl::FALSE {
+            return Err(format!(
+                "eglInitialize(surfaceless) failed: {}",
+                egl_error(&egl)
+            ));
+        }
+
+        let current = unsafe {
+            Self::create_current_context(&egl, display, width, height, false).or_else(
+                |desktop_error| {
+                    Self::create_current_context(&egl, display, width, height, true).map_err(
+                        |gles_error| {
+                            format!("desktop OpenGL: {desktop_error}; OpenGL ES: {gles_error}")
+                        },
+                    )
+                },
+            )
+        };
+        let (context, surface) = match current {
+            Ok(current) => current,
+            Err(err) => {
+                unsafe {
+                    egl.Terminate(display);
+                }
+                return Err(err);
+            }
+        };
+
+        let gl = unsafe {
+            glow::Context::from_loader_function(|symbol| {
+                let symbol = CString::new(symbol).expect("GL symbol contained NUL");
+                egl.GetProcAddress(symbol.as_ptr()).cast()
+            })
+        };
+
+        Ok((
+            Self {
+                egl,
+                display,
+                context,
+                surface,
+                _library: library,
+            },
+            gl,
+        ))
+    }
+
+    #[allow(unsafe_op_in_unsafe_fn)]
+    unsafe fn create_current_context(
+        egl: &glutin_egl_sys::egl::Egl,
+        display: glutin_egl_sys::egl::types::EGLDisplay,
+        width: NonZeroU32,
+        height: NonZeroU32,
+        use_gles: bool,
+    ) -> Result<
+        (
+            glutin_egl_sys::egl::types::EGLContext,
+            glutin_egl_sys::egl::types::EGLSurface,
+        ),
+        String,
+    > {
+        use glutin_egl_sys::egl;
+
+        let api = if use_gles {
+            egl::OPENGL_ES_API
+        } else {
+            egl::OPENGL_API
+        };
+        let renderable = if use_gles {
+            egl::OPENGL_ES3_BIT
+        } else {
+            egl::OPENGL_BIT
+        };
+        if egl.BindAPI(api) == egl::FALSE {
+            return Err(format!("eglBindAPI failed: {}", egl_error(egl)));
+        }
+
+        let config_attributes = [
+            egl::SURFACE_TYPE as i32,
+            egl::PBUFFER_BIT as i32,
+            egl::RENDERABLE_TYPE as i32,
+            renderable as i32,
+            egl::RED_SIZE as i32,
+            8,
+            egl::GREEN_SIZE as i32,
+            8,
+            egl::BLUE_SIZE as i32,
+            8,
+            egl::ALPHA_SIZE as i32,
+            8,
+            egl::DEPTH_SIZE as i32,
+            24,
+            egl::NONE as i32,
+        ];
+        let mut config = std::ptr::null();
+        let mut config_count = 0;
+        if egl.ChooseConfig(
+            display,
+            config_attributes.as_ptr(),
+            &mut config,
+            1,
+            &mut config_count,
+        ) == egl::FALSE
+        {
+            return Err(format!("eglChooseConfig failed: {}", egl_error(egl)));
+        }
+        if config_count == 0 || config.is_null() {
+            return Err("eglChooseConfig returned no matching pbuffer config".to_owned());
+        }
+
+        let surface_attributes = [
+            egl::WIDTH as i32,
+            width.get() as i32,
+            egl::HEIGHT as i32,
+            height.get() as i32,
+            egl::NONE as i32,
+        ];
+        let surface = egl.CreatePbufferSurface(display, config, surface_attributes.as_ptr());
+        if surface == egl::NO_SURFACE {
+            return Err(format!(
+                "eglCreatePbufferSurface failed: {}",
+                egl_error(egl)
+            ));
+        }
+
+        let context_attributes = if use_gles {
+            vec![egl::CONTEXT_CLIENT_VERSION as i32, 3, egl::NONE as i32]
+        } else {
+            vec![
+                egl::CONTEXT_MAJOR_VERSION as i32,
+                3,
+                egl::CONTEXT_MINOR_VERSION as i32,
+                3,
+                egl::CONTEXT_OPENGL_PROFILE_MASK as i32,
+                egl::CONTEXT_OPENGL_CORE_PROFILE_BIT as i32,
+                egl::NONE as i32,
+            ]
+        };
+        let context = egl.CreateContext(
+            display,
+            config,
+            egl::NO_CONTEXT,
+            context_attributes.as_ptr(),
+        );
+        if context == egl::NO_CONTEXT {
+            let err = egl_error(egl);
+            egl.DestroySurface(display, surface);
+            return Err(format!("eglCreateContext failed: {err}"));
+        }
+        if egl.MakeCurrent(display, surface, surface, context) == egl::FALSE {
+            let err = egl_error(egl);
+            egl.DestroyContext(display, context);
+            egl.DestroySurface(display, surface);
+            return Err(format!("eglMakeCurrent failed: {err}"));
+        }
+
+        Ok((context, surface))
+    }
+}
+
+#[cfg(target_os = "linux")]
+impl Drop for RawEglContext {
+    fn drop(&mut self) {
+        use glutin_egl_sys::egl;
+
+        unsafe {
+            self.egl.MakeCurrent(
+                self.display,
+                egl::NO_SURFACE,
+                egl::NO_SURFACE,
+                egl::NO_CONTEXT,
+            );
+            self.egl.DestroyContext(self.display, self.context);
+            self.egl.DestroySurface(self.display, self.surface);
+            self.egl.Terminate(self.display);
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn egl_error(egl: &glutin_egl_sys::egl::Egl) -> String {
+    format!("EGL error 0x{:04x}", unsafe { egl.GetError() })
 }
 
 impl ImageRenderer {
@@ -315,6 +562,16 @@ impl OffscreenGl {
 
         let mut errors = Vec::new();
 
+        match RawEglContext::new(width, height) {
+            Ok((context, gl)) => {
+                return Ok(Self {
+                    gl,
+                    _backend: OffscreenBackend::RawEgl(context),
+                });
+            }
+            Err(err) => errors.push(format!("EGL surfaceless display: {err}")),
+        }
+
         match Device::query_devices() {
             Ok(devices) => {
                 for device in devices {
@@ -432,11 +689,13 @@ impl OffscreenGl {
 
         Ok(Self {
             gl,
-            _context: context,
-            _surface: surface,
-            _window: window,
-            #[cfg(target_os = "windows")]
-            _win32_window: None,
+            _backend: OffscreenBackend::Glutin {
+                _context: context,
+                _surface: surface,
+                _window: window,
+                #[cfg(target_os = "windows")]
+                _win32_window: None,
+            },
         })
     }
 
@@ -449,7 +708,11 @@ impl OffscreenGl {
         win32_window: HiddenWin32Window,
     ) -> Result<Self, String> {
         let mut gl = Self::new_from_config(width, height, gl_config, raw_window_handle, None)?;
-        gl._win32_window = Some(win32_window);
+        match &mut gl._backend {
+            OffscreenBackend::Glutin { _win32_window, .. } => {
+                *_win32_window = Some(win32_window);
+            }
+        }
         Ok(gl)
     }
 
