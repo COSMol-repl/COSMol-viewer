@@ -80,7 +80,10 @@ desktop. `save_image` / `to_png` first try the fast in-process offscreen path;
 on platforms with a headless GL path, this avoids creating a GUI event loop. If
 the in-process path cannot be created after a native viewer has already run,
 they automatically retry in an isolated Python subprocess. Set
-`COSMOL_VIEWER_RENDER_ISOLATED=1` to force that isolated path.
+`COSMOL_VIEWER_RENDER_ISOLATED=1` to force that isolated path. Google Colab is
+detected automatically and uses an isolated software-rendering subprocess, so
+notebook code does not need to set either this variable or
+`LIBGL_ALWAYS_SOFTWARE`.
 
 For an interactive native window:
 

@@ -7,6 +7,7 @@ use pyo3::exceptions::PyValueError;
 use pyo3::types::PyBytes;
 use serde::{Deserialize, Serialize};
 use std::ffi::CStr;
+use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::OnceLock;
@@ -600,8 +601,9 @@ This path uses the native offscreen renderer and does not depend on a Viewer,
 notebook JavaScript, or the current display size. On platforms with a headless
 GL path, the in-process renderer avoids creating a GUI event loop. If the
 in-process renderer cannot be created after a native viewer has already run,
-``save_image`` automatically retries in an isolated Python subprocess. Set
-``COSMOL_VIEWER_RENDER_ISOLATED=1`` to force the isolated path.
+``save_image`` automatically retries in an isolated Python subprocess. Google
+Colab uses the isolated software-rendering path automatically. Set
+``COSMOL_VIEWER_RENDER_ISOLATED=1`` to force the isolated path elsewhere.
 
 Parameters
 ----------
@@ -668,8 +670,9 @@ This is useful in notebooks when you want to display or store an image without
 round-tripping through the browser canvas. On platforms with a headless GL path,
 the in-process renderer avoids creating a GUI event loop. If the in-process
 renderer cannot be created after a native viewer has already run, ``to_png``
-automatically retries in an isolated Python subprocess. Set
-``COSMOL_VIEWER_RENDER_ISOLATED=1`` to force the isolated path.
+automatically retries in an isolated Python subprocess. Google Colab uses the
+isolated software-rendering path automatically. Set
+``COSMOL_VIEWER_RENDER_ISOLATED=1`` to force the isolated path elsewhere.
 
 Parameters
 ----------
@@ -792,14 +795,21 @@ fn render_scene_in_child_process(
     let python_exe = std::env::current_exe().map_err(|err| {
         PyRuntimeError::new_err(format!("Error locating Python executable: {err}"))
     })?;
-    let output = Command::new(python_exe)
+    let mut command = Command::new(python_exe);
+    command
         .arg("-c")
         .arg(script)
         .arg(path_to_string(&scene_path))
         .arg(path_to_string(&output_path))
         .arg(width.to_string())
         .arg(height.to_string())
-        .arg(background_json)
+        .arg(background_json);
+
+    if is_google_colab_environment() && std::env::var_os("LIBGL_ALWAYS_SOFTWARE").is_none() {
+        command.env("LIBGL_ALWAYS_SOFTWARE", "1");
+    }
+
+    let output = command
         .output()
         .map_err(|err| PyRuntimeError::new_err(format!("Error launching image renderer: {err}")))?;
 
@@ -844,18 +854,75 @@ fn render_scene_to_png_bytes_in_child_process(
 
 fn render_images_in_child_process() -> bool {
     std::env::var("COSMOL_VIEWER_RENDER_ISOLATED")
-        .map(|value| {
-            matches!(
-                value.to_ascii_lowercase().as_str(),
-                "1" | "true" | "yes" | "on"
-            )
-        })
-        .unwrap_or(false)
+        .map(|value| environment_flag_enabled(&value))
+        .unwrap_or_else(|_| is_google_colab_environment())
+}
+
+fn environment_flag_enabled(value: &str) -> bool {
+    matches!(
+        value.to_ascii_lowercase().as_str(),
+        "1" | "true" | "yes" | "on"
+    )
+}
+
+fn is_google_colab_environment() -> bool {
+    is_google_colab_environment_with(|name| std::env::var_os(name))
+}
+
+fn is_google_colab_environment_with(mut get_var: impl FnMut(&str) -> Option<OsString>) -> bool {
+    const COLAB_MARKERS: [&str; 4] = [
+        "COLAB_RELEASE_TAG",
+        "COLAB_BACKEND_VERSION",
+        "COLAB_JUPYTER_TRANSPORT",
+        "COLAB_GPU",
+    ];
+
+    COLAB_MARKERS.iter().any(|name| get_var(name).is_some())
 }
 
 fn should_retry_image_render_in_child_process(error: &str) -> bool {
     error.contains("EventLoop can't be recreated")
         || error.contains("Offscreen rendering could not create its GL bootstrap event loop")
+}
+
+#[cfg(test)]
+mod environment_tests {
+    use super::{environment_flag_enabled, is_google_colab_environment_with};
+    use std::collections::HashMap;
+    use std::ffi::OsString;
+
+    #[test]
+    fn parses_enabled_environment_flags() {
+        for value in ["1", "true", "TRUE", "yes", "ON"] {
+            assert!(environment_flag_enabled(value));
+        }
+        for value in ["0", "false", "no", "off", "invalid"] {
+            assert!(!environment_flag_enabled(value));
+        }
+    }
+
+    #[test]
+    fn detects_google_colab_from_runtime_markers() {
+        for marker in [
+            "COLAB_RELEASE_TAG",
+            "COLAB_BACKEND_VERSION",
+            "COLAB_JUPYTER_TRANSPORT",
+            "COLAB_GPU",
+        ] {
+            let environment = HashMap::from([(marker, OsString::from("present"))]);
+            assert!(is_google_colab_environment_with(|name| environment
+                .get(name)
+                .cloned()));
+        }
+    }
+
+    #[test]
+    fn does_not_treat_a_regular_notebook_as_google_colab() {
+        let environment = HashMap::from([("JPY_PARENT_PID", OsString::from("123"))]);
+        assert!(!is_google_colab_environment_with(|name| environment
+            .get(name)
+            .cloned()));
+    }
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]

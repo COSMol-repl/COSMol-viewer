@@ -738,6 +738,17 @@ impl OffscreenGl {
         let samples = offscreen_samples(gl);
 
         unsafe {
+            if samples == 1 {
+                return render_single_sample(
+                    gl,
+                    &mut shader,
+                    &camera_state,
+                    aspect_ratio,
+                    width,
+                    height,
+                );
+            }
+
             let msaa_framebuffer = gl.create_framebuffer().map_err(|err| err.to_string())?;
             gl.bind_framebuffer(glow::FRAMEBUFFER, Some(msaa_framebuffer));
 
@@ -877,17 +888,135 @@ impl OffscreenGl {
     }
 }
 
+#[allow(unsafe_op_in_unsafe_fn)]
+unsafe fn render_single_sample(
+    gl: &glow::Context,
+    shader: &mut Shader,
+    camera_state: &CameraState,
+    aspect_ratio: f32,
+    width: u32,
+    height: u32,
+) -> Result<ImageBuffer<Rgba<u8>, Vec<u8>>, String> {
+    let framebuffer = gl.create_framebuffer().map_err(|err| err.to_string())?;
+    gl.bind_framebuffer(glow::FRAMEBUFFER, Some(framebuffer));
+
+    let color = gl.create_texture().map_err(|err| err.to_string())?;
+    gl.bind_texture(glow::TEXTURE_2D, Some(color));
+    gl.tex_image_2d(
+        glow::TEXTURE_2D,
+        0,
+        glow::RGBA8 as i32,
+        width as i32,
+        height as i32,
+        0,
+        glow::RGBA,
+        glow::UNSIGNED_BYTE,
+        glow::PixelUnpackData::Slice(None),
+    );
+    gl.tex_parameter_i32(
+        glow::TEXTURE_2D,
+        glow::TEXTURE_MIN_FILTER,
+        glow::LINEAR as i32,
+    );
+    gl.tex_parameter_i32(
+        glow::TEXTURE_2D,
+        glow::TEXTURE_MAG_FILTER,
+        glow::LINEAR as i32,
+    );
+    gl.framebuffer_texture_2d(
+        glow::FRAMEBUFFER,
+        glow::COLOR_ATTACHMENT0,
+        glow::TEXTURE_2D,
+        Some(color),
+        0,
+    );
+
+    let depth = gl.create_renderbuffer().map_err(|err| err.to_string())?;
+    gl.bind_renderbuffer(glow::RENDERBUFFER, Some(depth));
+    gl.renderbuffer_storage(
+        glow::RENDERBUFFER,
+        glow::DEPTH_COMPONENT24,
+        width as i32,
+        height as i32,
+    );
+    gl.framebuffer_renderbuffer(
+        glow::FRAMEBUFFER,
+        glow::DEPTH_ATTACHMENT,
+        glow::RENDERBUFFER,
+        Some(depth),
+    );
+
+    let status = gl.check_framebuffer_status(glow::FRAMEBUFFER);
+    if status != glow::FRAMEBUFFER_COMPLETE {
+        gl.delete_renderbuffer(depth);
+        gl.delete_texture(color);
+        gl.delete_framebuffer(framebuffer);
+        gl.bind_framebuffer(glow::FRAMEBUFFER, None);
+        return Err(format!(
+            "offscreen single-sample framebuffer is incomplete: 0x{status:x}"
+        ));
+    }
+
+    gl.viewport(0, 0, width as i32, height as i32);
+    shader.paint(gl, aspect_ratio, camera_state);
+    gl.finish();
+
+    let mut pixels = vec![0_u8; width as usize * height as usize * 4];
+    gl.read_pixels(
+        0,
+        0,
+        width as i32,
+        height as i32,
+        glow::RGBA,
+        glow::UNSIGNED_BYTE,
+        glow::PixelPackData::Slice(Some(&mut pixels)),
+    );
+
+    gl.bind_framebuffer(glow::FRAMEBUFFER, None);
+    gl.delete_renderbuffer(depth);
+    gl.delete_texture(color);
+    gl.delete_framebuffer(framebuffer);
+
+    flip_rgba_rows(&mut pixels, width as usize, height as usize);
+    ImageBuffer::from_raw(width, height, pixels)
+        .ok_or_else(|| "failed to build image buffer from GL pixels".to_owned())
+}
+
 fn offscreen_samples(gl: &glow::Context) -> i32 {
     let requested = std::env::var("COSMOL_VIEWER_OFFSCREEN_SAMPLES")
         .ok()
-        .and_then(|value| value.parse::<i32>().ok())
-        .unwrap_or(4)
-        .clamp(1, 16);
+        .and_then(|value| value.parse::<i32>().ok());
+
+    let default_samples = if software_gl_requested() || software_gl_renderer(gl) {
+        1
+    } else {
+        4
+    };
+    let requested = requested.unwrap_or(default_samples).clamp(1, 16);
 
     unsafe {
         let max_samples = gl.get_parameter_i32(glow::MAX_SAMPLES).max(1);
         requested.min(max_samples)
     }
+}
+
+fn software_gl_requested() -> bool {
+    std::env::var("LIBGL_ALWAYS_SOFTWARE")
+        .map(|value| {
+            matches!(
+                value.to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes" | "on"
+            )
+        })
+        .unwrap_or(false)
+}
+
+fn software_gl_renderer(gl: &glow::Context) -> bool {
+    let renderer = unsafe { gl.get_parameter_string(glow::RENDERER) }.to_ascii_lowercase();
+    renderer.contains("llvmpipe")
+        || renderer.contains("softpipe")
+        || renderer.contains("swrast")
+        || renderer.contains("software rasterizer")
 }
 
 fn offscreen_config_template_builder(
