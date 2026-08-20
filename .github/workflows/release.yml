@@ -1,0 +1,119 @@
+name: GitHub release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag, for example v0.2.25"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: create GitHub release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Resolve release tag
+        id: release
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            tag="$INPUT_TAG"
+          else
+            tag="${GITHUB_REF_NAME}"
+          fi
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid release tag: $tag" >&2
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.release.outputs.tag }}
+
+      - name: Validate version and extract changelog
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          python - <<'PY'
+          import os
+          import re
+          import tomllib
+          from pathlib import Path
+
+          version = os.environ["RELEASE_VERSION"]
+          workspace = tomllib.loads(Path("Cargo.toml").read_text(encoding="utf-8"))
+          python_project = tomllib.loads(
+              Path("crates/python/pyproject.toml").read_text(encoding="utf-8")
+          )
+
+          workspace_version = workspace["workspace"]["package"]["version"]
+          python_version = python_project["project"]["version"]
+          if workspace_version != version:
+              raise SystemExit(
+                  f"tag version {version} does not match Cargo version {workspace_version}"
+              )
+          if python_version != version:
+              raise SystemExit(
+                  f"tag version {version} does not match Python version {python_version}"
+              )
+
+          changelog = Path("CHANGELOG.md").read_text(encoding="utf-8")
+          header_match = re.search(
+              r"^<!-- release-header:start -->\n"
+              r"(?P<body>.*?)"
+              r"^<!-- release-header:end -->$",
+              changelog,
+              re.MULTILINE | re.DOTALL,
+          )
+          if header_match is None:
+              raise SystemExit("CHANGELOG.md has no complete release-header block")
+
+          release_header = header_match.group("body").strip()
+          if not release_header:
+              raise SystemExit("CHANGELOG.md has an empty release-header block")
+
+          match = re.search(
+              rf"^## \[{re.escape(version)}\] - "
+              rf"(?P<date>\d{{4}}-\d{{2}}-\d{{2}})\n"
+              rf"(?P<body>.*?)(?=^## \[|^\[[^\]]+\]:|\Z)",
+              changelog,
+              re.MULTILINE | re.DOTALL,
+          )
+          if match is None:
+              raise SystemExit(f"CHANGELOG.md has no dated section for {version}")
+
+          version_notes = match.group("body").strip()
+          if not version_notes:
+              raise SystemExit(f"CHANGELOG.md has no release notes for {version}")
+
+          Path("release-notes.md").write_text(
+              f"{release_header}\n\n"
+              f"## COSMol-viewer v{version} - {match.group('date')}\n\n"
+              f"{version_notes}\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release.outputs.tag }}
+          name: COSMol-viewer ${{ steps.release.outputs.version }}
+          body_path: release-notes.md
+          draft: false
+          prerelease: false
