@@ -2,6 +2,9 @@
 A high-performance molecular viewer for Python and Rust, powered by a unified Rust core.
 It supports both in-notebook visualization and native desktop rendering, with smooth playback for scientific animations.
 
+Full installation, workflow, and Python API documentation is available at
+<https://cosmol-studio.github.io/COSMol-viewer/>.
+
 <div align="center">
   <a href="https://pypi.org/project/cosmol-viewer/">
     <img src="https://img.shields.io/pypi/v/cosmol-viewer.svg" alt="PyPi Latest Release" />

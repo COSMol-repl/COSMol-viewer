@@ -367,7 +367,7 @@ impl<L: Logger> Canvas<L> {
         let cb = egui_glow::CallbackFn::new(move |_info, painter| {
             shader
                 .lock()
-                .paint(painter.gl(), aspect_ratio, &camera_state);
+                .paint(painter.gl(), aspect_ratio, &camera_state, true);
         });
 
         let callback = egui::PaintCallback {
@@ -1356,6 +1356,7 @@ impl Shader {
         gl: &glow::Context,
         aspect_ratio: f32,
         camera_state: &CameraState,
+        multisample: bool,
     ) {
         let (u_view, u_projection, u_view_pos) = camera_state.matrices(aspect_ratio);
 
@@ -1391,7 +1392,11 @@ impl Shader {
 
             gl.enable(glow::DEPTH_TEST);
             #[cfg(not(target_arch = "wasm32"))]
-            gl.enable(glow::MULTISAMPLE); // 开启多重采样
+            if multisample {
+                gl.enable(glow::MULTISAMPLE);
+            } else {
+                gl.disable(glow::MULTISAMPLE);
+            }
 
             if self.transparent_background() {
                 gl.clear_color(0.0, 0.0, 0.0, 0.0);

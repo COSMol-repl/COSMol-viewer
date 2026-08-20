@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::ffi::CStr;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Output};
 use std::sync::OnceLock;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -795,23 +795,16 @@ fn render_scene_in_child_process(
     let python_exe = std::env::current_exe().map_err(|err| {
         PyRuntimeError::new_err(format!("Error locating Python executable: {err}"))
     })?;
-    let mut command = Command::new(python_exe);
-    command
-        .arg("-c")
-        .arg(script)
-        .arg(path_to_string(&scene_path))
-        .arg(path_to_string(&output_path))
-        .arg(width.to_string())
-        .arg(height.to_string())
-        .arg(background_json);
-
-    if is_google_colab_environment() && std::env::var_os("LIBGL_ALWAYS_SOFTWARE").is_none() {
-        command.env("LIBGL_ALWAYS_SOFTWARE", "1");
-    }
-
-    let output = command
-        .output()
-        .map_err(|err| PyRuntimeError::new_err(format!("Error launching image renderer: {err}")))?;
+    let arguments = ChildRenderArguments {
+        script,
+        scene_path: &scene_path,
+        output_path: &output_path,
+        width,
+        height,
+        background_json: &background_json,
+    };
+    let colab = is_google_colab_environment();
+    let output = run_image_renderer(&python_exe, &arguments, colab)?;
 
     let _ = std::fs::remove_file(scene_path);
 
@@ -823,12 +816,70 @@ fn render_scene_in_child_process(
         let _ = std::fs::remove_file(&output_path);
     }
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
     Err(PyRuntimeError::new_err(format!(
-        "Image renderer failed with status {}.\nstdout:\n{}\nstderr:\n{}",
-        output.status, stdout, stderr
+        "Image renderer failed.\n{}",
+        format_child_failure("image renderer", &output)
     )))
+}
+
+struct ChildRenderArguments<'a> {
+    script: &'a str,
+    scene_path: &'a Path,
+    output_path: &'a Path,
+    width: u32,
+    height: u32,
+    background_json: &'a str,
+}
+
+fn run_image_renderer(
+    python_exe: &Path,
+    arguments: &ChildRenderArguments<'_>,
+    colab: bool,
+) -> PyResult<Output> {
+    let mut command = Command::new(python_exe);
+    command
+        .arg("-c")
+        .arg(arguments.script)
+        .arg(path_to_string(arguments.scene_path))
+        .arg(path_to_string(arguments.output_path))
+        .arg(arguments.width.to_string())
+        .arg(arguments.height.to_string())
+        .arg(arguments.background_json);
+
+    configure_colab_render_environment(&mut command, colab, |name| std::env::var_os(name));
+
+    command
+        .output()
+        .map_err(|err| PyRuntimeError::new_err(format!("Error launching image renderer: {err}")))
+}
+
+fn configure_colab_render_environment(
+    command: &mut Command,
+    colab: bool,
+    mut get_var: impl FnMut(&str) -> Option<OsString>,
+) {
+    if !colab {
+        return;
+    }
+
+    if get_var("LIBGL_ALWAYS_SOFTWARE").is_none() {
+        command.env("LIBGL_ALWAYS_SOFTWARE", "1");
+    }
+    // Colab's llvmpipe JIT can crash inside Mesa even with a single-sample
+    // framebuffer. Softpipe is slower but stays isolated and deterministic.
+    if get_var("GALLIUM_DRIVER").is_none() {
+        command.env("GALLIUM_DRIVER", "softpipe");
+    }
+    command.env("COSMOL_VIEWER_OFFSCREEN_TRACE", "1");
+}
+
+fn format_child_failure(label: &str, output: &Output) -> String {
+    format!(
+        "{label} failed with status {}.\nstdout:\n{}\nstderr:\n{}",
+        output.status,
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    )
 }
 
 fn render_scene_to_png_bytes_in_child_process(
@@ -887,9 +938,13 @@ fn should_retry_image_render_in_child_process(error: &str) -> bool {
 
 #[cfg(test)]
 mod environment_tests {
-    use super::{environment_flag_enabled, is_google_colab_environment_with};
+    use super::{
+        configure_colab_render_environment, environment_flag_enabled,
+        is_google_colab_environment_with,
+    };
     use std::collections::HashMap;
     use std::ffi::OsString;
+    use std::process::Command;
 
     #[test]
     fn parses_enabled_environment_flags() {
@@ -922,6 +977,54 @@ mod environment_tests {
         assert!(!is_google_colab_environment_with(|name| environment
             .get(name)
             .cloned()));
+    }
+
+    #[test]
+    fn configures_safe_colab_software_rendering_defaults() {
+        let mut command = Command::new("python");
+        configure_colab_render_environment(&mut command, true, |_| None);
+
+        let configured = command
+            .get_envs()
+            .map(|(name, value)| {
+                (
+                    name.to_string_lossy().into_owned(),
+                    value.map(|value| value.to_string_lossy().into_owned()),
+                )
+            })
+            .collect::<HashMap<_, _>>();
+        assert_eq!(
+            configured.get("LIBGL_ALWAYS_SOFTWARE"),
+            Some(&Some("1".to_owned()))
+        );
+        assert_eq!(
+            configured.get("GALLIUM_DRIVER"),
+            Some(&Some("softpipe".to_owned()))
+        );
+        assert_eq!(
+            configured.get("COSMOL_VIEWER_OFFSCREEN_TRACE"),
+            Some(&Some("1".to_owned()))
+        );
+    }
+
+    #[test]
+    fn preserves_explicit_colab_renderer_selection() {
+        let environment = HashMap::from([
+            ("LIBGL_ALWAYS_SOFTWARE", OsString::from("0")),
+            ("GALLIUM_DRIVER", OsString::from("llvmpipe")),
+        ]);
+        let mut command = Command::new("python");
+        configure_colab_render_environment(&mut command, true, |name| {
+            environment.get(name).cloned()
+        });
+
+        let configured_names = command
+            .get_envs()
+            .map(|(name, _)| name.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        assert!(!configured_names.contains(&"LIBGL_ALWAYS_SOFTWARE".to_owned()));
+        assert!(!configured_names.contains(&"GALLIUM_DRIVER".to_owned()));
+        assert!(configured_names.contains(&"COSMOL_VIEWER_OFFSCREEN_TRACE".to_owned()));
     }
 }
 

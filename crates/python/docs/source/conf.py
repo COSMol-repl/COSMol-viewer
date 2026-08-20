@@ -1,10 +1,12 @@
-import os
-import sys
+import importlib.metadata
 
-sys.path.insert(0, os.path.abspath("../.."))
+project = "COSMol-viewer"
+author = "COSMol-viewer Contributors"
 
-project = "cosmol_viewer"
-author = "Jingtong Wang"
+try:
+    release = importlib.metadata.version("cosmol-viewer")
+except importlib.metadata.PackageNotFoundError:
+    release = "development"
 
 extensions = [
     "sphinx.ext.autodoc",
@@ -16,9 +18,14 @@ extensions = [
 autosummary_generate = True
 autodoc_typehints = "signature"
 autoclass_content = "both"
-always_document_param_types = True
 
 templates_path = ["_templates"]
 exclude_patterns = []
 
 html_theme = "furo"
+html_title = f"COSMol-viewer {release}"
+html_theme_options = {
+    "source_repository": "https://github.com/cosmol-studio/COSMol-viewer/",
+    "source_branch": "main",
+    "source_directory": "crates/python/docs/source/",
+}

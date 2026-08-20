@@ -184,7 +184,9 @@ cargo run --example render_protein
 
 # Documentation
 
-Please check out our documentation at [here](https://cosmol-studio.github.io/COSMol-viewer/).
+- Python user guide and API reference: <https://cosmol-studio.github.io/COSMol-viewer/>
+- Rust API reference: <https://docs.rs/cosmol_viewer/latest/cosmol_viewer/>
+- Documentation sources: [`crates/python/docs/source`](crates/python/docs/source)
 
 ---
 

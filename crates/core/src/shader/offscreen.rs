@@ -183,6 +183,7 @@ impl RawEglContext {
         use glutin_egl_sys::egl;
         use std::ffi::c_void;
 
+        offscreen_trace("loading libEGL");
         let library = unsafe {
             libloading::Library::new("libEGL.so.1")
                 .or_else(|_| libloading::Library::new("libEGL.so"))
@@ -195,6 +196,7 @@ impl RawEglContext {
                 .unwrap_or(std::ptr::null())
         });
 
+        offscreen_trace("requesting surfaceless EGL display");
         let display = unsafe {
             if egl.GetPlatformDisplay.is_loaded() {
                 egl.GetPlatformDisplay(
@@ -221,6 +223,7 @@ impl RawEglContext {
 
         let mut major = 0;
         let mut minor = 0;
+        offscreen_trace("initializing surfaceless EGL display");
         if unsafe { egl.Initialize(display, &mut major, &mut minor) } == egl::FALSE {
             return Err(format!(
                 "eglInitialize(surfaceless) failed: {}",
@@ -228,6 +231,7 @@ impl RawEglContext {
             ));
         }
 
+        offscreen_trace("creating EGL context and pbuffer");
         let current = unsafe {
             Self::create_current_context(&egl, display, width, height, false).or_else(
                 |desktop_error| {
@@ -255,6 +259,7 @@ impl RawEglContext {
                 egl.GetProcAddress(symbol.as_ptr()).cast()
             })
         };
+        offscreen_trace("created EGL context and loaded GL functions");
 
         Ok((
             Self {
@@ -387,6 +392,7 @@ impl Drop for RawEglContext {
         use glutin_egl_sys::egl;
 
         unsafe {
+            offscreen_trace("releasing EGL context");
             self.egl.MakeCurrent(
                 self.display,
                 egl::NO_SURFACE,
@@ -396,6 +402,7 @@ impl Drop for RawEglContext {
             self.egl.DestroyContext(self.display, self.context);
             self.egl.DestroySurface(self.display, self.surface);
             self.egl.Terminate(self.display);
+            offscreen_trace("released EGL context");
         }
     }
 }
@@ -424,8 +431,12 @@ impl ImageRenderer {
         thread::Builder::new()
             .name("cosmol_viewer_offscreen_render".to_owned())
             .spawn(move || {
+                offscreen_trace("creating offscreen GL backend");
                 let mut gl = OffscreenGl::new()?;
-                gl.render(&scene, width, height, background)
+                offscreen_trace("created offscreen GL backend");
+                let image = gl.render(&scene, width, height, background)?;
+                offscreen_trace("completed offscreen render");
+                Ok(image)
             })
             .map_err(|err| format!("failed to start offscreen render thread: {err}"))?
             .join()
@@ -728,8 +739,10 @@ impl OffscreenGl {
         }
 
         let gl = &self.gl;
+        offscreen_trace("creating scene shader");
         let mut shader =
             Shader::new(gl, scene).ok_or_else(|| "failed to initialize shader".to_owned())?;
+        offscreen_trace("created scene shader");
         if let ImageBackground::Color(background_color) = background {
             shader.set_background_color(Vec4::from_array(background_color));
         }
@@ -796,7 +809,7 @@ impl OffscreenGl {
             }
 
             gl.viewport(0, 0, width as i32, height as i32);
-            shader.paint(gl, aspect_ratio, &camera_state);
+            shader.paint(gl, aspect_ratio, &camera_state, true);
             gl.finish();
 
             let resolve_framebuffer = gl.create_framebuffer().map_err(|err| err.to_string())?;
@@ -897,6 +910,7 @@ unsafe fn render_single_sample(
     width: u32,
     height: u32,
 ) -> Result<ImageBuffer<Rgba<u8>, Vec<u8>>, String> {
+    offscreen_trace("creating single-sample framebuffer");
     let framebuffer = gl.create_framebuffer().map_err(|err| err.to_string())?;
     gl.bind_framebuffer(glow::FRAMEBUFFER, Some(framebuffer));
 
@@ -957,10 +971,13 @@ unsafe fn render_single_sample(
         ));
     }
 
+    offscreen_trace("painting single-sample framebuffer");
     gl.viewport(0, 0, width as i32, height as i32);
-    shader.paint(gl, aspect_ratio, camera_state);
+    shader.paint(gl, aspect_ratio, camera_state, false);
+    offscreen_trace("finishing single-sample framebuffer");
     gl.finish();
 
+    offscreen_trace("reading single-sample framebuffer");
     let mut pixels = vec![0_u8; width as usize * height as usize * 4];
     gl.read_pixels(
         0,
@@ -972,6 +989,7 @@ unsafe fn render_single_sample(
         glow::PixelPackData::Slice(Some(&mut pixels)),
     );
 
+    offscreen_trace("releasing single-sample framebuffer");
     gl.bind_framebuffer(glow::FRAMEBUFFER, None);
     gl.delete_renderbuffer(depth);
     gl.delete_texture(color);
@@ -980,6 +998,17 @@ unsafe fn render_single_sample(
     flip_rgba_rows(&mut pixels, width as usize, height as usize);
     ImageBuffer::from_raw(width, height, pixels)
         .ok_or_else(|| "failed to build image buffer from GL pixels".to_owned())
+}
+
+fn offscreen_trace(stage: &str) {
+    if std::env::var_os("COSMOL_VIEWER_OFFSCREEN_TRACE").is_none() {
+        return;
+    }
+
+    use std::io::Write as _;
+    let mut stderr = std::io::stderr().lock();
+    let _ = writeln!(stderr, "[cosmol_viewer offscreen] {stage}");
+    let _ = stderr.flush();
 }
 
 fn offscreen_samples(gl: &glow::Context) -> i32 {
