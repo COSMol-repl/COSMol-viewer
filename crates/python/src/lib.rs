@@ -21,6 +21,7 @@ use cosmol_viewer_core::{
     scene::{Scene as _Scene, default_light_color},
 };
 use cosmol_viewer_wasm::NotebookViewer;
+use cosmol_viewer_wasm::utils::compress_animation;
 #[cfg(feature = "stubgen")]
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 #[cfg(not(feature = "stubgen"))]
@@ -102,6 +103,43 @@ scene : Scene
 "#]
     pub fn set_static_scene(&mut self, scene: Scene) {
         self.inner.static_scene = Some(scene.inner);
+    }
+
+    #[doc = r#"
+Serialize the animation into a versioned payload for direct browser playback.
+
+The returned UTF-8 string can be written to a ``.cmv`` file and passed to
+``WebHandle.initiate_viewer_and_play(canvas, payload)`` in the WebAssembly
+frontend. Static scenes and frames are prepared for WebAssembly rendering in
+the serialized copy; this method does not modify the animation object.
+
+Returns
+-------
+str
+    A versioned, compressed, base64-encoded animation payload.
+
+Raises
+------
+RuntimeError
+    If the animation has no frames or cannot be serialized.
+"#]
+    pub fn to_payload(&self) -> PyResult<String> {
+        if self.inner.frames.is_empty() {
+            return Err(PyRuntimeError::new_err(
+                "Animation must contain at least one frame",
+            ));
+        }
+
+        let mut animation = self.inner.clone();
+        if let Some(static_scene) = &mut animation.static_scene {
+            static_scene.prepare_for_wasm();
+        }
+        for frame in &mut animation.frames {
+            frame.prepare_for_wasm();
+        }
+
+        compress_animation(&animation)
+            .map_err(|err| PyRuntimeError::new_err(format!("Failed to serialize animation: {err}")))
     }
 
     #[gen_stub(skip)]
@@ -785,9 +823,13 @@ fn render_scene_in_child_process(
 
     let output_path = absolutize_output_path(output_path)?;
     let script = concat!(
+        "import os\n",
         "import sys\n",
         "from cosmol_viewer import Scene\n",
         "Scene._render_json_to_png_file(sys.argv[1], sys.argv[2], int(sys.argv[3]), int(sys.argv[4]), sys.argv[5])\n",
+        // The process exists solely to isolate native rendering. Once the PNG
+        // is complete, skip Python extension and Mesa process-exit teardown.
+        "os._exit(0)\n",
     );
     let background_json = serde_json::to_string(&background)
         .map_err(|err| PyRuntimeError::new_err(format!("Error serializing background: {err}")))?;

@@ -1,3 +1,5 @@
+#[cfg(target_os = "linux")]
+use std::sync::OnceLock;
 use std::{ffi::CString, num::NonZeroU32, thread};
 #[cfg(target_os = "windows")]
 use std::{ffi::OsStr, num::NonZeroIsize, os::windows::ffi::OsStrExt};
@@ -56,7 +58,22 @@ struct RawEglContext {
     display: glutin_egl_sys::egl::types::EGLDisplay,
     context: glutin_egl_sys::egl::types::EGLContext,
     surface: glutin_egl_sys::egl::types::EGLSurface,
-    _library: libloading::Library,
+}
+
+#[cfg(target_os = "linux")]
+fn raw_egl_library() -> Result<&'static libloading::Library, String> {
+    static EGL_LIBRARY: OnceLock<Result<libloading::Library, String>> = OnceLock::new();
+
+    match EGL_LIBRARY.get_or_init(|| {
+        unsafe {
+            libloading::Library::new("libEGL.so.1")
+                .or_else(|_| libloading::Library::new("libEGL.so"))
+        }
+        .map_err(|err| format!("could not load libEGL: {err}"))
+    }) {
+        Ok(library) => Ok(library),
+        Err(err) => Err(err.clone()),
+    }
 }
 
 #[cfg(target_os = "windows")]
@@ -184,11 +201,10 @@ impl RawEglContext {
         use std::ffi::c_void;
 
         offscreen_trace("loading libEGL");
-        let library = unsafe {
-            libloading::Library::new("libEGL.so.1")
-                .or_else(|_| libloading::Library::new("libEGL.so"))
-        }
-        .map_err(|err| format!("could not load libEGL: {err}"))?;
+        // EGL function pointers can outlive an individual context. Keep the
+        // loader resident for the process lifetime; unloading Mesa's libEGL
+        // immediately after eglTerminate can crash software-rendering workers.
+        let library = raw_egl_library()?;
         let egl = egl::Egl::load_with(|symbol| unsafe {
             library
                 .get::<*const c_void>(symbol.as_bytes())
@@ -267,7 +283,6 @@ impl RawEglContext {
                 display,
                 context,
                 surface,
-                _library: library,
             },
             gl,
         ))

@@ -1,3 +1,4 @@
+use crate::utils::compress_animation;
 use crate::utils::compress_data;
 use crate::utils::decompress_data;
 use cosmol_viewer_core::BUILD_ID;
@@ -111,7 +112,7 @@ impl NotebookViewer {
             height = height
         );
 
-        let compressed = compress_data(&animation)
+        let compressed = compress_animation(&animation)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
 
         let escaped = serde_json::to_string(&compressed).unwrap();

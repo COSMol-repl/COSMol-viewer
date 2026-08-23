@@ -18,6 +18,32 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 The text between the `release-header` markers is prepended to every GitHub
 Release. The release workflow extracts the section matching the pushed tag.
 
+## [0.2.26] - 2026-08-23
+
+### Added
+
+- Added `Animation.to_payload()` for exporting compressed animation data for
+  direct browser playback through `WebHandle.initiate_viewer_and_play`.
+- Added an explicit `CMV1:` animation payload format marker and decoder
+  support for both versioned and legacy unprefixed animation payloads.
+
+### Changed
+
+- Animation payload serialization now prepares a cloned animation, preserving
+  the Python animation object and its scenes for later use.
+- Expanded the Python API documentation for animation payload export and
+  browser playback.
+- Updated workspace and Python package metadata to version `0.2.26` and
+  refreshed the lockfile dependencies.
+
+### Fixed
+
+- Kept the Linux EGL loader resident for the process lifetime to avoid native
+  crashes caused by unloading the GL library while offscreen rendering state
+  is still being released.
+- Made isolated offscreen rendering exit cleanly after the image has been
+  written, avoiding Python/Mesa teardown crashes in headless environments.
+
 ## [0.2.25] - 2026-08-20
 
 ### Added
@@ -49,3 +75,4 @@ Release. The release workflow extracts the section matching the pushed tag.
   prevented pull requests from deploying GitHub Pages.
 
 [0.2.25]: https://github.com/cosmol-studio/COSMol-viewer/compare/v0.2.24...v0.2.25
+[0.2.26]: https://github.com/cosmol-studio/COSMol-viewer/compare/v0.2.25...v0.2.26

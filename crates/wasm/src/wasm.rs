@@ -1,4 +1,6 @@
 use crate::utils::compress_data;
+#[cfg(target_arch = "wasm32")]
+use crate::utils::decompress_animation;
 use crate::utils::decompress_data;
 use cosmol_viewer_core::scene::Scene;
 #[cfg(target_arch = "wasm32")]
@@ -120,7 +122,7 @@ impl WebHandle {
             let kb = payload.as_bytes().len() as f64 / 1024.0;
             web_sys::console::log_1(&format!("Transmission size: {kb:.2} KB").into());
 
-            let animation: Animation = decompress_data(&_animation_compressed)
+            let animation: Animation = decompress_animation(&_animation_compressed)
                 .map_err(|e| JsValue::from_str(&e.to_string()))?;
 
             let app = Arc::clone(&self.app);
