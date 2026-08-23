@@ -1,15 +1,11 @@
 name: GitHub release
 
 on:
-  push:
-    tags:
-      - "v*"
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: "Existing release tag, for example v0.2.25"
-        required: true
-        type: string
+  # The GitHub Release is created only after the complete publish workflow
+  # succeeds for the same tag push.
+  workflow_run:
+    workflows: [publish]
+    types: [completed]
 
 permissions:
   contents: write
@@ -18,20 +14,30 @@ jobs:
   release:
     name: create GitHub release
     runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      startsWith(github.event.workflow_run.head_branch, 'v')
 
     steps:
       - name: Resolve release tag
         id: release
         shell: bash
         env:
-          EVENT_NAME: ${{ github.event_name }}
-          INPUT_TAG: ${{ inputs.tag }}
+          WORKFLOW_RUN_EVENT: ${{ github.event.workflow_run.event }}
+          WORKFLOW_RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          WORKFLOW_RUN_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
         run: |
-          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
-            tag="$INPUT_TAG"
-          else
-            tag="${GITHUB_REF_NAME}"
+          if [[ "$WORKFLOW_RUN_EVENT" != "push" ]]; then
+            echo "The publish workflow was not triggered by a push" >&2
+            exit 1
           fi
+          if [[ "$WORKFLOW_RUN_CONCLUSION" != "success" ]]; then
+            echo "The publish workflow did not succeed" >&2
+            exit 1
+          fi
+          tag="$WORKFLOW_RUN_HEAD_BRANCH"
           if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
             echo "Invalid release tag: $tag" >&2
             exit 1
