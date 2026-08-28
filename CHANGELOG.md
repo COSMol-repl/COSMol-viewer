@@ -18,6 +18,18 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 The text between the `release-header` markers is prepended to every GitHub
 Release. The release workflow extracts the section matching the pushed tag.
 
+## [0.3.0] - 2026-08-28
+
+### Changed
+
+- Updated the COSMolKit integration from `0.2.12` to `0.3.0`.
+- Converted COSMolKit's double-precision protein coordinates at the import
+  boundary to the viewer's single-precision geometry representation.
+- GitHub Releases now wait for the corresponding tag-triggered publish
+  workflow to complete successfully before they are created.
+- Updated the Rust workspace and Python package versions to `0.3.0` and
+  refreshed transitive dependencies.
+
 ## [0.2.26] - 2026-08-23
 
 ### Added
@@ -76,3 +88,4 @@ Release. The release workflow extracts the section matching the pushed tag.
 
 [0.2.25]: https://github.com/cosmol-studio/COSMol-viewer/compare/v0.2.24...v0.2.25
 [0.2.26]: https://github.com/cosmol-studio/COSMol-viewer/compare/v0.2.25...v0.2.26
+[0.3.0]: https://github.com/cosmol-studio/COSMol-viewer/compare/v0.2.26...v0.3.0

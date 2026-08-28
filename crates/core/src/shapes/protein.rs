@@ -165,7 +165,7 @@ impl Protein {
                     let Some(position) = atom_ref.position() else {
                         continue;
                     };
-                    let position = Vec3::new(position[0], position[1], position[2]);
+                    let position = Vec3::from_array(position.map(|coordinate| coordinate as f32));
                     let name = cosmolkit_atom_name(&atom.name);
                     raw_atoms.push(RawProteinAtom {
                         name: name.to_string(),
